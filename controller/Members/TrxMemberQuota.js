@@ -32,7 +32,7 @@ export const getQuoteByMemberId = async (req, res) => {
       return errorResponse(res, 400, "Missing id parameter");
     }
 
-    const quote = await TrxMemberQuota.findOne({
+    const quote = await TrxMemberQuota.findAll({
       where: { MemberProductId: id },
     });
     if (!quote) {

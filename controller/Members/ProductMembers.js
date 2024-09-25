@@ -30,12 +30,6 @@ export const getAllMemberProducts = async (req, res) => {
       offset: (page - 1) * limit,
       limit: parseInt(limit),
       order: [["Id", "DESC"]],
-      include: [
-        {
-          model: Location,
-          attributes: ["Name", "Region", "Vendor"],
-        },
-      ],
     });
 
     return successResponse(res, 200, "Products retrieved successfully", {

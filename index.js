@@ -17,12 +17,9 @@ import TrxMemberQuote from "./route/Members/TrxMemberQuota.js";
 import MemberMaster from "./route/Members/MemberMaster.js";
 import MemberHistoryPost from "./route/Members/MemberHistoryPost.js";
 import { initAssociations } from "./model/Members/associations.js";
-import { createServer } from "http";
 
 initAssociations();
 const app = express();
-
-const httpServer = createServer(app);
 
 app.use(
   cors({
@@ -60,6 +57,6 @@ app.use("/v01/member/api", MemberHistoryPost);
 // app.use("/v01/member/api", SendWhatsapp);
 
 const PORT = 3008;
-httpServer.listen(PORT, () => {
+app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });

@@ -30,12 +30,10 @@ app.use(
     origin: [
       "*",
       "http://localhost:3000",
-      "http://147.139.135.195:8091",
-      "https://dev-valet.skyparking.online",
-      "https://dev-on.skyparking.online",
       "https://dev-membership.skyparking.online",
       "https://dev-injectmember.skyparking.online",
       "https://inject.skyparking.online",
+      "https://membership.skyparking.online",
     ],
   })
 );

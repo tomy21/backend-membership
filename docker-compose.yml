@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   app:
-    container_name: 'server_transaksi'
+    container_name: 'membership-api'
     build: 
       context: .
       dockerfile: Dockerfile

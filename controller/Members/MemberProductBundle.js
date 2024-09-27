@@ -173,7 +173,7 @@ export const getProductByType = async (req, res) => {
 
 export const getProductByIdProduct = async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id;
     const product = await MemberProductBundle.findAll({
       where: { MemberProductId: id, IsDeleted: false },
     });

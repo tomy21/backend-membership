@@ -28,6 +28,7 @@ export const getQuoteById = async (req, res) => {
 export const getQuoteByMemberId = async (req, res) => {
   try {
     const id = req.params.id;
+    console.log(id);
     if (!id) {
       return errorResponse(res, 400, "Missing id parameter");
     }

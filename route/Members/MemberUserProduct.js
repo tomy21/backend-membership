@@ -8,6 +8,7 @@ import {
   getMemberByUserId,
   verifikasiPlat,
 } from "../../controller/Members/MemberUserProduct.js";
+import { protect } from "../../middleware/member/authMiddleware.js";
 
 const router = express.Router();
 
@@ -16,13 +17,13 @@ router
   .post(createMemberUserProduct)
   .get(getAllMemberUserProducts);
 
-router.route("/userProduct/byUser").get(getMemberByUserId);
+router.route("/userProduct/byUser").get(protect, getMemberByUserId);
 router.route("/userProduct/verifikasi").get(verifikasiPlat);
 
 router
-  .route("/userProduct/updateData/:id")
-  .get(getMemberUserProduct)
-  .patch(updateMemberUserProduct)
-  .delete(deleteMemberUserProduct);
+  .route("/userProduct/updateData")
+  .get(protect, getMemberUserProduct)
+  .patch(protect, updateMemberUserProduct)
+  .delete(protect, deleteMemberUserProduct);
 
 export default router;

@@ -37,9 +37,10 @@ const createSendToken = (user, statusCode, res, rememberMe) => {
   const token = signToken(user, rememberMe);
 
   res.cookie("refreshToken", token, {
-    httpOnly: false,
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     expires: new Date(Date.now() + (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000),
+    sameSite: process.env.NODE_ENV === "production" ? "Strict" : "Lax",
   });
 
   res.status(statusCode).json({
@@ -212,10 +213,11 @@ export const activateAccount = async (req, res) => {
 
 export const getUserById = async (req, res) => {
   try {
-    const userById = await User.findByPk(req.params.id);
+    const userId = req.userId;
+    const userById = await User.findByPk(userId);
     const usersDetailById = await UserDetails.findOne({
       where: {
-        MemberUserId: req.params.id,
+        MemberUserId: userId,
       },
     });
     if (!userById) {
@@ -240,11 +242,12 @@ export const getUserById = async (req, res) => {
 };
 
 export const getUserByIdDetail = async (req, res) => {
-  const { MemberUserId, Pin } = req.body;
+  const userId = req.userId;
+  const { Pin } = req.body;
   try {
     const users = await UserDetails.findOne({
       where: {
-        MemberUserId: MemberUserId,
+        MemberUserId: userId,
       },
     });
     if (!users || !(await users.correctPassword(Pin, users.Pin))) {
@@ -266,13 +269,16 @@ export const getUserByIdDetail = async (req, res) => {
 };
 
 export const logout = (req, res) => {
-  res.cookie("jwt", "loggedout", {
+  res.cookie("refreshToken", "loggedout", {
     expires: new Date(Date.now() + 10 * 1000),
     httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Lax",
   });
 
   res.status(200).json({
     status: "success",
+    message: "Logged out successfully",
   });
 };
 
@@ -359,7 +365,7 @@ export const getRoleById = async (req, res) => {
 };
 
 export const updateUserDetails = async (req, res) => {
-  const { id } = req.params; // Extract the MemberUserId from the URL
+  const id = req.userId;
   const {
     FullName,
     IpAddress,

@@ -50,7 +50,7 @@ export const getAllMemberUserProducts = async (req, res) => {
 // Get a single MemberUserProduct by ID
 export const getMemberUserProduct = async (req, res) => {
   try {
-    const product = await MemberUserProduct.findByPk(req.params.id);
+    const product = await MemberUserProduct.findByPk(req.userId);
     if (!product || product.DeletedOn) {
       return res.status(404).json({
         statusCode: 404,
@@ -73,8 +73,8 @@ export const getMemberUserProduct = async (req, res) => {
 // Get MemberUserProducts by MemberUserId
 export const getMemberByUserId = async (req, res) => {
   try {
-    const userId = req.query.userId;
-
+    const userId = req.userId;
+    console.log(userId);
     if (!userId) {
       return res.status(400).json({
         statusCode: 400,
@@ -129,7 +129,7 @@ export const getMemberByUserId = async (req, res) => {
 export const updateMemberUserProduct = async (req, res) => {
   try {
     const [updated] = await MemberUserProduct.update(req.body, {
-      where: { Id: req.params.id },
+      where: { Id: req.userId },
     });
     if (!updated || updated === 0) {
       return res.status(404).json({
@@ -138,7 +138,7 @@ export const updateMemberUserProduct = async (req, res) => {
       });
     }
 
-    const updatedProduct = await MemberUserProduct.findByPk(req.params.id);
+    const updatedProduct = await MemberUserProduct.findByPk(req.userId);
     if (!updatedProduct) {
       return res.status(404).json({
         statusCode: 404,

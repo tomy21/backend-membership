@@ -53,19 +53,26 @@ export const getMemberPointById = async (req, res) => {
     });
 
     if (rows.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "No Member Points found for the given CardId" });
+      return res.status(404).json({
+        statusCode: 404,
+        message: "No Member Points found for the given CardId",
+      });
     }
 
     res.json({
+      statusCode: 200,
       totalItems: count,
       totalPages: Math.ceil(count / limit),
       currentPage: parseInt(page),
       data: rows,
     });
   } catch (error) {
-    res.status(500).json({ message: "Error fetching data", error });
+    console.error("Error fetching member points:", error);
+    res.status(500).json({
+      statusCode: 500,
+      message: "Error fetching data",
+      error: error.message, // Berikan pesan error ke klien tanpa log detail error di console
+    });
   }
 };
 
@@ -91,9 +98,10 @@ export const getMemberPointsByCardId = async (req, res) => {
     });
 
     if (rows.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "No Member Points found for the given CardId" });
+      return res.status(404).json({
+        statusCode: 404,
+        message: "No Member Points found for the given CardId",
+      });
     }
 
     res.json({

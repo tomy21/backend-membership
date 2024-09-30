@@ -2,7 +2,7 @@ import express from "express";
 import {
   getAllMemberPoints,
   getMemberPointById,
-  getMemberPointByCardId,
+  getMemberPointsByCardId,
 } from "../../controller/Members/MemberHistoryPost.js";
 import { protect } from "../../middleware/member/authMiddleware.js";
 
@@ -15,6 +15,6 @@ router.get("/history-post", getAllMemberPoints);
 router.get("/history-post/getById", protect, getMemberPointById);
 
 // Get by CardId
-router.get("/history-post/card/:memberUserId", getMemberPointByCardId);
+router.get("/history-post/card/:memberUserId", getMemberPointsByCardId);
 
 export default router;

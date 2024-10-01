@@ -8,7 +8,7 @@ export const protect = async (req, res, next) => {
   if (req.cookies.refreshToken) {
     token = req.cookies.refreshToken;
   }
-  console.log();
+
   if (!token) {
     return res.status(401).json({
       status: "fail",

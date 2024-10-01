@@ -37,10 +37,12 @@ router.post("/request-password-reset", requestPasswordReset);
 router.post("/reset-password", resetPassword);
 
 router.get("/protected", protect, (req, res) => {
+  const token = req.cookies.refreshToken;
   res.status(200).json({
     statusCode: 200,
     status: "success",
     message: "You have access to this route",
+    token: token,
   });
 });
 

@@ -1,5 +1,7 @@
 import { errorResponse, successResponse } from "../../config/response.js";
 import MemberProductBundle from "../../model/Members/MemberProductBundle.js";
+import MemberProduct from "../../model/Members/ProductMember.js";
+import User from "../../model/Members/Users.js";
 
 export const getAllMemberProductBundles = async (req, res) => {
   const page = req.query.page || 1;
@@ -31,7 +33,20 @@ export const getAllMemberProductBundles = async (req, res) => {
 
 export const createMemberProductBundle = async (req, res) => {
   try {
-    const bundle = await MemberProductBundle.create(req.body);
+    const userId = req.userId;
+
+    console.log(userId);
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return errorResponse(res, 404, "User not found");
+    }
+
+    const newData = {
+      ...req.body,
+      CreatedBy: user.UserName,
+    };
+
+    const bundle = await MemberProductBundle.create(newData);
     return successResponse(res, 201, "Product created successfully", bundle);
   } catch (error) {
     return errorResponse(
@@ -73,7 +88,18 @@ export const getMemberProductBundle = async (req, res) => {
 
 export const updateMemberProductBundle = async (req, res) => {
   try {
-    const [updated] = await MemberProductBundle.update(req.body, {
+    const userId = req.userId;
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return errorResponse(res, 404, "User not found");
+    }
+
+    const newData = {
+      ...req.body,
+      UpdatedBy: user.UserName,
+    };
+
+    const [updated] = await MemberProductBundle.update(newData, {
       where: { Id: req.params.id },
     });
     if (updated) {
@@ -176,6 +202,7 @@ export const getProductByIdProduct = async (req, res) => {
     const id = req.params.id;
     const product = await MemberProductBundle.findAll({
       where: { MemberProductId: id, IsDeleted: false },
+      include: [{ model: MemberProduct, as: "productList" }],
     });
 
     if (product === null) {

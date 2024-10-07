@@ -31,7 +31,7 @@ router.put("/usersDetail", protect, updateUserDetails);
 
 router.post("/role", protect, userRole);
 router.get("/role", protect, getRoles);
-router.get("/rolesDetail/:id", protect, getRoleById);
+router.get("/rolesDetail", protect, getRoleById);
 
 router.post("/request-password-reset", requestPasswordReset);
 router.post("/reset-password", resetPassword);

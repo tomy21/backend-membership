@@ -16,6 +16,7 @@ import TempMemberTenantTransaction from "./route/Members/TempTransactionMemberTe
 import TrxMemberQuote from "./route/Members/TrxMemberQuota.js";
 import MemberMaster from "./route/Members/MemberMaster.js";
 import MemberHistoryPost from "./route/Members/MemberHistoryPost.js";
+import LocationMembers from "./route/Members/LocationMembers.js";
 import { initAssociations } from "./model/Members/associations.js";
 
 initAssociations();
@@ -54,6 +55,7 @@ app.use("/v01/member/api", TempMemberTenantTransaction);
 app.use("/v01/member/api", TrxMemberQuote);
 app.use("/v01/member/api", MemberMaster);
 app.use("/v01/member/api", MemberHistoryPost);
+app.use("/v01/member/api", LocationMembers);
 // app.use("/v01/member/api", SendWhatsapp);
 
 const PORT = 3008;

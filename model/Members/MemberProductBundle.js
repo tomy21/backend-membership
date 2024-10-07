@@ -1,5 +1,6 @@
 import { Sequelize, DataTypes } from "sequelize";
 import db from "../../config/dbConfig.js";
+import MemberProduct from "./ProductMember.js";
 
 const MemberProductBundle = db.define(
   "MemberProductBundle",
@@ -64,11 +65,20 @@ const MemberProductBundle = db.define(
     MemberProductId: {
       type: DataTypes.INTEGER,
       allowNull: true,
+      references: {
+        model: "MemberProducts",
+        key: "Id",
+      },
     },
   },
   {
     timestamps: false,
   }
 );
+
+MemberProductBundle.belongsTo(MemberProduct, {
+  foreignKey: "MemberProductId",
+  as: "productList",
+});
 
 export default MemberProductBundle;

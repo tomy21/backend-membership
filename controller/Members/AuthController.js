@@ -89,7 +89,8 @@ export const login = async (req, res) => {
 
 export const register = async (req, res) => {
   try {
-    const { username, email, password, phone, pin, roleId } = req.body;
+    const { username, email, password, phone, pin, roleId, referralUrl } =
+      req.body;
 
     const newUser = await User.create({
       UserName: username,
@@ -115,7 +116,7 @@ export const register = async (req, res) => {
 
     const activationURL = `${req.protocol}://${req.get(
       "host"
-    )}/v01/member/api/auth/activate/${activationToken}`;
+    )}/v01/member/api/auth/activate/${activationToken}?referralUrl=${referralUrl}`;
 
     const transporter = nodemailer.createTransport({
       host: "smtp.office365.com", // Server SMTP Outlook
@@ -196,13 +197,15 @@ export const activateAccount = async (req, res) => {
       });
     }
 
+    const referralUrl = req.query.referralUrl;
+    console.log(referralUrl);
     user.EmailConfirmed = 1;
     user.activationToken = null;
     user.activationExpires = null;
     await user.save();
 
     // Redirect ke halaman setelah sukses aktivasi
-    res.redirect("https://membership.skyparking.online/");
+    res.redirect(`${referralUrl}/registerSuccess`);
   } catch (err) {
     res.status(400).json({
       status: "fail",
@@ -355,9 +358,9 @@ export const getRoles = async (req, res) => {
 
 export const getRoleById = async (req, res) => {
   try {
-    const dataRoles = await MemberUserRole.findByPk(req.params.id);
+    const dataRoles = await MemberUserRole.findByPk(req.userId);
     return successResponse(res, 200, "Get Data successfully", {
-      data: dataRoles,
+      dataRoles,
     });
   } catch (error) {
     return errorResponse(res, 500, "Error", error.message);

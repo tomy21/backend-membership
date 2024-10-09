@@ -19,11 +19,13 @@ router
 
 router.route("/userProduct/byUser").get(protect, getMemberByUserId);
 router.route("/userProduct/verifikasi").get(verifikasiPlat);
-
+router
+  .route("/userProduct/updateData/byIdProduct/:id")
+  .patch(updateMemberUserProduct)
+  .get(updateMemberUserProduct);
 router
   .route("/userProduct/updateData")
   .get(protect, getMemberUserProduct)
-  .patch(protect, updateMemberUserProduct)
   .delete(protect, deleteMemberUserProduct);
 
 export default router;

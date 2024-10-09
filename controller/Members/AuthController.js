@@ -37,9 +37,10 @@ const createSendToken = (user, statusCode, res, rememberMe) => {
   const token = signToken(user, rememberMe);
 
   res.cookie("refreshToken", token, {
-    httpOnly: false,
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     expires: new Date(Date.now() + (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000),
+    sameSite: process.env.NODE_ENV === "production" ? "Strict" : "Lax",
   });
 
   res.status(statusCode).json({
@@ -88,7 +89,8 @@ export const login = async (req, res) => {
 
 export const register = async (req, res) => {
   try {
-    const { username, email, password, phone, pin, roleId } = req.body;
+    const { username, email, password, phone, pin, roleId, referralUrl } =
+      req.body;
 
     const newUser = await User.create({
       UserName: username,
@@ -114,7 +116,7 @@ export const register = async (req, res) => {
 
     const activationURL = `${req.protocol}://${req.get(
       "host"
-    )}/v01/member/api/auth/activate/${activationToken}`;
+    )}/v01/member/api/auth/activate/${activationToken}?referralUrl=${referralUrl}`;
 
     const transporter = nodemailer.createTransport({
       host: "smtp.office365.com", // Server SMTP Outlook
@@ -129,8 +131,38 @@ export const register = async (req, res) => {
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: newUser.Email,
-      subject: "Account Activation",
-      text: `Please activate your account by clicking on the link: ${activationURL}`,
+      subject: "Welcome to SKY PARKING - Activate Your Account",
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="text-align: center; padding-bottom: 20px;">
+            <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
+          </div>
+          <h2 style="color: #333;">Hi, ${newUser.UserName}</h2>
+          <p style="color: #555;">
+            Terima kasih telah menggunakan layanan membership <strong>SKY PARKING</strong>. Kami sangat senang menyambut kamu!
+            Sebelum kamu bisa menikmati semua keuntungan sebagai member, silakan aktifkan akunmu dengan mengklik tombol di bawah ini.
+          </p>
+          <div style="text-align: center; margin: 20px 0;">
+            <a href="${activationURL}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
+              Aktifkan Akun
+            </a>
+          </div>
+          <p style="color: #555;">
+            Jika kamu mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
+          </p>
+          <p style="color: #555;">
+            Best Regards,<br/>
+            <strong>SKY Parking Utama</strong>
+          </p>
+        </div>
+      `,
+      attachments: [
+        {
+          filename: "logo.png", // Nama file yang akan muncul di email
+          path: "./images/logo.png", // Path ke file gambar yang berada di direktori lokal
+          cid: "logo", // Content-ID yang digunakan di dalam body email
+        },
+      ],
     };
 
     await transporter.sendMail(mailOptions);
@@ -165,13 +197,15 @@ export const activateAccount = async (req, res) => {
       });
     }
 
+    const referralUrl = req.query.referralUrl;
+    console.log(referralUrl);
     user.EmailConfirmed = 1;
     user.activationToken = null;
     user.activationExpires = null;
     await user.save();
 
     // Redirect ke halaman setelah sukses aktivasi
-    res.redirect("https://dev-membership.skyparking.online/");
+    res.redirect(`${referralUrl}/registerSuccess`);
   } catch (err) {
     res.status(400).json({
       status: "fail",
@@ -182,10 +216,11 @@ export const activateAccount = async (req, res) => {
 
 export const getUserById = async (req, res) => {
   try {
-    const userById = await User.findByPk(req.params.id);
+    const userId = req.userId;
+    const userById = await User.findByPk(userId);
     const usersDetailById = await UserDetails.findOne({
       where: {
-        MemberUserId: req.params.id,
+        MemberUserId: userId,
       },
     });
     if (!userById) {
@@ -210,11 +245,12 @@ export const getUserById = async (req, res) => {
 };
 
 export const getUserByIdDetail = async (req, res) => {
-  const { MemberUserId, Pin } = req.body;
+  const userId = req.userId;
+  const { Pin } = req.body;
   try {
     const users = await UserDetails.findOne({
       where: {
-        MemberUserId: MemberUserId,
+        MemberUserId: userId,
       },
     });
     if (!users || !(await users.correctPassword(Pin, users.Pin))) {
@@ -236,13 +272,16 @@ export const getUserByIdDetail = async (req, res) => {
 };
 
 export const logout = (req, res) => {
-  res.cookie("jwt", "loggedout", {
+  res.cookie("refreshToken", "loggedout", {
     expires: new Date(Date.now() + 10 * 1000),
     httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Lax",
   });
 
   res.status(200).json({
     status: "success",
+    message: "Logged out successfully",
   });
 };
 
@@ -319,9 +358,9 @@ export const getRoles = async (req, res) => {
 
 export const getRoleById = async (req, res) => {
   try {
-    const dataRoles = await MemberUserRole.findByPk(req.params.id);
+    const dataRoles = await MemberUserRole.findByPk(req.userId);
     return successResponse(res, 200, "Get Data successfully", {
-      data: dataRoles,
+      dataRoles,
     });
   } catch (error) {
     return errorResponse(res, 500, "Error", error.message);
@@ -329,7 +368,7 @@ export const getRoleById = async (req, res) => {
 };
 
 export const updateUserDetails = async (req, res) => {
-  const { id } = req.params; // Extract the MemberUserId from the URL
+  const id = req.userId;
   const {
     FullName,
     IpAddress,
@@ -405,7 +444,7 @@ export const requestPasswordReset = async (req, res) => {
     });
 
     // Kirim email dengan token
-    const resetURL = `http://localhost:3000/reset-password?token=${resetToken}`;
+    const resetURL = `https://membership.skyparking.online/reset-password?token=${resetToken}`;
 
     const transporter = nodemailer.createTransport({
       host: "smtp.office365.com", // Server SMTP Outlook
@@ -425,7 +464,36 @@ export const requestPasswordReset = async (req, res) => {
       from: process.env.EMAIL_USER, // Gantilah dengan email pengguna Outlook Anda
       to: email, // Email tujuan
       subject: "Account Activation",
-      text: `Please activate your account by clicking on the link: ${resetURL}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="text-align: center; padding-bottom: 20px;">
+            <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
+          </div>
+          <h2 style="color: #333;">Hi,</h2>
+          <p style="color: #555;">
+            Password anda akan di reset silahkan klik button di bawah ini untuk memasukan password baru
+          </p>
+          <div style="text-align: center; margin: 20px 0;">
+            <a href="${resetURL}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
+              Aktifkan Akun
+            </a>
+          </div>
+          <p style="color: #555;">
+            Jika kamu mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
+          </p>
+          <p style="color: #555;">
+            Best Regards,<br/>
+            <strong>SKY Parking Utama</strong>
+          </p>
+        </div>
+      `,
+      attachments: [
+        {
+          filename: "logo.png", // Nama file yang akan muncul di email
+          path: "./images/logo.png", // Path ke file gambar yang berada di direktori lokal
+          cid: "logo", // Content-ID yang digunakan di dalam body email
+        },
+      ],
     };
 
     await transporter.sendMail(mailOptions);

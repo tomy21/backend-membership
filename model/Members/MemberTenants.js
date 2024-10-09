@@ -1,5 +1,6 @@
 import { Sequelize, DataTypes } from "sequelize";
 import db from "../../config/dbConfig.js";
+import { LocationMembers } from "../Master/RefLocationMembers.js";
 
 const MemberTenant = db.define(
   "MemberTenant",
@@ -8,6 +9,14 @@ const MemberTenant = db.define(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    LocationCodeMembers: {
+      type: DataTypes.STRING(100),
+      allowNull: false,
+      references: {
+        model: "RefLocationMembers",
+        key: "LocationCode",
+      },
     },
     Name: {
       type: DataTypes.STRING(100),
@@ -84,5 +93,11 @@ const MemberTenant = db.define(
     tableName: "MemberTenants",
   }
 );
+
+MemberTenant.belongsTo(LocationMembers, {
+  foreignKey: "LocationCodeMembers",
+  targetKey: "LocationCode",
+  as: "MemberLocation",
+});
 
 export default MemberTenant;

@@ -74,7 +74,6 @@ export const getMemberUserProduct = async (req, res) => {
 export const getMemberByUserId = async (req, res) => {
   try {
     const userId = req.userId;
-    console.log(userId);
     if (!userId) {
       return res.status(400).json({
         statusCode: 400,
@@ -128,17 +127,17 @@ export const getMemberByUserId = async (req, res) => {
 // Update a MemberUserProduct by ID
 export const updateMemberUserProduct = async (req, res) => {
   try {
-    const [updated] = await MemberUserProduct.update(req.body, {
-      where: { Id: req.userId },
+    const updatedData = await MemberUserProduct.update(req.body, {
+      where: { Id: req.params.id },
     });
-    if (!updated || updated === 0) {
+    if (!updatedData || updatedData === 0) {
       return res.status(404).json({
         statusCode: 404,
         message: "MemberUserProduct not found or already deleted",
       });
     }
 
-    const updatedProduct = await MemberUserProduct.findByPk(req.userId);
+    const updatedProduct = await MemberUserProduct.findByPk(req.params.id);
     if (!updatedProduct) {
       return res.status(404).json({
         statusCode: 404,
@@ -160,6 +159,59 @@ export const updateMemberUserProduct = async (req, res) => {
         message: "Invalid request body",
       });
     }
+    res.status(400).json({
+      statusCode: 400,
+      message: err.message,
+    });
+  }
+};
+
+export const getMemberUserProductById = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    if (!userId) {
+      return res.status(400).json({
+        statusCode: 400,
+        message: "Missing userId query parameter",
+      });
+    }
+
+    const products = await MemberUserProduct.findAll({
+      where: {
+        Id: userId,
+      },
+      include: {
+        model: TrxHistoryMemberProducts,
+        as: "TrxHistories",
+        include: [
+          {
+            model: MemberProduct,
+            as: "MemberProduct",
+            attributes: ["Id", "LocationName", "VehicleType"],
+          },
+          {
+            model: MemberProductBundle,
+            as: "ProductBundle", // Alias sesuai dengan yang didefinisikan di asosiasi
+            attributes: ["Id", "StartDate", "EndDate", "Price"], // Atribut dari MemberProductBundle yang ingin diambil
+          },
+        ],
+      },
+      attributes: ["Id", "CardId", "PlateNumber", "RfId", "IsUsed"],
+    });
+
+    if (products.length === 0) {
+      return res.status(404).json({
+        statusCode: 404,
+        message: "MemberUserProduct not found",
+      });
+    }
+
+    res.status(200).json({
+      statusCode: 200,
+      message: "MemberUserProducts retrieved successfully",
+      data: products,
+    });
+  } catch (err) {
     res.status(400).json({
       statusCode: 400,
       message: err.message,

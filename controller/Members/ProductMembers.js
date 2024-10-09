@@ -30,12 +30,6 @@ export const getAllMemberProducts = async (req, res) => {
       offset: (page - 1) * limit,
       limit: parseInt(limit),
       order: [["Id", "DESC"]],
-      include: [
-        {
-          model: Location,
-          attributes: ["Name", "Region", "Vendor"],
-        },
-      ],
     });
 
     return successResponse(res, 200, "Products retrieved successfully", {
@@ -90,6 +84,39 @@ export const getMemberProductByLocation = async (req, res) => {
 
     const product = await MemberProduct.findAll({
       where: { LocationCode }, // Gunakan objek untuk query
+    });
+
+    if (product.length === 0) {
+      return res.status(404).json({
+        status: "fail",
+        message: "Product not found",
+      });
+    }
+
+    res.status(200).json({
+      status: "success",
+      data: product,
+    });
+  } catch (err) {
+    res.status(400).json({
+      status: "fail",
+      message: err.message,
+    });
+  }
+};
+
+export const getMemberProductTypeVihecle = async (req, res) => {
+  try {
+    const { VehicleType } = req.query;
+    if (!VehicleType) {
+      return res.status(400).json({
+        status: "fail",
+        message: "VehicleType is required",
+      });
+    }
+
+    const product = await MemberProduct.findAll({
+      where: { VehicleType },
     });
 
     if (product.length === 0) {

@@ -5,6 +5,7 @@ import {
   getMemberHistoryTransaction,
   getHistoryByUserId,
 } from "../../controller/Members/MemberHistoryTransaction.js";
+import { protect } from "../../middleware/member/authMiddleware.js";
 
 const router = express.Router();
 
@@ -13,7 +14,9 @@ router
   .post(createMemberHistoryTransaction)
   .get(getAllMemberHistoryTransactions);
 
-router.route("/memberHistoryTransactions/:id").get(getMemberHistoryTransaction);
-router.route("/memberHistory/users").get(getHistoryByUserId);
+router
+  .route("/memberHistoryTransactions")
+  .get(protect, getMemberHistoryTransaction);
+router.route("/memberHistory/users").get(protect, getHistoryByUserId);
 
 export default router;

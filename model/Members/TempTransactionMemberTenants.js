@@ -25,6 +25,10 @@ const TempTransactionMemberTenant = db.define(
       type: DataTypes.STRING(255),
       allowNull: false,
     },
+    Periode: {
+      type: DataTypes.STRING(255),
+      allowNull: false,
+    },
     QuotaMember: {
       type: DataTypes.INTEGER,
       allowNull: false,

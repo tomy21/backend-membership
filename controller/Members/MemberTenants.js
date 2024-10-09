@@ -7,6 +7,7 @@ import MemberUserRole from "../../model/Members/MemberUserRoles.js";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
 import { sendEmail } from "../../config/EmailService.js";
+import { LocationMembers } from "../../model/Master/RefLocationMembers.js";
 
 // Get all member tenants with pagination
 export const getAllMemberTenants = async (req, res) => {
@@ -18,7 +19,12 @@ export const getAllMemberTenants = async (req, res) => {
     const { count, rows } = await MemberTenant.findAndCountAll({
       limit: parseInt(limit),
       offset: parseInt(offset),
-      order: [["CreatedOn", "DESC"]], // Optional: Add ordering if needed
+      order: [["CreatedOn", "DESC"]],
+      include: {
+        model: LocationMembers,
+        as: "MemberLocation",
+        attributes: ["LocationName"], // Pastikan ini ada di LocationMembers
+      },
     });
 
     const totalPages = Math.ceil(count / limit);
@@ -64,8 +70,18 @@ export const createMemberTenant = async (req, res) => {
   const transaction = await db.transaction();
 
   try {
-    // Step 1: Create the Tenant
-    const newMemberTenant = await MemberTenant.create(req.body, {
+    const userId = req.userId;
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return errorResponse(res, 404, "User not found");
+    }
+
+    const newData = {
+      ...req.body,
+      CreatedBy: user.UserName,
+    };
+
+    const newMemberTenant = await MemberTenant.create(newData, {
       transaction,
     });
 

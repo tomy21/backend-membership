@@ -6,12 +6,13 @@ import {
   updateTempTransactionMemberTenant,
   deleteTempTransactionMemberTenant,
 } from "../../controller/Members/TempTransactionMemberTenants.js";
+import { protect } from "../../middleware/member/authMiddleware.js";
 
 const router = express.Router();
 
 router
   .route("/transactionTenants")
-  .post(createTempTransactionMemberTenant)
+  .post(protect, createTempTransactionMemberTenant)
   .get(getAllTempTransactionMemberTenants);
 
 router

@@ -1,5 +1,6 @@
 import TempTransactionMemberTenant from "../../model/Members/TempTransactionMemberTenants.js";
 import { successResponse, errorResponse } from "../../config/response.js";
+import User from "../../model/Members/Users.js";
 
 // Get all entries
 export const getAllTempTransactionMemberTenants = async (req, res) => {
@@ -60,10 +61,41 @@ export const getTempTransactionMemberTenantById = async (req, res) => {
   }
 };
 
-// Create a new entry
+const generateOrderCode = async (tenantId, tenantName) => {
+  const now = new Date();
+
+  const year = now.getFullYear().toString().slice(-2);
+  const month = `0${now.getMonth() + 1}`.slice(-2);
+
+  const sameTenantOrdersCount = await TempTransactionMemberTenant.count({
+    where: { tenantName },
+  });
+
+  const formattedTenantId = `0${tenantId}`.slice(-2);
+  const formattedCount = `00${sameTenantOrdersCount + 1}`.slice(-3);
+
+  return `${year}${month}${formattedTenantId}${formattedCount}`;
+};
+
 export const createTempTransactionMemberTenant = async (req, res) => {
   try {
-    const newTenant = await TempTransactionMemberTenant.create(req.body);
+    const userId = req.userId;
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return errorResponse(res, 404, "User not found");
+    }
+
+    const { TenantId, TenantName } = req.body;
+
+    const orderCode = await generateOrderCode(TenantId, TenantName);
+
+    const newData = {
+      ...req.body,
+      CreatedBy: user.UserName,
+      OrderId: orderCode,
+      Status: "Unpaid",
+    };
+    const newTenant = await TempTransactionMemberTenant.create(newData);
     return successResponse(res, 201, "Tenant created successfully", newTenant);
   } catch (error) {
     return errorResponse(

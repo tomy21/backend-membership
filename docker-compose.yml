@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  app:
+    container_name: 'membership-api'
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+      - /shared/upload_on/uploads:/app/uploads
+    environment:
+      - PORT=3008
+    ports:
+      - "9201:3008"
+    networks:
+      - backend_network
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+volumes:
+  node_modules:
+
+networks:
+  backend_network:
+    driver: bridge

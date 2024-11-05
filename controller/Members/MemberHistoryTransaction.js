@@ -37,8 +37,9 @@ export const getAllMemberHistoryTransactions = async (req, res) => {
 // Get a single MemberHistoryTransaction by ID
 export const getMemberHistoryTransaction = async (req, res) => {
   try {
+    const id = req.userId;
     const transactions = await MemberHistoryTransaction.findAll({
-      where: { memberId: req.params.id }, // Mengasumsikan memberId sebagai foreign key
+      where: { memberId: id }, // Mengasumsikan memberId sebagai foreign key
       order: [["createdAt", "DESC"]], // Mengurutkan berdasarkan createdAt descending
     });
 
@@ -64,7 +65,7 @@ export const getMemberHistoryTransaction = async (req, res) => {
 
 export const getHistoryByUserId = async (req, res) => {
   try {
-    const userId = req.query.userId;
+    const userId = req.userId;
     const page = parseInt(req.query.page) || 1; // Default ke halaman pertama
     const limit = parseInt(req.query.limit) || 10; // Default limit 10 item per halaman
 

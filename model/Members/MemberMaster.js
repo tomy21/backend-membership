@@ -29,10 +29,6 @@ const MemberMaster = db.define(
       type: DataTypes.STRING(150),
       allowNull: true,
     },
-    Status: {
-      type: DataTypes.STRING(255),
-      allowNull: true,
-    },
     CreatedOn: {
       type: DataTypes.DATE(6),
       allowNull: true,

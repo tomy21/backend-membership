@@ -28,7 +28,6 @@ app.use(
   cors({
     credentials: true,
     origin: [
-      "*",
       "http://localhost:3000",
       "https://dev-membership.skyparking.online",
       "https://dev-injectmember.skyparking.online",

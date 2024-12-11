@@ -57,6 +57,10 @@ const User = db.define(
       type: DataTypes.DATE,
       allowNull: false,
     },
+    pin: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
     points: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -120,6 +124,10 @@ User.prototype.correctPassword = async function (
   userPassword
 ) {
   return await bcrypt.compare(candidatePassword, userPassword);
+};
+
+UserDetails.prototype.correctPassword = async function (candidatePin, userPin) {
+  return await bcrypt.compare(candidatePin, userPin);
 };
 
 User.hasMany(MembershipCard, {

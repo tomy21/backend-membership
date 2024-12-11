@@ -262,13 +262,15 @@ export const getUserById = async (req, res) => {
 export const getUserByIdDetail = async (req, res) => {
   const userId = req.userId;
   const { Pin } = req.body;
+
   try {
-    const users = await UserDetails.findOne({
+    const users = await User.findOne({
       where: {
-        MemberUserId: userId,
+        id: userId,
       },
     });
-    if (!users || !(await users.correctPassword(Pin, users.Pin))) {
+    console.log(await users.correctPassword(Pin, users.pin));
+    if (!users || !(await users.correctPassword(Pin, users.pin))) {
       return res.status(401).json({
         status: "fail",
         message: "Incorrect pin",

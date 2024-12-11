@@ -60,7 +60,6 @@ app.use("/v01/member/api", MemberHistoryPost);
 app.use("/v01/member/api", LocationMembers);
 app.use("/v01/member/api", vehicleList);
 app.use("/v01/member/api", Provider);
-// app.use("/v01/member/api", SendWhatsapp);
 
 const PORT = 3008;
 app.listen(PORT, () => {

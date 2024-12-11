@@ -19,9 +19,9 @@ export const protect = async (req, res, next) => {
   try {
     // Verifikasi token
     const decoded = await jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.Id;
+    req.userId = decoded.id;
     // Cari user berdasarkan ID yang ada di token
-    const currentUser = await User.findByPk(decoded.Id);
+    const currentUser = await User.findByPk(decoded.id);
     if (!currentUser) {
       return res.status(401).json({
         status: "fail",

@@ -11,19 +11,20 @@ import MemberRole from "../../model/Members/RoleModel.js";
 import MemberUserRole from "../../model/Members/MemberUserRoles.js";
 import MemberUserToken from "../../model/Members/MemberUserToken.js";
 import bcrypt from "bcryptjs/dist/bcrypt.js";
+import MembershipCard from "../../model/Members/v02/MembershipCard.js";
 
 const signToken = (user, rememberMe) => {
   const expiresIn = rememberMe ? "30d" : "1d";
 
   const payload = {
-    Id: user.id,
-    email: user.Email,
+    id: user.id,
+    username: user.username,
     iat: Math.floor(Date.now() / 1000),
-    iss: "https://skyparking.online",
-    jti: uuidv4(),
-    nbf: Math.floor(Date.now() / 1000),
-    role: user.Role,
-    sub: user.UserName,
+    // iss: "https://skyparking.online",
+    // jti: uuidv4(),
+    // nbf: Math.floor(Date.now() / 1000),
+    // role: user.Role,
+    // sub: user.UserName,
   };
 
   const token = jwt.sign(payload, process.env.JWT_SECRET, {
@@ -65,14 +66,16 @@ export const login = async (req, res) => {
   const user = await User.findOne({
     where: {
       [Op.or]: [
-        { UserName: identifier },
-        { Email: identifier },
-        { PhoneNumber: identifier },
+        { username: identifier },
+        { email: identifier },
+        { phone_number: identifier },
       ],
     },
   });
 
-  if (!user || !(await user.correctPassword(password, user.PasswordHash))) {
+  console.log(user);
+
+  if (!user || !(await user.correctPassword(password, user.password))) {
     return res.status(401).json({
       status: "fail",
       message: "Incorrect identifier or password",
@@ -80,8 +83,8 @@ export const login = async (req, res) => {
   }
 
   // Update the last login time
-  user.LastLogin = new Date();
-  await user.save({ validate: false });
+  // user.LastLogin = new Date();
+  // await user.save({ validate: false });
 
   // Pass rememberMe flag to createSendToken function
   createSendToken(user, 200, res, rememberMe);
@@ -217,12 +220,26 @@ export const activateAccount = async (req, res) => {
 export const getUserById = async (req, res) => {
   try {
     const userId = req.userId;
-    const userById = await User.findByPk(userId);
-    const usersDetailById = await UserDetails.findOne({
-      where: {
-        MemberUserId: userId,
-      },
+    const userById = await User.findOne({
+      where: { id: userId },
+      attributes: [
+        "fullname",
+        "email",
+        "points",
+        "reward_points",
+        "customer_no",
+      ],
+      include: [
+        {
+          model: MembershipCard,
+          where: { isActive: 1 },
+          attributes: ["customerNo", "RFID_Data", "vehicleType", "isActive"],
+        },
+      ],
     });
+
+    console.log(JSON.stringify(userById, null, 2));
+
     if (!userById) {
       return res.status(404).json({
         statusCode: 404,
@@ -232,8 +249,6 @@ export const getUserById = async (req, res) => {
     res.status(200).json({
       statusCode: 200,
       message: "Users retrieved successfully",
-      points: usersDetailById.Points,
-      detaildata: usersDetailById,
       data: userById,
     });
   } catch (err) {
@@ -247,13 +262,15 @@ export const getUserById = async (req, res) => {
 export const getUserByIdDetail = async (req, res) => {
   const userId = req.userId;
   const { Pin } = req.body;
+
   try {
-    const users = await UserDetails.findOne({
+    const users = await User.findOne({
       where: {
-        MemberUserId: userId,
+        id: userId,
       },
     });
-    if (!users || !(await users.correctPassword(Pin, users.Pin))) {
+    console.log(await users.correctPassword(Pin, users.pin));
+    if (!users || !(await users.correctPassword(Pin, users.pin))) {
       return res.status(401).json({
         status: "fail",
         message: "Incorrect pin",

@@ -1,23 +1,22 @@
 import express from "express";
-import {
-  getAllPayments,
-  getPaymentById,
-  createPayment,
-  updatePayment,
-  deletePayment,
-  getPaymentByTrxId,
-} from "../../controller/Members/TrxMemberPayment.js";
+import * as trxHistoryPayment from "../../controller/Members/TrxMemberPayment.js";
+import { protect } from "../../middleware/member/authMiddleware.js";
 
 const router = express.Router();
 
-router.route("/payments").get(getAllPayments).post(createPayment);
+router
+  .route("/history/payments")
+  .get(trxHistoryPayment.getTransactions)
+  .post(trxHistoryPayment.createTransaction);
 
 router
-  .route("/payments/:id")
-  .get(getPaymentById)
-  .patch(updatePayment)
-  .delete(deletePayment);
+  .route("/history/payments-byid/:id")
+  .patch(trxHistoryPayment.updateTransaction)
+  .delete(trxHistoryPayment.deleteTransaction);
 
-router.route("/paymentStatus/:trxId").get(getPaymentByTrxId);
+router
+  .route("/history/payment-detail")
+  .get(protect, trxHistoryPayment.getTransactionByUserId);
+router.route("/paymentStatus/:trxId").get(trxHistoryPayment.getPaymentByTrxId);
 
 export default router;

@@ -1,132 +1,201 @@
-import TrxMemberPayments from "../../model/Members/TrxMemberPayment.js";
-import TrxMemberPaidAmounts from "../../model/Members/TrxMemberPaidAmount.js";
-import { Op, Sequelize } from "sequelize";
-import db from "../../config/dbConfig.js";
-import { errorResponse, successResponse } from "../../config/response.js";
+import { Op } from "sequelize";
+import TransactionHistoryPayment from "../../model/Members/v02/TransactionPaymentHistory.js";
+import User from "../../model/Members/Users.js";
 
-export const getAllPayments = async (req, res) => {
+export const createTransaction = async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
-    const offset = (page - 1) * limit;
-
-    const [results] = await db.query(
-      `
-      SELECT
-        payments.*, 
-        COALESCE(paidAmounts.Value, 0) AS 'TrxMemberPaidAmount.Value', 
-        paidAmounts.Currency AS 'TrxMemberPaidAmount.Currency', 
-        gateways.ProviderName AS 'MemberProviderPaymentGateway.ProviderName'
-      FROM 
-        TrxMemberPayments AS payments
-      LEFT JOIN 
-        TrxMemberPaidAmounts AS paidAmounts ON payments.TrxMemberPaidAmountId = paidAmounts.Id
-      LEFT JOIN 
-        MemberProviderPaymentGateways AS gateways 
-      ON TRIM(payments.PartnerServiceId) = gateways.BankId
-      ORDER BY payments.TrxDateTime DESC
-      LIMIT :limit OFFSET :offset
-    `,
-      {
-        replacements: { limit: parseInt(limit), offset: parseInt(offset) },
-        type: Sequelize.QueryTypes.SELECT,
-      }
-    );
-
-    const [countQuery] = await db.query(
-      `
-      SELECT COUNT(*) AS count
-      FROM TrxMemberPayments
-    `,
-      {
-        type: Sequelize.QueryTypes.SELECT,
-      }
-    );
-
-    const count = countQuery[0].count;
-    const totalPages = Math.ceil(count / parseInt(limit));
-
-    res.status(200).json({
-      total: count,
-      totalPages: totalPages,
-      currentPage: parseInt(page),
-      data: results,
+    const transaction = await TransactionHistoryPayment.create(req.body);
+    res.status(201).json({
+      statusCode: 201,
+      message: "Transaction created successfully",
+      data: transaction,
     });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    res.status(400).json({
+      statusCode: 400,
+      message: err.message,
+    });
   }
 };
 
-export const getPaymentById = async (req, res) => {
+export const getTransactionByUserId = async (req, res) => {
   try {
-    const payment = await TrxMemberPayments.findByPk(req.params.id, {
+    const id = req.userId;
+
+    // Ambil query limit dan page dari request, gunakan default jika tidak ada
+    const limit = parseInt(req.query.limit) || 10; // Default 10 item per halaman
+    const page = parseInt(req.query.page) || 1; // Default halaman pertama
+    const offset = (page - 1) * limit;
+
+    const { count, rows: transactions } =
+      await TransactionHistoryPayment.findAndCountAll({
+        where: { user_id: id },
+        include: [
+          {
+            model: User,
+            attributes: ["fullname", "email"],
+          },
+        ],
+        limit: limit,
+        offset: offset,
+        order: [["createdAt", "DESC"]], // Urutkan dari yang terbaru
+      });
+
+    if (!transactions.length) {
+      return res.status(404).json({
+        statusCode: 404,
+        message: "Transaction not found",
+      });
+    }
+
+    res.status(200).json({
+      statusCode: 200,
+      message: "Transaction retrieved successfully",
+      data: transactions,
+      meta: {
+        totalItems: count,
+        currentPage: page,
+        totalPages: Math.ceil(count / limit),
+      },
+    });
+  } catch (err) {
+    res.status(400).json({
+      statusCode: 400,
+      message: err.message,
+    });
+  }
+};
+
+export const updateTransaction = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [updated] = await TransactionHistoryPayment.update(req.body, {
+      where: { id },
+    });
+
+    if (!updated) {
+      return res.status(404).json({
+        statusCode: 404,
+        message: "Transaction not found",
+      });
+    }
+
+    const updatedTransaction = await TransactionHistoryPayment.findOne({
+      where: { id },
+    });
+    res.status(200).json({
+      statusCode: 200,
+      message: "Transaction updated successfully",
+      data: updatedTransaction,
+    });
+  } catch (err) {
+    res.status(400).json({
+      statusCode: 400,
+      message: err.message,
+    });
+  }
+};
+
+export const deleteTransaction = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await TransactionHistoryPayment.destroy({
+      where: { id },
+    });
+
+    if (!deleted) {
+      return res.status(404).json({
+        statusCode: 404,
+        message: "Transaction not found",
+      });
+    }
+
+    res.status(200).json({
+      statusCode: 200,
+      message: "Transaction deleted successfully",
+    });
+  } catch (err) {
+    res.status(400).json({
+      statusCode: 400,
+      message: err.message,
+    });
+  }
+};
+
+export const getTransactions = async (req, res) => {
+  try {
+    const { search, page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const whereClause = search
+      ? {
+          [Op.or]: [
+            { trxId: { [Op.like]: `%${search}%` } },
+            { virtual_account: { [Op.like]: `%${search}%` } },
+            { product_name: { [Op.like]: `%${search}%` } },
+          ],
+        }
+      : {};
+
+    const { count, rows } = await TransactionHistoryPayment.findAndCountAll({
+      where: whereClause,
+      limit: parseInt(limit, 10),
+      offset: parseInt(offset, 10),
       include: [
         {
-          model: TrxMemberPaidAmounts,
-          attributes: ["Value", "Currency"],
+          model: User,
+          attributes: ["fullname", "email"],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+
+    res.status(200).json({
+      statusCode: 200,
+      message: "Transactions retrieved successfully",
+      data: rows,
+      meta: {
+        total: count,
+        page: parseInt(page, 10),
+        lastPage: Math.ceil(count / limit),
+      },
+    });
+  } catch (err) {
+    res.status(400).json({
+      statusCode: 400,
+      message: err.message,
+    });
+  }
+};
+export const getPaymentByTrxId = async (req, res) => {
+  try {
+    const { trxId } = req.params;
+    const transaction = await TransactionHistoryPayment.findOne({
+      where: { trxId },
+      include: [
+        {
+          model: User,
+          attributes: ["fullname", "email"],
         },
       ],
     });
-    if (!payment) {
-      return res.status(404).json({ error: "Payment not found" });
+
+    if (!transaction) {
+      return res.status(404).json({
+        statusCode: 404,
+        message: "Transaction not found",
+      });
     }
-    res.status(200).json(payment);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
 
-export const createPayment = async (req, res) => {
-  try {
-    const newPayment = await TrxMemberPayments.create(req.body);
-    res.status(201).json(newPayment);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-export const updatePayment = async (req, res) => {
-  try {
-    const [updated] = await TrxMemberPayments.update(req.body, {
-      where: { Id: req.params.id },
+    res.status(200).json({
+      statusCode: 200,
+      message: "Transaction retrieved successfully",
+      data: transaction,
     });
-    if (!updated) {
-      return res.status(404).json({ error: "Payment not found" });
-    }
-    const updatedPayment = await TrxMemberPayments.findByPk(req.params.id);
-    res.status(200).json(updatedPayment);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-export const deletePayment = async (req, res) => {
-  try {
-    const deleted = await TrxMemberPayments.destroy({
-      where: { Id: req.params.id },
-    });
-    if (!deleted) {
-      return res.status(404).json({ error: "Payment not found" });
-    }
-    res.status(204).json();
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-export const getPaymentByTrxId = async (req, res) => {
-  try {
-    const payment = await TrxMemberPayments.findAll({
-      where: { TrxId: req.params.trxId },
-      attributes: ["Id"],
-    });
-
-    // Cek apakah hasilnya kosong
-    if (payment.length === 0) {
-      return errorResponse(res, 404, "Failed", "Payment not found");
-    }
-
-    return successResponse(res, 200, "Success", payment);
   } catch (err) {
-    return errorResponse(res, 500, "Failed to create data", err.message);
+    res.status(400).json({
+      statusCode: 400,
+      message: err.message,
+    });
   }
 };

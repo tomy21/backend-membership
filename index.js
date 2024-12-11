@@ -4,7 +4,7 @@ import bodyParser from "body-parser";
 import cors from "cors";
 import path from "path";
 import authRoutes from "./route/Members/authRoute.js";
-import ProductMemberRoute from "./route/Members/ProductMemberRoute.js";
+import ProductMemberRoute from "./route/Members/Master/ProductMasterRoute.js";
 import MemberProvider from "./route/Members/MemberProviderRoute.js";
 import MemberUserProduct from "./route/Members/MemberUserProduct.js";
 import MemberHistoryTransaction from "./route/Members/MemberHistoryTransaction.js";
@@ -16,7 +16,9 @@ import TempMemberTenantTransaction from "./route/Members/TempTransactionMemberTe
 import TrxMemberQuote from "./route/Members/TrxMemberQuota.js";
 import MemberMaster from "./route/Members/MemberMaster.js";
 import MemberHistoryPost from "./route/Members/MemberHistoryPost.js";
-import LocationMembers from "./route/Members/LocationMembers.js";
+import LocationMembers from "./route/Members/LocationMaster.js";
+import vehicleList from "./route/Members/VehicleListRoute.js";
+import Provider from "./route/Members/Master/Provider.js";
 import { initAssociations } from "./model/Members/associations.js";
 
 initAssociations();
@@ -56,7 +58,8 @@ app.use("/v01/member/api", TrxMemberQuote);
 app.use("/v01/member/api", MemberMaster);
 app.use("/v01/member/api", MemberHistoryPost);
 app.use("/v01/member/api", LocationMembers);
-// app.use("/v01/member/api", SendWhatsapp);
+app.use("/v01/member/api", vehicleList);
+app.use("/v01/member/api", Provider);
 
 const PORT = 3008;
 app.listen(PORT, () => {

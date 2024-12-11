@@ -1,0 +1,50 @@
+[33mc61ad3a[m[33m ([m[1;36mHEAD -> [m[1;32mmembership_v2[m[33m, [m[1;31morigin/membership_v2[m[33m)[m HEAD@{0}: reset: moving to origin/membership_v2
+[33m87750f9[m[33m ([m[1;32mmembership_v3[m[33m)[m HEAD@{1}: checkout: moving from membership_v3 to membership_v2
+[33m87750f9[m[33m ([m[1;32mmembership_v3[m[33m)[m HEAD@{2}: checkout: moving from membership_v2 to membership_v3
+[33m87750f9[m[33m ([m[1;32mmembership_v3[m[33m)[m HEAD@{3}: reset: moving to HEAD
+[33m87750f9[m[33m ([m[1;32mmembership_v3[m[33m)[m HEAD@{4}: commit: update
+[33mf5f987a[m HEAD@{5}: commit: update v2
+[33mc61ad3a[m[33m ([m[1;36mHEAD -> [m[1;32mmembership_v2[m[33m, [m[1;31morigin/membership_v2[m[33m)[m HEAD@{6}: commit: update
+[33m5b97527[m[33m ([m[1;31morigin/development[m[33m, [m[1;32mdevelopment[m[33m)[m HEAD@{7}: checkout: moving from development to membership_v2
+[33m5b97527[m[33m ([m[1;31morigin/development[m[33m, [m[1;32mdevelopment[m[33m)[m HEAD@{8}: pull origin development: Merge made by the 'ort' strategy.
+[33m31397f7[m HEAD@{9}: checkout: moving from main to development
+[33m84d2bd8[m[33m ([m[1;31morigin/main[m[33m, [m[1;32mmain[m[33m)[m HEAD@{10}: checkout: moving from development to main
+[33m31397f7[m HEAD@{11}: checkout: moving from main to development
+[33m84d2bd8[m[33m ([m[1;31morigin/main[m[33m, [m[1;32mmain[m[33m)[m HEAD@{12}: checkout: moving from development to main
+[33m31397f7[m HEAD@{13}: checkout: moving from main to development
+[33m84d2bd8[m[33m ([m[1;31morigin/main[m[33m, [m[1;32mmain[m[33m)[m HEAD@{14}: commit: add memberuserproductbyId
+[33mabb7ce3[m HEAD@{15}: commit: Fixing Auth
+[33mfe27bf0[m HEAD@{16}: commit: .
+[33m8b69df5[m HEAD@{17}: checkout: moving from development to main
+[33m31397f7[m HEAD@{18}: checkout: moving from main to development
+[33m8b69df5[m HEAD@{19}: commit: .
+[33m482f2fc[m HEAD@{20}: commit: .
+[33m3d18edf[m HEAD@{21}: commit: fixing
+[33m6e3c787[m HEAD@{22}: checkout: moving from development to main
+[33m31397f7[m HEAD@{23}: checkout: moving from main to development
+[33m6e3c787[m HEAD@{24}: commit: .
+[33m6f8c46d[m HEAD@{25}: commit: fixingLocationCode
+[33m81180ec[m HEAD@{26}: commit: .
+[33mb26fb52[m HEAD@{27}: commit: .
+[33m6c45fc6[m HEAD@{28}: commit: fixing cors
+[33mb015ac9[m HEAD@{29}: commit: .
+[33m3ac5fb1[m HEAD@{30}: commit: .
+[33m5aa35b4[m HEAD@{31}: commit: .
+[33me07002b[m HEAD@{32}: commit: .
+[33m96a2692[m HEAD@{33}: commit: .
+[33md73bac9[m HEAD@{34}: pull --tags origin main: Fast-forward
+[33m4a1bd2d[m HEAD@{35}: commit: .
+[33mb2d4ad4[m HEAD@{36}: commit: .
+[33mec65d40[m HEAD@{37}: commit: .
+[33m66b3911[m HEAD@{38}: commit: upDocker
+[33m6edac45[m HEAD@{39}: checkout: moving from development to main
+[33m31397f7[m HEAD@{40}: checkout: moving from development to development
+[33m31397f7[m HEAD@{41}: checkout: moving from main to development
+[33m6edac45[m HEAD@{42}: commit: .
+[33mab29563[m HEAD@{43}: checkout: moving from development to main
+[33m31397f7[m HEAD@{44}: commit: first commit
+[33mab29563[m HEAD@{45}: Branch: renamed refs/heads/development to refs/heads/development
+[33mab29563[m HEAD@{47}: checkout: moving from nama-branch-baru to development
+[33mab29563[m HEAD@{48}: checkout: moving from main to nama-branch-baru
+[33mab29563[m HEAD@{49}: Branch: renamed refs/heads/master to refs/heads/main
+[33mab29563[m HEAD@{51}: commit (initial): first commit

@@ -18,6 +18,7 @@ router.route("/vehicle-list/:type").get(protect, VehicleList.getVehiclesByType);
 
 router
   .route("/vehicle-list/by-id/:id")
+  .get(VehicleList.getById)
   .put(VehicleList.updateVehicle)
   .delete(VehicleList.deleteVehicle);
 

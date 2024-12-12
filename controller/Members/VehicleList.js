@@ -111,6 +111,19 @@ export const createVehicle = async (req, res) => {
 };
 
 // Update a vehicle
+export const getById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const vehicle = await VehicleList.findByPk(id);
+    if (!vehicle) return res.status(404).json({ message: "Vehicle not found" });
+
+    res.json(vehicle);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
 export const updateVehicle = async (req, res) => {
   const { id } = req.params;
 

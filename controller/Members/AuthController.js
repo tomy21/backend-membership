@@ -41,7 +41,7 @@ const createSendToken = (user, statusCode, res, rememberMe) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     expires: new Date(Date.now() + (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000),
-    // sameSite: process.env.NODE_ENV === "production" ? "Strict" : "Lax",
+    sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
   });
 
   res.status(statusCode).json({

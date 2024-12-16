@@ -42,7 +42,7 @@ const createSendToken = (user, statusCode, res, rememberMe) => {
   res.status(statusCode).json({
     status: "success",
     token,
-    message: "Login Successfully",
+    message: "Successfully",
   });
 };
 
@@ -115,6 +115,7 @@ export const register = async (req, res) => {
     });
 
     const activationToken = newUser.createActivationToken(referralUrl);
+    console.log(referralUrl);
     await newUser.save({ validate: false });
 
     const activationURL = `${req.protocol}://${req.get(
@@ -192,7 +193,6 @@ export const activateAccount = async (req, res) => {
         expired_active: { [Op.gt]: Date.now() },
       },
     });
-    console.log(user);
 
     if (!user) {
       return res.status(400).json({
@@ -203,10 +203,12 @@ export const activateAccount = async (req, res) => {
 
     const allowedDomains = [
       "http://localhost:3000",
-      "https://skymembership.com",
+      "https://dev-membership.skyparking.online",
     ];
 
-    let referralUrl = req.query.referralUrl || "http://localhost:3000";
+    let referralUrl =
+      req.query.referralUrl || "https://dev-membership.skyparking.online";
+    console.log(referralUrl);
     if (!allowedDomains.some((domain) => referralUrl.startsWith(domain))) {
       referralUrl = "https://default.com";
     }

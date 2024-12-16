@@ -39,6 +39,8 @@ const createSendToken = (user, statusCode, res, rememberMe) => {
     sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
   });
 
+  console.log(process.env.NODE_ENV === "production");
+
   res.status(statusCode).json({
     status: "success",
     token,

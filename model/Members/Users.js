@@ -73,12 +73,12 @@ const User = db.define(
     },
     active_token: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
       defaultValue: 0,
     },
     expired_active: {
       type: DataTypes.DATE,
-      allowNull: false,
+      allowNull: true,
     },
     reset_password_token: {
       type: DataTypes.STRING,
@@ -87,6 +87,11 @@ const User = db.define(
     reset_password_expired: {
       type: DataTypes.DATE,
       allowNull: true,
+    },
+    is_active: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
     },
     created_at: {
       type: DataTypes.DATE,
@@ -106,16 +111,17 @@ const User = db.define(
 );
 
 User.beforeCreate(async (user) => {
-  user.PasswordHash = await bcrypt.hash(user.password, 10);
+  user.password = await bcrypt.hash(user.password, 10);
+  user.pin = await bcrypt.hash(user.pin, 10);
 });
 
 User.prototype.createActivationToken = function () {
   const activationToken = crypto.randomBytes(32).toString("hex");
-  this.ActivationToken = crypto
+  this.active_token = crypto
     .createHash("sha256")
     .update(activationToken)
     .digest("hex");
-  this.ActivationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  this.expired_active = new Date(Date.now() + 24 * 60 * 60 * 1000);
   return activationToken;
 };
 
@@ -126,8 +132,8 @@ User.prototype.correctPassword = async function (
   return await bcrypt.compare(candidatePassword, userPassword);
 };
 
-UserDetails.prototype.correctPassword = async function (candidatePin, userPin) {
-  return await bcrypt.compare(candidatePin, userPin);
+User.prototype.correctPin = async function (candidatePin, pin) {
+  return await bcrypt.compare(candidatePin, pin);
 };
 
 User.hasMany(MembershipCard, {

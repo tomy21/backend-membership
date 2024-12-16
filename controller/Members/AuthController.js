@@ -20,11 +20,6 @@ const signToken = (user, rememberMe) => {
     id: user.id,
     username: user.username,
     iat: Math.floor(Date.now() / 1000),
-    // iss: "https://skyparking.online",
-    // jti: uuidv4(),
-    // nbf: Math.floor(Date.now() / 1000),
-    // role: user.Role,
-    // sub: user.UserName,
   };
 
   const token = jwt.sign(payload, process.env.JWT_SECRET, {
@@ -73,8 +68,6 @@ export const login = async (req, res) => {
     },
   });
 
-  console.log(user);
-
   if (!user || !(await user.correctPassword(password, user.password))) {
     return res.status(401).json({
       status: "fail",
@@ -92,34 +85,41 @@ export const login = async (req, res) => {
 
 export const register = async (req, res) => {
   try {
-    const { username, email, password, phone, pin, roleId, referralUrl } =
-      req.body;
+    const {
+      fullname,
+      email,
+      address,
+      username,
+      password,
+      phone_number,
+      pin,
+      gender,
+      dob,
+      referralUrl,
+    } = req.body;
+
+    // Generate a unique customer number
+    const customerNo = Math.floor(1000000000 + Math.random() * 9000000000); // Generate a random 10-digit number
 
     const newUser = await User.create({
-      UserName: username,
-      NormalizedUserName: username.toUpperCase(),
-      Email: email,
-      NormalizedEmail: email.toUpperCase(),
-      PasswordHash: password,
-      PhoneNumber: phone,
+      fullname: fullname,
+      username: username,
+      email: email,
+      address: address,
+      password: password,
+      phone_number: phone_number,
+      pin: pin,
+      gender: gender,
+      dob: dob,
+      customer_no: customerNo, // Include the generated customer number
     });
 
-    await UserDetails.create({
-      Pin: pin,
-      MemberUserId: newUser.id,
-    });
-
-    await MemberUserRole.create({
-      UserId: newUser.id,
-      RoleId: roleId || 4,
-    });
-
-    const activationToken = newUser.createActivationToken();
+    const activationToken = newUser.createActivationToken(referralUrl);
     await newUser.save({ validate: false });
 
     const activationURL = `${req.protocol}://${req.get(
       "host"
-    )}/v01/member/api/auth/activate/${activationToken}?referralUrl=${referralUrl}`;
+    )}/v01/member/api/auth/activate/${activationToken}`;
 
     const transporter = nodemailer.createTransport({
       host: "smtp.office365.com", // Server SMTP Outlook
@@ -133,14 +133,14 @@ export const register = async (req, res) => {
 
     const mailOptions = {
       from: process.env.EMAIL_USER,
-      to: newUser.Email,
+      to: newUser.email,
       subject: "Welcome to SKY PARKING - Activate Your Account",
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
           <div style="text-align: center; padding-bottom: 20px;">
             <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
           </div>
-          <h2 style="color: #333;">Hi, ${newUser.UserName}</h2>
+          <h2 style="color: #333;">Hi, ${newUser.username}</h2>
           <p style="color: #555;">
             Terima kasih telah menggunakan layanan membership <strong>SKY PARKING</strong>. Kami sangat senang menyambut kamu!
             Sebelum kamu bisa menikmati semua keuntungan sebagai member, silakan aktifkan akunmu dengan mengklik tombol di bawah ini.
@@ -188,10 +188,11 @@ export const activateAccount = async (req, res) => {
 
     const user = await User.findOne({
       where: {
-        activationToken: hashedToken,
-        activationExpires: { [Op.gt]: Date.now() },
+        active_token: hashedToken,
+        expired_active: { [Op.gt]: Date.now() },
       },
     });
+    console.log(user);
 
     if (!user) {
       return res.status(400).json({
@@ -200,14 +201,18 @@ export const activateAccount = async (req, res) => {
       });
     }
 
-    const referralUrl = req.query.referralUrl;
-    console.log(referralUrl);
-    user.EmailConfirmed = 1;
-    user.activationToken = null;
-    user.activationExpires = null;
+    const allowedDomains = [
+      "http://localhost:3000",
+      "https://skymembership.com",
+    ];
+
+    let referralUrl = req.query.referralUrl || "http://localhost:3000";
+    if (!allowedDomains.some((domain) => referralUrl.startsWith(domain))) {
+      referralUrl = "https://default.com";
+    }
+    user.is_active = 1;
     await user.save();
 
-    // Redirect ke halaman setelah sukses aktivasi
     res.redirect(`${referralUrl}/registerSuccess`);
   } catch (err) {
     res.status(400).json({
@@ -220,6 +225,7 @@ export const activateAccount = async (req, res) => {
 export const getUserById = async (req, res) => {
   try {
     const userId = req.userId;
+    console.log("userId", userId);
     const userById = await User.findOne({
       where: { id: userId },
       attributes: [
@@ -234,11 +240,10 @@ export const getUserById = async (req, res) => {
           model: MembershipCard,
           where: { isActive: 1 },
           attributes: ["customerNo", "RFID_Data", "vehicleType", "isActive"],
+          required: false,
         },
       ],
     });
-
-    console.log(JSON.stringify(userById, null, 2));
 
     if (!userById) {
       return res.status(404).json({

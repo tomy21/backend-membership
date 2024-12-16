@@ -7,7 +7,12 @@ const router = express.Router();
 router
   .route("/history/payments")
   .get(trxHistoryPayment.getTransactions)
+  .get(trxHistoryPayment.getTrxStatusPayment)
   .post(trxHistoryPayment.createTransaction);
+
+router
+  .route("/history/payments-detail")
+  .get(trxHistoryPayment.getTrxStatusPayment);
 
 router
   .route("/history/payments-byid/:id")

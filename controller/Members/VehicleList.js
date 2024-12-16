@@ -68,6 +68,7 @@ export const getVehiclesByUSerId = async (req, res) => {
 };
 
 export const getVehiclesByType = async (req, res) => {
+  const userId = req.userId;
   const { type } = req.params;
   const { page = 1, limit = 10, search = "" } = req.query;
   const offset = (page - 1) * limit;
@@ -75,6 +76,7 @@ export const getVehiclesByType = async (req, res) => {
   try {
     const { count, rows } = await VehicleList.findAndCountAll({
       where: {
+        cust_id: userId,
         vehicle_type: type,
         [Op.or]: [
           { vehicle_type: { [Op.like]: `%${search}%` } },
@@ -132,7 +134,9 @@ export const updateVehicle = async (req, res) => {
     if (!vehicle) return res.status(404).json({ message: "Vehicle not found" });
 
     await vehicle.update(req.body);
-    res.json(vehicle);
+    res
+      .status(200)
+      .json({ status: true, message: "Vehicle updated successfully", vehicle });
   } catch (error) {
     res.status(400).json({ message: error.message });
   }

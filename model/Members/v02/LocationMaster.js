@@ -20,6 +20,14 @@ const LocationArea = db.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    address: {
+      type: DataTypes.TEXT,
+      allowNull: false,
+    },
+    coordinate: {
+      type: DataTypes.TEXT,
+      allowNull: false,
+    },
     Create_by: {
       type: DataTypes.INTEGER,
       allowNull: false,

@@ -13,6 +13,7 @@ import {
   updateUserDetails,
   requestPasswordReset,
   resetPassword,
+  requestTokenActivation,
 } from "../../controller/Members/AuthController.js";
 import { protect } from "../../middleware/member/authMiddleware.js";
 
@@ -35,6 +36,8 @@ router.get("/rolesDetail", protect, getRoleById);
 
 router.post("/request-password-reset", requestPasswordReset);
 router.post("/reset-password", resetPassword);
+
+router.post("/request-email-verification", requestTokenActivation);
 
 router.get("/protected", protect, (req, res) => {
   const token = req.cookies.refreshToken;

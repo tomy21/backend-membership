@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import User from "../../model/Members/Users.js";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
-import { Op } from "sequelize";
+import { Op, Sequelize } from "sequelize";
 import UserDetails from "../../model/Members/UserDetails.js";
 import { v4 as uuidv4 } from "uuid";
 import MemberUserProduct from "../../model/Members/MemberUserProduct.js";
@@ -55,34 +55,177 @@ export const login = async (req, res) => {
     return res.status(400).json({
       status: "fail",
       message:
-        "Please provide an identifier (username, email, or phone number) and password!",
+        "Harap masukkan identifier (username, email, atau nomor telepon) dan password.",
     });
   }
 
-  // Find user by username, email, or phone number
-  const user = await User.findOne({
-    where: {
-      [Op.or]: [
-        { username: identifier },
-        { email: identifier },
-        { phone_number: identifier },
+  try {
+    // Cari user berdasarkan identifier
+    const user = await User.findOne({
+      where: {
+        [Op.or]: [
+          { username: identifier },
+          { email: identifier },
+          { phone_number: identifier },
+        ],
+      },
+    });
+
+    // Jika user tidak ditemukan atau password salah
+    if (!user || !(await user.correctPassword(password, user.password))) {
+      return res.status(401).json({
+        status: "fail",
+        message: "Identifier atau password salah.",
+      });
+    }
+
+    // Periksa status aktif
+    if (user.is_active !== 1) {
+      if (!user.active_token) {
+        return res.status(401).json({
+          status: "fail",
+          message:
+            "Akun Anda belum diaktivasi. Silakan cek email untuk aktivasi.",
+        });
+      }
+
+      // Cek apakah token sudah kedaluwarsa
+      const now = new Date();
+      if (user.expired_active && user.expired_active <= now) {
+        return res.status(401).json({
+          status: "fail",
+          request: true,
+          message:
+            "Token aktivasi telah kedaluwarsa. Silakan request ulang aktivasi.",
+        });
+      }
+
+      return res.status(401).json({
+        status: "fail",
+        message: "Akun Anda belum aktif. Silakan cek email untuk aktivasi.",
+      });
+    }
+
+    // Jika semua validasi lolos, buat token dan kirimkan respons sukses
+    createSendToken(user, 200, res, rememberMe);
+  } catch (error) {
+    // Periksa jika error dari Sequelize
+    if (error instanceof Sequelize.UniqueConstraintError) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Data unik sudah terdaftar. Harap gunakan data lain.",
+      });
+    }
+
+    // Tangani error lainnya
+    res.status(500).json({
+      status: "error",
+      message: "Terjadi kesalahan pada server. Silakan coba lagi nanti.",
+      error: error.message, // Opsional: Hapus di produksi jika terlalu sensitif
+    });
+  }
+};
+
+export const requestTokenActivation = async (req, res) => {
+  try {
+    const { email, referralUrl } = req.body;
+
+    console.log(email, referralUrl);
+
+    const user = await User.findOne({
+      where: {
+        [Op.or]: [{ email: email }, { username: email }],
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        status: "fail",
+        message: "User dengan email tersebut tidak ditemukan.",
+      });
+    }
+
+    if (user.is_active === 1) {
+      return res.status(400).json({
+        status: "fail",
+        message: "User sudah aktif.",
+      });
+    }
+
+    // if (user.active_token) {
+    //   return res.status(400).json({
+    //     status: "fail",
+    //     message: "Token aktivasi sudah pernah diaktifkan sebelumnya.",
+    //   });
+    // }
+
+    const activationToken = user.createActivationToken(referralUrl);
+    await user.save({ validate: false });
+
+    const activationURL = `${req.protocol}://${req.get(
+      "host"
+    )}/v01/member/api/auth/activate/${activationToken}`;
+
+    const transporter = nodemailer.createTransport({
+      host: "smtp.office365.com", // Server SMTP Outlook
+      port: 587, // Port SMTP
+      secure: false,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: "Welcome to SKY PARKING - Activate Your Account",
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="text-align: center; padding-bottom: 20px;">
+            <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
+          </div>
+          <h2 style="color: #333;">Hi, ${user.username}</h2>
+          <p style="color: #555;">
+            Terima kasih telah menggunakan layanan membership <strong>SKY PARKING</strong>. Kami sangat senang menyambut kamu!
+            Sebelum kamu bisa menikmati semua keuntungan sebagai member, silakan aktifkan akunmu dengan mengklik tombol di bawah ini.
+          </p>
+          <div style="text-align: center; margin: 20px 0;">
+            <a href="${activationURL}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
+              Aktifkan Akun
+            </a>
+          </div>
+          <p style="color: #555;">
+            Jika kamu mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
+          </p>
+          <p style="color: #555;">
+            Best Regards,<br/>
+            <strong>SKY Parking Utama</strong>
+          </p>
+        </div>
+      `,
+      attachments: [
+        {
+          filename: "logo.png", // Nama file yang akan muncul di email
+          path: "./images/logo.png", // Path ke file gambar yang berada di direktori lokal
+          cid: "logo", // Content-ID yang digunakan di dalam body email
+        },
       ],
-    },
-  });
+    };
 
-  if (!user || !(await user.correctPassword(password, user.password))) {
-    return res.status(401).json({
-      status: "fail",
-      message: "Incorrect identifier or password",
+    await transporter.sendMail(mailOptions);
+
+    res.status(200).json({
+      status: "success",
+      message: "Token aktivasi telah dikirimkan ke email Anda.",
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: "Terjadi kesalahan pada server. Silakan coba lagi nanti.",
+      error: error.message, // Opsional: Hapus di produksi jika terlalu sensitif
     });
   }
-
-  // Update the last login time
-  // user.LastLogin = new Date();
-  // await user.save({ validate: false });
-
-  // Pass rememberMe flag to createSendToken function
-  createSendToken(user, 200, res, rememberMe);
 };
 
 export const register = async (req, res) => {
@@ -117,7 +260,6 @@ export const register = async (req, res) => {
     });
 
     const activationToken = newUser.createActivationToken(referralUrl);
-    console.log(referralUrl);
     await newUser.save({ validate: false });
 
     const activationURL = `${req.protocol}://${req.get(
@@ -175,6 +317,15 @@ export const register = async (req, res) => {
 
     createSendToken(newUser, 201, res);
   } catch (err) {
+    if (err instanceof Sequelize.UniqueConstraintError) {
+      const errorField = err.errors[0].path; // Mendapatkan nama field yang menyebabkan error
+      const errorMessage = `${errorField} sudah digunakan. Mohon gunakan yang lain.`;
+      return res.status(400).json({
+        status: "fail",
+        message: errorMessage,
+      });
+    }
+
     res.status(400).json({
       status: "fail",
       message: err.message,

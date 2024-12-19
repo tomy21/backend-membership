@@ -1,4 +1,4 @@
-import { Op } from "sequelize";
+import { Op, Sequelize } from "sequelize";
 import ProductMembership from "../../model/Members/v02/ProductMembership.js";
 
 export const getAllProductMembers = async (req, res) => {
@@ -58,6 +58,7 @@ export const getByLocationCode = async (req, res) => {
   const { code } = req.params;
   const { page = 1, limit = 10, search = "" } = req.query;
 
+  console.log(code);
   try {
     const offset = (page - 1) * limit;
     const { count, rows } = await ProductMembership.findAndCountAll({
@@ -65,6 +66,83 @@ export const getByLocationCode = async (req, res) => {
         location_code: code,
         [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
       },
+      attributes: [
+        [
+          Sequelize.fn("DISTINCT", Sequelize.col("vehicle_type")),
+          "vehicle_type",
+        ],
+      ],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [["created_at", "DESC"]],
+    });
+
+    res.json({
+      status: "success",
+      message: "Data fetched successfully",
+      total: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: parseInt(page),
+      data: rows,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+export const getByVehicle = async (req, res) => {
+  const { type, code } = req.params;
+  const { page = 1, limit = 10, search = "" } = req.query;
+
+  console.log(type);
+  try {
+    const offset = (page - 1) * limit;
+    const { count, rows } = await ProductMembership.findAndCountAll({
+      where: {
+        vehicle_type: type,
+        location_code: code,
+        [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
+      },
+      attributes: [
+        [Sequelize.fn("DISTINCT", Sequelize.col("periode")), "periode"],
+      ],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [["created_at", "DESC"]],
+    });
+
+    res.json({
+      status: "success",
+      message: "Data fetched successfully",
+      total: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: parseInt(page),
+      data: rows,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getByLocationByPeriode = async (req, res) => {
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    periode = "",
+    locationCode = "",
+    type = "",
+  } = req.query;
+
+  try {
+    const offset = (page - 1) * limit;
+    const { count, rows } = await ProductMembership.findAndCountAll({
+      where: {
+        periode: periode,
+        location_code: locationCode,
+        vehicle_type: type,
+        [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
+      },
+      attributes: ["id", "product_name", "start_date", "end_date", "price"],
       limit: parseInt(limit),
       offset: parseInt(offset),
       order: [["created_at", "DESC"]],

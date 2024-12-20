@@ -20,8 +20,9 @@ router
   .delete(trxHistoryPayment.deleteTransaction);
 
 router
-  .route("/history/payment-detail")
+  .route("/history/payments-byuser")
   .get(protect, trxHistoryPayment.getTransactionByUserId);
+
 router.route("/paymentStatus/:trxId").get(trxHistoryPayment.getPaymentByTrxId);
 
 export default router;

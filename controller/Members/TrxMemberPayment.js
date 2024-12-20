@@ -185,12 +185,12 @@ export const getTransactions = async (req, res) => {
     res.status(200).json({
       statusCode: 200,
       message: "Transactions retrieved successfully",
-      data: rows,
-      meta: {
+      pagination: {
         total: count,
         page: parseInt(page, 10),
-        lastPage: Math.ceil(count / limit),
+        totalPages: Math.ceil(count / limit),
       },
+      data: rows,
     });
   } catch (err) {
     res.status(400).json({
@@ -199,6 +199,7 @@ export const getTransactions = async (req, res) => {
     });
   }
 };
+
 export const getPaymentByTrxId = async (req, res) => {
   try {
     const { trxId } = req.params;
@@ -231,3 +232,5 @@ export const getPaymentByTrxId = async (req, res) => {
     });
   }
 };
+
+export const getDetailPayment = async (req, res) => {};

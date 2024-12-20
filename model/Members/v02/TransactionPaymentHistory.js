@@ -59,6 +59,14 @@ const TransactionHistoryPayment = db.define(
       ],
       allowNull: false,
     },
+    location_code: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    location_name: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
     invoice_id: {
       type: DataTypes.STRING,
       allowNull: false,

@@ -1,5 +1,6 @@
 import { DataTypes, Sequelize } from "sequelize";
 import db from "../../../config/dbConfig.js";
+import LocationArea from "./LocationMaster.js";
 
 const ProductMembership = db.define(
   "membership_product",
@@ -91,5 +92,10 @@ const ProductMembership = db.define(
     timestamps: false,
   }
 );
+
+ProductMembership.belongsTo(LocationArea, {
+  foreignKey: "location_code",
+  targetKey: "location_code",
+});
 
 export default ProductMembership;

@@ -2,9 +2,6 @@ import { Sequelize, DataTypes } from "sequelize";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import db from "../../config/dbConfig.js";
-import UserDetails from "./UserDetails.js";
-import MemberUserProduct from "./MemberUserProduct.js";
-import MemberUserRole from "./MemberUserRoles.js";
 import MembershipCard from "./v02/MembershipCard.js";
 
 const User = db.define(

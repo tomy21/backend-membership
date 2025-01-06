@@ -1,6 +1,7 @@
 import { Op } from "sequelize";
 import TransactionHistoryPayment from "../../model/Members/v02/TransactionPaymentHistory.js";
 import User from "../../model/Members/Users.js";
+import PaymentTransaction from "../../model/Members/v02/PaymentHistory.js";
 
 export const createTransaction = async (req, res) => {
   try {
@@ -48,7 +49,7 @@ export const getTransactionByUserId = async (req, res) => {
         ? "Transaction retrieved successfully"
         : "No transactions found",
       data: transactions, // Akan menjadi array kosong jika tidak ada data
-      meta: {
+      pagination: {
         totalItems: count,
         currentPage: page,
         totalPages: Math.ceil(count / limit),
@@ -156,18 +157,19 @@ export const deleteTransaction = async (req, res) => {
 
 export const getTransactions = async (req, res) => {
   try {
-    const { search, page = 1, limit = 10 } = req.query;
+    const { search, page = 1, limit = 10, status } = req.query;
     const offset = (page - 1) * limit;
 
-    const whereClause = search
-      ? {
-          [Op.or]: [
-            { trxId: { [Op.like]: `%${search}%` } },
-            { virtual_account: { [Op.like]: `%${search}%` } },
-            { product_name: { [Op.like]: `%${search}%` } },
-          ],
-        }
-      : {};
+    const whereClause = {
+      ...(status && { statusPayment: status }), // Hanya tambahkan jika status ada
+      ...(search && {
+        [Op.or]: [
+          { trxId: { [Op.like]: `%${search}%` } },
+          { virtual_account: { [Op.like]: `%${search}%` } },
+          { product_name: { [Op.like]: `%${search}%` } },
+        ],
+      }),
+    };
 
     const { count, rows } = await TransactionHistoryPayment.findAndCountAll({
       where: whereClause,
@@ -234,3 +236,47 @@ export const getPaymentByTrxId = async (req, res) => {
 };
 
 export const getDetailPayment = async (req, res) => {};
+
+//history payment
+export const getPayment = async (req, res) => {
+  try {
+    const { search, page = 1, limit = 10, status } = req.query;
+    const offset = (page - 1) * limit;
+
+    const whereClause = {
+      ...(status && { status_transaction: status }),
+      ...(search && {
+        [Op.or]: [
+          { trx_id: { [Op.like]: `%${search}%` } },
+          { invoice_number: { [Op.like]: `%${search}%` } },
+          { virtual_account_number: { [Op.like]: `%${search}%` } },
+        ],
+      }),
+    };
+
+    const { count, rows } = await PaymentTransaction.findAndCountAll({
+      where: whereClause,
+      limit: parseInt(limit, 10),
+      offset: parseInt(offset, 10),
+      order: [["created_at", "DESC"]],
+    });
+
+    console.log(rows);
+
+    res.status(200).json({
+      statusCode: 200,
+      message: "Transactions retrieved successfully",
+      pagination: {
+        total: count,
+        page: parseInt(page, 10),
+        totalPages: Math.ceil(count / limit),
+      },
+      data: rows,
+    });
+  } catch (err) {
+    res.status(400).json({
+      statusCode: 400,
+      message: err.message,
+    });
+  }
+};

@@ -1,4 +1,3 @@
-import jwt from "jsonwebtoken";
 import User from "../../model/Members/Users.js";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
@@ -12,41 +11,9 @@ import MemberUserRole from "../../model/Members/MemberUserRoles.js";
 import MemberUserToken from "../../model/Members/MemberUserToken.js";
 import bcrypt from "bcryptjs/dist/bcrypt.js";
 import MembershipCard from "../../model/Members/v02/MembershipCard.js";
-
-const signToken = (user, rememberMe) => {
-  const expiresIn = rememberMe ? "30d" : "1d";
-
-  const payload = {
-    id: user.id,
-    username: user.username,
-    iat: Math.floor(Date.now() / 1000),
-  };
-
-  const token = jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn,
-  });
-
-  return token;
-};
-
-const createSendToken = (user, statusCode, res, rememberMe) => {
-  const token = signToken(user, rememberMe);
-
-  res.cookie("refreshToken", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    expires: new Date(Date.now() + (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000),
-    sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
-  });
-
-  console.log(process.env.NODE_ENV === "production");
-
-  res.status(statusCode).json({
-    status: "success",
-    token,
-    message: "Successfully",
-  });
-};
+import UserCMS from "../../model/Members/v02/UserCMS.js";
+import { sendEmailRegister } from "../../config/EmailService.js";
+import { createSendToken } from "../../config/ConfigToken.js";
 
 export const login = async (req, res) => {
   const { identifier, password, rememberMe } = req.body;
@@ -60,8 +27,8 @@ export const login = async (req, res) => {
   }
 
   try {
-    // Cari user berdasarkan identifier
-    const user = await User.findOne({
+    // Cari user di database User
+    let user = await User.findOne({
       where: {
         [Op.or]: [
           { username: identifier },
@@ -71,11 +38,33 @@ export const login = async (req, res) => {
       },
     });
 
-    // Jika user tidak ditemukan atau password salah
-    if (!user || !(await user.correctPassword(password, user.password))) {
+    // Jika tidak ditemukan di User, cari di UserCMS
+    if (!user) {
+      user = await UserCMS.findOne({
+        where: {
+          [Op.or]: [
+            { username: identifier },
+            { email: identifier },
+            { phone_number: identifier },
+          ],
+        },
+      });
+
+      // Jika juga tidak ditemukan di UserCMS, return error
+      if (!user) {
+        return res.status(401).json({
+          status: "fail",
+          message: "Akun Anda tidak ditemukan di sistem.",
+        });
+      }
+    }
+
+    // Validasi password
+    const isPasswordCorrect = await bcrypt.compare(password, user.password);
+    if (!isPasswordCorrect) {
       return res.status(401).json({
         status: "fail",
-        message: "Identifier atau password salah.",
+        message: "Password yang Anda masukkan salah.",
       });
     }
 
@@ -109,14 +98,6 @@ export const login = async (req, res) => {
     // Jika semua validasi lolos, buat token dan kirimkan respons sukses
     createSendToken(user, 200, res, rememberMe);
   } catch (error) {
-    // Periksa jika error dari Sequelize
-    if (error instanceof Sequelize.UniqueConstraintError) {
-      return res.status(400).json({
-        status: "fail",
-        message: "Data unik sudah terdaftar. Harap gunakan data lain.",
-      });
-    }
-
     // Tangani error lainnya
     res.status(500).json({
       status: "error",
@@ -129,9 +110,6 @@ export const login = async (req, res) => {
 export const requestTokenActivation = async (req, res) => {
   try {
     const { email, referralUrl } = req.body;
-
-    console.log(email, referralUrl);
-
     const user = await User.findOne({
       where: {
         [Op.or]: [{ email: email }, { username: email }],
@@ -152,13 +130,6 @@ export const requestTokenActivation = async (req, res) => {
       });
     }
 
-    // if (user.active_token) {
-    //   return res.status(400).json({
-    //     status: "fail",
-    //     message: "Token aktivasi sudah pernah diaktifkan sebelumnya.",
-    //   });
-    // }
-
     const activationToken = user.createActivationToken(referralUrl);
     await user.save({ validate: false });
 
@@ -166,54 +137,42 @@ export const requestTokenActivation = async (req, res) => {
       "host"
     )}/v01/member/api/auth/activate/${activationToken}`;
 
-    const transporter = nodemailer.createTransport({
-      host: "smtp.office365.com", // Server SMTP Outlook
-      port: 587, // Port SMTP
-      secure: false,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
+    const to = newUser.email;
+    const subject = "Welcome to SKY PARKING - Activate Your Account";
+    const html = `
+          <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+            <div style="text-align: center; padding-bottom: 20px;">
+              <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
+            </div>
+            <h2 style="color: #333;">Hi, ${newUser.username}</h2>
+            <p style="color: #555;">
+              Terima kasih telah menggunakan layanan membership <strong>SKY PARKING</strong>. Kami sangat senang menyambut kamu!
+              Sebelum kamu bisa menikmati semua keuntungan sebagai member, silakan aktifkan akunmu dengan mengklik tombol di bawah ini.
+            </p>
+            <div style="text-align: center; margin: 20px 0;">
+              <a href="${activationURL}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
+                Aktifkan Akun
+              </a>
+            </div>
+            <p style="color: #555;">
+              Jika kamu mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
+            </p>
+            <p style="color: #555;">
+              Best Regards,<br/>
+              <strong>SKY Parking Utama</strong>
+            </p>
+          </div>
+        `;
+
+    const attachments = [
+      {
+        filename: "logo.png",
+        path: "./images/logo.png",
+        cid: "logo",
       },
-    });
+    ];
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: user.email,
-      subject: "Welcome to SKY PARKING - Activate Your Account",
-      html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-          <div style="text-align: center; padding-bottom: 20px;">
-            <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
-          </div>
-          <h2 style="color: #333;">Hi, ${user.username}</h2>
-          <p style="color: #555;">
-            Terima kasih telah menggunakan layanan membership <strong>SKY PARKING</strong>. Kami sangat senang menyambut kamu!
-            Sebelum kamu bisa menikmati semua keuntungan sebagai member, silakan aktifkan akunmu dengan mengklik tombol di bawah ini.
-          </p>
-          <div style="text-align: center; margin: 20px 0;">
-            <a href="${activationURL}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
-              Aktifkan Akun
-            </a>
-          </div>
-          <p style="color: #555;">
-            Jika kamu mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
-          </p>
-          <p style="color: #555;">
-            Best Regards,<br/>
-            <strong>SKY Parking Utama</strong>
-          </p>
-        </div>
-      `,
-      attachments: [
-        {
-          filename: "logo.png", // Nama file yang akan muncul di email
-          path: "./images/logo.png", // Path ke file gambar yang berada di direktori lokal
-          cid: "logo", // Content-ID yang digunakan di dalam body email
-        },
-      ],
-    };
-
-    await transporter.sendMail(mailOptions);
+    await sendEmailRegister({ to, subject, html, attachments });
 
     res.status(200).json({
       status: "success",
@@ -266,54 +225,42 @@ export const register = async (req, res) => {
       "host"
     )}/v01/member/api/auth/activate/${activationToken}`;
 
-    const transporter = nodemailer.createTransport({
-      host: "smtp.office365.com", // Server SMTP Outlook
-      port: 587, // Port SMTP
-      secure: false,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
+    const to = newUser.email;
+    const subject = "Welcome to SKY PARKING - Activate Your Account";
+    const html = `
+          <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+            <div style="text-align: center; padding-bottom: 20px;">
+              <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
+            </div>
+            <h2 style="color: #333;">Hi, ${newUser.username}</h2>
+            <p style="color: #555;">
+              Terima kasih telah menggunakan layanan membership <strong>SKY PARKING</strong>. Kami sangat senang menyambut kamu!
+              Sebelum kamu bisa menikmati semua keuntungan sebagai member, silakan aktifkan akunmu dengan mengklik tombol di bawah ini.
+            </p>
+            <div style="text-align: center; margin: 20px 0;">
+              <a href="${activationURL}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
+                Aktifkan Akun
+              </a>
+            </div>
+            <p style="color: #555;">
+              Jika kamu mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
+            </p>
+            <p style="color: #555;">
+              Best Regards,<br/>
+              <strong>SKY Parking Utama</strong>
+            </p>
+          </div>
+        `;
+
+    const attachments = [
+      {
+        filename: "logo.png",
+        path: "./images/logo.png",
+        cid: "logo",
       },
-    });
+    ];
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: newUser.email,
-      subject: "Welcome to SKY PARKING - Activate Your Account",
-      html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-          <div style="text-align: center; padding-bottom: 20px;">
-            <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
-          </div>
-          <h2 style="color: #333;">Hi, ${newUser.username}</h2>
-          <p style="color: #555;">
-            Terima kasih telah menggunakan layanan membership <strong>SKY PARKING</strong>. Kami sangat senang menyambut kamu!
-            Sebelum kamu bisa menikmati semua keuntungan sebagai member, silakan aktifkan akunmu dengan mengklik tombol di bawah ini.
-          </p>
-          <div style="text-align: center; margin: 20px 0;">
-            <a href="${activationURL}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
-              Aktifkan Akun
-            </a>
-          </div>
-          <p style="color: #555;">
-            Jika kamu mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
-          </p>
-          <p style="color: #555;">
-            Best Regards,<br/>
-            <strong>SKY Parking Utama</strong>
-          </p>
-        </div>
-      `,
-      attachments: [
-        {
-          filename: "logo.png", // Nama file yang akan muncul di email
-          path: "./images/logo.png", // Path ke file gambar yang berada di direktori lokal
-          cid: "logo", // Content-ID yang digunakan di dalam body email
-        },
-      ],
-    };
-
-    await transporter.sendMail(mailOptions);
+    await sendEmailRegister({ to, subject, html, attachments });
 
     createSendToken(newUser, 201, res);
   } catch (err) {
@@ -347,7 +294,14 @@ export const activateAccount = async (req, res) => {
       },
     });
 
-    if (!user) {
+    const userCMS = await UserCMS.findOne({
+      where: {
+        active_token: hashedToken,
+        expired_active: { [Op.gt]: Date.now() },
+      },
+    });
+
+    if (!user && !userCMS) {
       return res.status(400).json({
         status: "fail",
         message: "Token is invalid or has expired",
@@ -361,12 +315,22 @@ export const activateAccount = async (req, res) => {
 
     let referralUrl =
       req.query.referralUrl || "https://dev-membership.skyparking.online";
-    console.log(referralUrl);
     if (!allowedDomains.some((domain) => referralUrl.startsWith(domain))) {
       referralUrl = "https://default.com";
     }
-    user.is_active = 1;
-    await user.save();
+
+    if (user) {
+      user.is_active = 1;
+      await user.save();
+    } else if (userCMS) {
+      userCMS.is_active = 1;
+      await userCMS.save();
+    } else {
+      return res.status(400).json({
+        status: "fail",
+        message: "Token is invalid or has expired",
+      });
+    }
 
     res.redirect(`${referralUrl}/registerSuccess`);
   } catch (err) {
@@ -380,10 +344,11 @@ export const activateAccount = async (req, res) => {
 export const getUserById = async (req, res) => {
   try {
     const userId = req.userId;
-    console.log("userId", userId);
+
     const userById = await User.findOne({
       where: { id: userId },
       attributes: [
+        "id",
         "fullname",
         "email",
         "points",
@@ -475,21 +440,21 @@ export const getAllUsers = async (req, res) => {
     const rows = await User.findAll({
       limit: parseInt(limit),
       offset: parseInt(offset),
-      order: [["createdOn", "DESC"]],
-      include: [
-        {
-          model: UserDetails,
-          attributes: ["Points"],
-        },
-        {
-          model: MemberUserProduct,
-          attributes: ["CardId"],
-        },
-        {
-          model: MemberUserRole,
-          attributes: ["RoleId"],
-        },
-      ],
+      order: [["created_at", "DESC"]],
+      // include: [
+      //   {
+      //     model: UserDetails,
+      //     attributes: ["Points"],
+      //   },
+      //   {
+      //     model: MemberUserProduct,
+      //     attributes: ["CardId"],
+      //   },
+      //   {
+      //     model: MemberUserRole,
+      //     attributes: ["RoleId"],
+      //   },
+      // ],
     });
 
     // Menghitung total halaman

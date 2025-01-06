@@ -1,5 +1,7 @@
 import { Op, Sequelize } from "sequelize";
 import ProductMembership from "../../model/Members/v02/ProductMembership.js";
+import LocationArea from "../../model/Members/v02/LocationMaster.js";
+import moment from "moment";
 
 export const getAllProductMembers = async (req, res) => {
   const { page = 1, limit = 10, search = "" } = req.query;
@@ -21,6 +23,13 @@ export const getAllProductMembers = async (req, res) => {
         "start_date",
         "end_date",
         "Fee",
+        "periode",
+      ],
+      include: [
+        {
+          model: LocationArea,
+          attributes: ["location_code", "location_name"],
+        },
       ],
       limit: parseInt(limit),
       offset: parseInt(offset),
@@ -133,6 +142,8 @@ export const getByLocationByPeriode = async (req, res) => {
     type = "",
   } = req.query;
 
+  const currentDate = moment();
+
   try {
     const offset = (page - 1) * limit;
     const { count, rows } = await ProductMembership.findAndCountAll({
@@ -141,6 +152,7 @@ export const getByLocationByPeriode = async (req, res) => {
         location_code: locationCode,
         vehicle_type: type,
         [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
+        end_date: { [Op.gte]: currentDate.toDate() },
       },
       attributes: ["id", "product_name", "start_date", "end_date", "price"],
       limit: parseInt(limit),
@@ -148,13 +160,25 @@ export const getByLocationByPeriode = async (req, res) => {
       order: [["created_at", "DESC"]],
     });
 
+    const filteredRows = rows.filter((product) => {
+      const startDate = moment(product.start_date);
+      const monthDifference = currentDate.diff(startDate, "months");
+
+      // Filter logika tambahan
+      if (monthDifference === 2 && product.periode > "3 Bulan") {
+        return false; // Tidak ditampilkan jika di bulan ke-2
+      }
+
+      return true; // Tetap ditampilkan
+    });
+
     res.json({
       status: "success",
       message: "Data fetched successfully",
-      total: count,
+      total: filteredRows.length,
       totalPages: Math.ceil(count / limit),
       currentPage: parseInt(page),
-      data: rows,
+      data: filteredRows,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

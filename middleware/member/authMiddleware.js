@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import User from "../../model/Members/Users.js";
-import { Sequelize } from "sequelize";
+import UserCMS from "../../model/Members/v02/UserCMS.js";
 
 export const protect = async (req, res, next) => {
   let token;
@@ -24,7 +24,10 @@ export const protect = async (req, res, next) => {
     req.userId = decoded.id;
 
     // Cari user berdasarkan ID yang ada di token
-    const currentUser = await User.findByPk(decoded.id);
+    const currentUser =
+      (await User.findByPk(decoded.id)) || (await UserCMS.findByPk(decoded.id));
+
+    console.log(currentUser);
     if (!currentUser) {
       return res.status(401).json({
         status: "fail",

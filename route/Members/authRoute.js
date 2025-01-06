@@ -1,43 +1,28 @@
 import express from "express";
-import {
-  register,
-  login,
-  logout,
-  activateAccount,
-  getUserById,
-  getUserByIdDetail,
-  getAllUsers,
-  userRole,
-  getRoles,
-  getRoleById,
-  updateUserDetails,
-  requestPasswordReset,
-  resetPassword,
-  requestTokenActivation,
-} from "../../controller/Members/AuthController.js";
+import * as Users from "../../controller/Members/AuthController.js";
 import { protect } from "../../middleware/member/authMiddleware.js";
 
 const router = express.Router();
 
-router.post("/register", register);
-router.post("/login", login);
-router.post("/verifikasi", protect, getUserByIdDetail);
-router.get("/logout", logout);
+router.post("/register", Users.register);
+router.post("/login", Users.login);
+router.post("/verifikasi", protect, Users.getUserByIdDetail);
+router.get("/logout", Users.logout);
 
-router.get("/userById", protect, getUserById);
-router.get("/user", protect, getAllUsers);
-router.patch("/user/:id", protect, getUserById);
-router.get("/activate/:token", activateAccount);
-router.put("/usersDetail", protect, updateUserDetails);
+router.get("/userById", protect, Users.getUserById);
+router.get("/user", protect, Users.getAllUsers);
+router.patch("/user/:id", protect, Users.getUserById);
+router.get("/activate/:token", Users.activateAccount);
+router.put("/usersDetail", protect, Users.updateUserDetails);
 
-router.post("/role", protect, userRole);
-router.get("/role", protect, getRoles);
-router.get("/rolesDetail", protect, getRoleById);
+router.post("/role", protect, Users.userRole);
+router.get("/role", protect, Users.getRoles);
+router.get("/rolesDetail", protect, Users.getRoleById);
 
-router.post("/request-password-reset", requestPasswordReset);
-router.post("/reset-password", resetPassword);
+router.post("/request-password-reset", Users.requestPasswordReset);
+router.post("/reset-password", Users.resetPassword);
 
-router.post("/request-email-verification", requestTokenActivation);
+router.post("/request-email-verification", Users.requestTokenActivation);
 
 router.get("/protected", protect, (req, res) => {
   const token = req.cookies.refreshToken;

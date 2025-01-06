@@ -4,25 +4,35 @@ import { protect } from "../../middleware/member/authMiddleware.js";
 
 const router = express.Router();
 
+//transaction History
 router
-  .route("/history/payments")
+  .route("/history/transaction")
   .get(trxHistoryPayment.getTransactions)
-  .get(trxHistoryPayment.getTrxStatusPayment)
   .post(trxHistoryPayment.createTransaction);
 
 router
-  .route("/history/payments-detail")
+  .route("/history/payment-status")
   .get(trxHistoryPayment.getTrxStatusPayment);
 
 router
-  .route("/history/payments-byid/:id")
+  .route("/history/transaction-detail")
+  .get(trxHistoryPayment.getTrxStatusPayment);
+
+router
+  .route("/history/transaction-byid/:id")
   .patch(trxHistoryPayment.updateTransaction)
   .delete(trxHistoryPayment.deleteTransaction);
 
 router
-  .route("/history/payments-byuser")
+  .route("/history/transaction-byuser")
   .get(protect, trxHistoryPayment.getTransactionByUserId);
 
-router.route("/paymentStatus/:trxId").get(trxHistoryPayment.getPaymentByTrxId);
+router
+  .route("/transactionStatus/:trxId")
+  .get(trxHistoryPayment.getPaymentByTrxId);
+
+//Transaction end
+
+router.route("/history/payments").get(trxHistoryPayment.getPayment);
 
 export default router;

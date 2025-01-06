@@ -21,6 +21,10 @@ import vehicleList from "./route/Members/VehicleListRoute.js";
 import Provider from "./route/Members/Master/Provider.js";
 import { initAssociations } from "./model/Members/associations.js";
 
+import CMSRoute from "./route/CMS/Auth.js";
+import RolePermission from "./route/CMS/RolePermission.js";
+import Menu from "./route/CMS/MenuRoute.js";
+
 initAssociations();
 const app = express();
 
@@ -59,6 +63,11 @@ app.use("/v01/member/api", MemberHistoryPost);
 app.use("/v01/member/api", LocationMembers);
 app.use("/v01/member/api", vehicleList);
 app.use("/v01/member/api", Provider);
+
+//CMS
+app.use("/v01/cms/api/auth", CMSRoute);
+app.use("/v01/cms/api/auth", RolePermission);
+app.use("/v01/cms/api/auth", Menu);
 
 const PORT = 3008;
 app.listen(PORT, () => {

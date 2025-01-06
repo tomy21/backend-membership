@@ -120,7 +120,6 @@ export const registerCMS = async (req, res) => {
     const { fullname, email, username, phone_number, role, referralUrl } =
       req.body;
 
-    console.log("response", req.body);
     // Validasi input untuk memastikan hanya teks tanpa script
     const invalidField =
       validateInput("fullname", fullname) ||

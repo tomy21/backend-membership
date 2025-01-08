@@ -27,7 +27,6 @@ export const protect = async (req, res, next) => {
     const currentUser =
       (await User.findByPk(decoded.id)) || (await UserCMS.findByPk(decoded.id));
 
-    console.log(currentUser);
     if (!currentUser) {
       return res.status(401).json({
         status: "fail",

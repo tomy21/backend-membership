@@ -142,7 +142,7 @@ export const getByLocationByPeriode = async (req, res) => {
     type = "",
   } = req.query;
 
-  const currentDate = moment();
+  const currentDate = moment().startOf("month");
 
   try {
     const offset = (page - 1) * limit;
@@ -152,33 +152,22 @@ export const getByLocationByPeriode = async (req, res) => {
         location_code: locationCode,
         vehicle_type: type,
         [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
-        end_date: { [Op.gte]: currentDate.toDate() },
+        start_date: { [Op.gte]: currentDate.toDate() },
       },
       attributes: ["id", "product_name", "start_date", "end_date", "price"],
       limit: parseInt(limit),
       offset: parseInt(offset),
       order: [["created_at", "DESC"]],
-    });
-
-    const filteredRows = rows.filter((product) => {
-      const startDate = moment(product.start_date);
-      const monthDifference = currentDate.diff(startDate, "months");
-
-      // Filter logika tambahan
-      if (monthDifference === 2 && product.periode > "3 Bulan") {
-        return false; // Tidak ditampilkan jika di bulan ke-2
-      }
-
-      return true; // Tetap ditampilkan
+      logging: console.log, // Menampilkan query SQL di konsol
     });
 
     res.json({
       status: "success",
       message: "Data fetched successfully",
-      total: filteredRows.length,
+      // total: filteredRows.length,
       totalPages: Math.ceil(count / limit),
       currentPage: parseInt(page),
-      data: filteredRows,
+      data: rows,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

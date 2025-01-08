@@ -1,4 +1,4 @@
-import { Op } from "sequelize";
+import { Op, Sequelize } from "sequelize";
 import VehicleList from "../../model/Members/v02/VehicleList.js";
 import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 import LocationArea from "../../model/Members/v02/LocationMaster.js";
@@ -64,6 +64,77 @@ export const getVehiclesByUSerId = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const getVehiclesByUserIdUnActive = async (req, res) => {
+  const userId = req.userId;
+  const { page = 1, limit = 10, search = "", locationCode, type } = req.query;
+  const offset = (page - 1) * limit;
+
+  try {
+    // Ambil semua kendaraan milik user
+    const userVehicles = await VehicleList.findAll({
+      where: {
+        cust_id: userId,
+        plate_number: { [Op.like]: `%${search}%` }, // Filter search
+      },
+      attributes: ["id", "plate_number"], // Ambil ID dan plate_number
+    });
+
+    // Ekstrak ID kendaraan (Cust_Member) dari VehicleList
+    const vehicleIds = userVehicles.map((v) => v.id);
+
+    if (vehicleIds.length === 0) {
+      return res.status(200).json({
+        status: "success",
+        message: "No vehicles found for the user.",
+        total: 0,
+        totalPages: 0,
+        currentPage: parseInt(page),
+        data: [],
+      });
+    }
+
+    // Ambil ID kendaraan yang sudah terdaftar di MembershipDetail untuk lokasi tertentu
+    const registeredVehicleIds = await MembershipDetail.findAll({
+      where: {
+        Cust_Member: { [Op.in]: vehicleIds },
+        location_id: locationCode,
+      },
+      attributes: ["Cust_Member"], // Ambil hanya Cust_Member
+    });
+
+    // Ekstrak Cust_Member yang sudah terdaftar
+    const registeredIds = registeredVehicleIds.map((r) => r.Cust_Member);
+
+    // Filter kendaraan yang belum terdaftar di lokasi tertentu
+    const { count, rows } = await VehicleList.findAndCountAll({
+      where: {
+        cust_id: userId,
+        vehicle_type: type,
+        id: { [Op.in]: vehicleIds }, // Hanya kendaraan milik user
+        id: { [Op.notIn]: registeredIds }, // Kecualikan kendaraan yang sudah terdaftar
+      },
+      attributes: ["id", "plate_number"], // Ambil ID dan plate_number
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [["createdAt", "DESC"]],
+    });
+
+    res.status(200).json({
+      status: "success",
+      message: "Data fetched successfully",
+      total: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: parseInt(page),
+      data: rows,
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: error.message,
+    });
   }
 };
 

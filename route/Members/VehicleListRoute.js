@@ -14,6 +14,10 @@ router
   .route("/vehicle-list/by-userid")
   .get(protect, VehicleList.getVehiclesByUSerId);
 
+router
+  .route("/vehicle-list/by-userid/vehicle-unactive")
+  .get(protect, VehicleList.getVehiclesByUserIdUnActive);
+
 router.route("/vehicle-list/:type").get(protect, VehicleList.getVehiclesByType);
 
 router

@@ -218,7 +218,6 @@ export const getRolePermissionsById = async (req, res) => {
       data: menus,
     });
   } catch (error) {
-    console.error("Error fetching menus by role:", error);
     res.status(500).json({ message: "Terjadi kesalahan server" });
   }
 };

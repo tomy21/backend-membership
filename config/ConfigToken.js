@@ -20,7 +20,7 @@ export const createSendToken = (user, statusCode, res, rememberMe) => {
   const token = signToken(user, rememberMe);
 
   res.cookie("refreshToken", token, {
-    httpOnly: true,
+    httpOnly: false,
     secure: process.env.NODE_ENV === "production",
     expires: new Date(Date.now() + (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000),
     // sameSite: "None",

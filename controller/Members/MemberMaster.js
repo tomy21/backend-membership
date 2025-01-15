@@ -23,7 +23,6 @@ export const getMemberMasterData = async (req, res) => {
       transaction: rows,
     });
   } catch (error) {
-    console.error("Error fetching data from view:", error);
     return errorResponse(res, 500, "Internal Server Error", error);
   }
 };

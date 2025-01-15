@@ -261,8 +261,6 @@ export const getPayment = async (req, res) => {
       order: [["created_at", "DESC"]],
     });
 
-    console.log(rows);
-
     res.status(200).json({
       statusCode: 200,
       message: "Transactions retrieved successfully",

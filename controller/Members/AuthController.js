@@ -354,6 +354,12 @@ export const getUserById = async (req, res) => {
         "points",
         "reward_points",
         "customer_no",
+        "phone_number",
+        "username",
+        "gender",
+        "dob",
+        "address",
+        "is_active",
       ],
       include: [
         {

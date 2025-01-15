@@ -83,7 +83,6 @@ export const deleteProviderPayment = async (req, res) => {
 // Get payment providers by type_payment
 export const getByTypePayment = async (req, res) => {
   const { type, locationCode } = req.query;
-  console.log(type, locationCode);
 
   try {
     let payments;
@@ -91,7 +90,13 @@ export const getByTypePayment = async (req, res) => {
     // Jika locationCode === "004SK"
     if (locationCode === "004SK") {
       payments = await ProviderPayment.findAll({
-        where: { type_payment: type, gateway_partner: "NOBU", is_show: 1 },
+        where: {
+          type_payment: type,
+          is_show: 1,
+          code_bank: {
+            [Op.ne]: "BCA",
+          },
+        },
       });
       return res.status(200).json(payments);
     }

@@ -14,6 +14,8 @@ import MembershipCard from "../../model/Members/v02/MembershipCard.js";
 import UserCMS from "../../model/Members/v02/UserCMS.js";
 import { sendEmailRegister } from "../../config/EmailService.js";
 import { createSendToken } from "../../config/ConfigToken.js";
+import VehicleList from "../../model/Members/v02/VehicleList.js";
+import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 
 export const login = async (req, res) => {
   const { identifier, password, rememberMe } = req.body;
@@ -363,10 +365,17 @@ export const getUserById = async (req, res) => {
       ],
       include: [
         {
-          model: MembershipCard,
-          where: { isActive: 1 },
-          attributes: ["customerNo", "RFID_Data", "vehicleType", "isActive"],
+          model: VehicleList,
+          // where: { isActive: 1 },
+          attributes: ["member_customer_no", "rfid", "vehicle_type"],
           required: false,
+          include: [
+            {
+              model: MembershipDetail,
+              where: { is_active: 1 },
+              attributes: ["is_active"],
+            },
+          ],
         },
       ],
     });

@@ -6,7 +6,7 @@ import UserDetails from "../../model/Members/UserDetails.js";
 import MemberUserRole from "../../model/Members/MemberUserRoles.js";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
-import { sendEmail } from "../../config/EmailService.js";
+// import sendEmail from "../../config/EmailService.js";
 import { LocationMembers } from "../../model/Master/RefLocationMembers.js";
 
 // Get all member tenants with pagination
@@ -120,38 +120,38 @@ export const createMemberTenant = async (req, res) => {
     );
 
     // Step 5: Generate an activation token
-    const activationToken = crypto.randomBytes(32).toString("hex");
-    newUser.activationToken = crypto
-      .createHash("sha256")
-      .update(activationToken)
-      .digest("hex");
-    newUser.activationExpires = Date.now() + 24 * 60 * 60 * 1000; // Token expires in 24 hours
-    await newUser.save({ validate: false });
+    // const activationToken = crypto.randomBytes(32).toString("hex");
+    // newUser.activationToken = crypto
+    //   .createHash("sha256")
+    //   .update(activationToken)
+    //   .digest("hex");
+    // newUser.activationExpires = Date.now() + 24 * 60 * 60 * 1000; // Token expires in 24 hours
+    // await newUser.save({ validate: false });
 
-    // Step 6: Generate activation URL
-    const activationURL = `${req.protocol}://${req.get(
-      "host"
-    )}/v01/member/api/auth/activate/${activationToken}`;
+    // // Step 6: Generate activation URL
+    // const activationURL = `${req.protocol}://${req.get(
+    //   "host"
+    // )}/v01/member/api/auth/activate/${activationToken}`;
 
-    // Step 7: Send activation email with user information
-    await sendEmail({
-      to: newUser.Email,
-      subject: "Account Activation",
-      text: `Please activate your account by clicking on the link: ${activationURL}`,
-      html: `
-        <h1>Account Activation</h1>
-        <p>Please activate your account by clicking on the link below:</p>
-        <a href="${activationURL}">Activate Account</a>
-        <h3>Your account details:</h3>
-        <ul>
-          <li>Username: ${newUser.UserName}</li>
-          <li>Email: ${newUser.Email}</li>
-          <li>PIN: ${Pin}</li>
-          <li>Password: ${Password}</li>
-        </ul>
-        <p>Please keep this information safe.</p>
-      `,
-    });
+    // // Step 7: Send activation email with user information
+    // await sendEmail({
+    //   to: newUser.Email,
+    //   subject: "Account Activation",
+    //   text: `Please activate your account by clicking on the link: ${activationURL}`,
+    //   html: `
+    //     <h1>Account Activation</h1>
+    //     <p>Please activate your account by clicking on the link below:</p>
+    //     <a href="${activationURL}">Activate Account</a>
+    //     <h3>Your account details:</h3>
+    //     <ul>
+    //       <li>Username: ${newUser.UserName}</li>
+    //       <li>Email: ${newUser.Email}</li>
+    //       <li>PIN: ${Pin}</li>
+    //       <li>Password: ${Password}</li>
+    //     </ul>
+    //     <p>Please keep this information safe.</p>
+    //   `,
+    // });
 
     // Commit transaction after all operations succeed
     await transaction.commit();

@@ -1,0 +1,109 @@
+import { Op } from "sequelize";
+import LocationArea from "../../model/Members/v02/LocationMaster.js";
+
+export const getAllLocationAreas = async (req, res) => {
+  const { page = 1, limit = 10, search = "" } = req.query;
+
+  try {
+    const offset = (page - 1) * limit;
+    const { count, rows } = await LocationArea.findAndCountAll({
+      where: {
+        [Op.or]: [
+          { location_code: { [Op.like]: `%${search}%` } },
+          { location_name: { [Op.like]: `%${search}%` } },
+        ],
+      },
+      attributes: ["id", "location_code", "location_name", "KID", "address"],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [["created_at", "DESC"]],
+    });
+
+    res.json({
+      total: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: parseInt(page),
+      data: rows,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Get a single Location Area by ID
+export const getLocationAreaById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const locationArea = await LocationArea.findByPk(id);
+    if (!locationArea) {
+      return res.status(404).json({ message: "Location Area not found" });
+    }
+    res.json(locationArea);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Create a new Location Area
+export const createLocationArea = async (req, res) => {
+  const { id, location_code, location_name, KID, Create_by, Update_by } =
+    req.body;
+
+  try {
+    const newLocationArea = await LocationArea.create({
+      id,
+      location_code,
+      location_name,
+      KID,
+      Create_by,
+      Update_by,
+    });
+    res.status(201).json(newLocationArea);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Update a Location Area
+export const updateLocationArea = async (req, res) => {
+  const { id } = req.params;
+  const { location_code, location_name, KID, Create_by, Update_by } = req.body;
+
+  try {
+    const locationArea = await LocationArea.findByPk(id);
+    if (!locationArea) {
+      return res.status(404).json({ message: "Location Area not found" });
+    }
+
+    await locationArea.update({
+      location_code,
+      location_name,
+      KID,
+      Create_by,
+      Update_by,
+      updated_at: new Date(),
+    });
+
+    res.json(locationArea);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Delete a Location Area
+export const deleteLocationArea = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const locationArea = await LocationArea.findByPk(id);
+    if (!locationArea) {
+      return res.status(404).json({ message: "Location Area not found" });
+    }
+
+    await locationArea.destroy();
+    res.json({ message: "Location Area deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

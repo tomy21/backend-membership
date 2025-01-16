@@ -1,8 +1,7 @@
-import jwt from "jsonwebtoken";
 import User from "../../model/Members/Users.js";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
-import { Op } from "sequelize";
+import { Op, Sequelize } from "sequelize";
 import UserDetails from "../../model/Members/UserDetails.js";
 import { v4 as uuidv4 } from "uuid";
 import MemberUserProduct from "../../model/Members/MemberUserProduct.js";
@@ -11,44 +10,10 @@ import MemberRole from "../../model/Members/RoleModel.js";
 import MemberUserRole from "../../model/Members/MemberUserRoles.js";
 import MemberUserToken from "../../model/Members/MemberUserToken.js";
 import bcrypt from "bcryptjs/dist/bcrypt.js";
-
-const signToken = (user, rememberMe) => {
-  const expiresIn = rememberMe ? "30d" : "1d";
-
-  const payload = {
-    Id: user.id,
-    email: user.Email,
-    iat: Math.floor(Date.now() / 1000),
-    iss: "https://skyparking.online",
-    jti: uuidv4(),
-    nbf: Math.floor(Date.now() / 1000),
-    role: user.Role,
-    sub: user.UserName,
-  };
-
-  const token = jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn,
-  });
-
-  return token;
-};
-
-const createSendToken = (user, statusCode, res, rememberMe) => {
-  const token = signToken(user, rememberMe);
-
-  res.cookie("refreshToken", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    expires: new Date(Date.now() + (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000),
-    sameSite: process.env.NODE_ENV === "production" ? "Strict" : "Lax",
-  });
-
-  res.status(statusCode).json({
-    status: "success",
-    token,
-    message: "Login Successfully",
-  });
-};
+import MembershipCard from "../../model/Members/v02/MembershipCard.js";
+import UserCMS from "../../model/Members/v02/UserCMS.js";
+import { sendEmailRegister } from "../../config/EmailService.js";
+import { createSendToken } from "../../config/ConfigToken.js";
 
 export const login = async (req, res) => {
   const { identifier, password, rememberMe } = req.body;
@@ -57,118 +22,257 @@ export const login = async (req, res) => {
     return res.status(400).json({
       status: "fail",
       message:
-        "Please provide an identifier (username, email, or phone number) and password!",
+        "Harap masukkan identifier (username, email, atau nomor telepon) dan password.",
     });
   }
 
-  // Find user by username, email, or phone number
-  const user = await User.findOne({
-    where: {
-      [Op.or]: [
-        { UserName: identifier },
-        { Email: identifier },
-        { PhoneNumber: identifier },
-      ],
-    },
-  });
+  try {
+    // Cari user di database User
+    let user = await User.findOne({
+      where: {
+        [Op.or]: [
+          { username: identifier },
+          { email: identifier },
+          { phone_number: identifier },
+        ],
+      },
+    });
 
-  if (!user || !(await user.correctPassword(password, user.PasswordHash))) {
-    return res.status(401).json({
-      status: "fail",
-      message: "Incorrect identifier or password",
+    // Jika tidak ditemukan di User, cari di UserCMS
+    if (!user) {
+      user = await UserCMS.findOne({
+        where: {
+          [Op.or]: [
+            { username: identifier },
+            { email: identifier },
+            { phone_number: identifier },
+          ],
+        },
+      });
+
+      // Jika juga tidak ditemukan di UserCMS, return error
+      if (!user) {
+        return res.status(401).json({
+          status: "fail",
+          message: "Akun Anda tidak ditemukan di sistem.",
+        });
+      }
+    }
+
+    // Validasi password
+    const isPasswordCorrect = await bcrypt.compare(password, user.password);
+    if (!isPasswordCorrect) {
+      return res.status(401).json({
+        status: "fail",
+        message: "Password yang Anda masukkan salah.",
+      });
+    }
+
+    // Periksa status aktif
+    if (user.is_active !== 1) {
+      if (!user.active_token) {
+        return res.status(401).json({
+          status: "fail",
+          message:
+            "Akun Anda belum diaktivasi. Silakan cek email untuk aktivasi.",
+        });
+      }
+
+      // Cek apakah token sudah kedaluwarsa
+      const now = new Date();
+      if (user.expired_active && user.expired_active <= now) {
+        return res.status(401).json({
+          status: "fail",
+          request: true,
+          message:
+            "Token aktivasi telah kedaluwarsa. Silakan request ulang aktivasi.",
+        });
+      }
+
+      return res.status(401).json({
+        status: "fail",
+        message: "Akun Anda belum aktif. Silakan cek email untuk aktivasi.",
+      });
+    }
+
+    // Jika semua validasi lolos, buat token dan kirimkan respons sukses
+    createSendToken(user, 200, res, rememberMe);
+  } catch (error) {
+    // Tangani error lainnya
+    res.status(500).json({
+      status: "error",
+      message: "Terjadi kesalahan pada server. Silakan coba lagi nanti.",
+      error: error.message, // Opsional: Hapus di produksi jika terlalu sensitif
     });
   }
+};
 
-  // Update the last login time
-  user.LastLogin = new Date();
-  await user.save({ validate: false });
+export const requestTokenActivation = async (req, res) => {
+  try {
+    const { email, referralUrl } = req.body;
+    const user = await User.findOne({
+      where: {
+        [Op.or]: [{ email: email }, { username: email }],
+      },
+    });
 
-  // Pass rememberMe flag to createSendToken function
-  createSendToken(user, 200, res, rememberMe);
+    if (!user) {
+      return res.status(404).json({
+        status: "fail",
+        message: "User dengan email tersebut tidak ditemukan.",
+      });
+    }
+
+    if (user.is_active === 1) {
+      return res.status(400).json({
+        status: "fail",
+        message: "User sudah aktif.",
+      });
+    }
+
+    const activationToken = user.createActivationToken(referralUrl);
+    await user.save({ validate: false });
+
+    const activationURL = `${req.protocol}://${req.get(
+      "host"
+    )}/v01/member/api/auth/activate/${activationToken}`;
+
+    const to = newUser.email;
+    const subject = "Welcome to SKY PARKING - Activate Your Account";
+    const html = `
+          <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+            <div style="text-align: center; padding-bottom: 20px;">
+              <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
+            </div>
+            <h2 style="color: #333;">Hi, ${newUser.username}</h2>
+            <p style="color: #555;">
+              Terima kasih telah menggunakan layanan membership <strong>SKY PARKING</strong>. Kami sangat senang menyambut kamu!
+              Sebelum kamu bisa menikmati semua keuntungan sebagai member, silakan aktifkan akunmu dengan mengklik tombol di bawah ini.
+            </p>
+            <div style="text-align: center; margin: 20px 0;">
+              <a href="${activationURL}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
+                Aktifkan Akun
+              </a>
+            </div>
+            <p style="color: #555;">
+              Jika kamu mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
+            </p>
+            <p style="color: #555;">
+              Best Regards,<br/>
+              <strong>SKY Parking Utama</strong>
+            </p>
+          </div>
+        `;
+
+    const attachments = [
+      {
+        filename: "logo.png",
+        path: "./images/logo.png",
+        cid: "logo",
+      },
+    ];
+
+    await sendEmailRegister({ to, subject, html, attachments });
+
+    res.status(200).json({
+      status: "success",
+      message: "Token aktivasi telah dikirimkan ke email Anda.",
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: "Terjadi kesalahan pada server. Silakan coba lagi nanti.",
+      error: error.message, // Opsional: Hapus di produksi jika terlalu sensitif
+    });
+  }
 };
 
 export const register = async (req, res) => {
   try {
-    const { username, email, password, phone, pin, roleId, referralUrl } =
-      req.body;
+    const {
+      fullname,
+      email,
+      address,
+      username,
+      password,
+      phone_number,
+      pin,
+      gender,
+      dob,
+      referralUrl,
+    } = req.body;
+
+    // Generate a unique customer number
+    const customerNo = Math.floor(1000000000 + Math.random() * 9000000000); // Generate a random 10-digit number
 
     const newUser = await User.create({
-      UserName: username,
-      NormalizedUserName: username.toUpperCase(),
-      Email: email,
-      NormalizedEmail: email.toUpperCase(),
-      PasswordHash: password,
-      PhoneNumber: phone,
+      fullname: fullname,
+      username: username,
+      email: email,
+      address: address,
+      password: password,
+      phone_number: phone_number,
+      pin: pin,
+      gender: gender,
+      dob: dob,
+      customer_no: customerNo, // Include the generated customer number
     });
 
-    await UserDetails.create({
-      Pin: pin,
-      MemberUserId: newUser.id,
-    });
-
-    await MemberUserRole.create({
-      UserId: newUser.id,
-      RoleId: roleId || 4,
-    });
-
-    const activationToken = newUser.createActivationToken();
+    const activationToken = newUser.createActivationToken(referralUrl);
     await newUser.save({ validate: false });
 
     const activationURL = `${req.protocol}://${req.get(
       "host"
-    )}/v01/member/api/auth/activate/${activationToken}?referralUrl=${referralUrl}`;
+    )}/v01/member/api/auth/activate/${activationToken}`;
 
-    const transporter = nodemailer.createTransport({
-      host: "smtp.office365.com", // Server SMTP Outlook
-      port: 587, // Port SMTP
-      secure: false,
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
+    const to = newUser.email;
+    const subject = "Welcome to SKY PARKING - Activate Your Account";
+    const html = `
+          <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+            <div style="text-align: center; padding-bottom: 20px;">
+              <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
+            </div>
+            <h2 style="color: #333;">Hi, ${newUser.username}</h2>
+            <p style="color: #555;">
+              Terima kasih telah menggunakan layanan membership <strong>SKY PARKING</strong>. Kami sangat senang menyambut kamu!
+              Sebelum kamu bisa menikmati semua keuntungan sebagai member, silakan aktifkan akunmu dengan mengklik tombol di bawah ini.
+            </p>
+            <div style="text-align: center; margin: 20px 0;">
+              <a href="${activationURL}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
+                Aktifkan Akun
+              </a>
+            </div>
+            <p style="color: #555;">
+              Jika kamu mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
+            </p>
+            <p style="color: #555;">
+              Best Regards,<br/>
+              <strong>SKY Parking Utama</strong>
+            </p>
+          </div>
+        `;
+
+    const attachments = [
+      {
+        filename: "logo.png",
+        path: "./images/logo.png",
+        cid: "logo",
       },
-    });
+    ];
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: newUser.Email,
-      subject: "Welcome to SKY PARKING - Activate Your Account",
-      html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-          <div style="text-align: center; padding-bottom: 20px;">
-            <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
-          </div>
-          <h2 style="color: #333;">Hi, ${newUser.UserName}</h2>
-          <p style="color: #555;">
-            Terima kasih telah menggunakan layanan membership <strong>SKY PARKING</strong>. Kami sangat senang menyambut kamu!
-            Sebelum kamu bisa menikmati semua keuntungan sebagai member, silakan aktifkan akunmu dengan mengklik tombol di bawah ini.
-          </p>
-          <div style="text-align: center; margin: 20px 0;">
-            <a href="${activationURL}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
-              Aktifkan Akun
-            </a>
-          </div>
-          <p style="color: #555;">
-            Jika kamu mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
-          </p>
-          <p style="color: #555;">
-            Best Regards,<br/>
-            <strong>SKY Parking Utama</strong>
-          </p>
-        </div>
-      `,
-      attachments: [
-        {
-          filename: "logo.png", // Nama file yang akan muncul di email
-          path: "./images/logo.png", // Path ke file gambar yang berada di direktori lokal
-          cid: "logo", // Content-ID yang digunakan di dalam body email
-        },
-      ],
-    };
-
-    await transporter.sendMail(mailOptions);
+    await sendEmailRegister({ to, subject, html, attachments });
 
     createSendToken(newUser, 201, res);
   } catch (err) {
+    if (err instanceof Sequelize.UniqueConstraintError) {
+      const errorField = err.errors[0].path; // Mendapatkan nama field yang menyebabkan error
+      const errorMessage = `${errorField} sudah digunakan. Mohon gunakan yang lain.`;
+      return res.status(400).json({
+        status: "fail",
+        message: errorMessage,
+      });
+    }
+
     res.status(400).json({
       status: "fail",
       message: err.message,
@@ -185,26 +289,49 @@ export const activateAccount = async (req, res) => {
 
     const user = await User.findOne({
       where: {
-        activationToken: hashedToken,
-        activationExpires: { [Op.gt]: Date.now() },
+        active_token: hashedToken,
+        expired_active: { [Op.gt]: Date.now() },
       },
     });
 
-    if (!user) {
+    const userCMS = await UserCMS.findOne({
+      where: {
+        active_token: hashedToken,
+        expired_active: { [Op.gt]: Date.now() },
+      },
+    });
+
+    if (!user && !userCMS) {
       return res.status(400).json({
         status: "fail",
         message: "Token is invalid or has expired",
       });
     }
 
-    const referralUrl = req.query.referralUrl;
-    console.log(referralUrl);
-    user.EmailConfirmed = 1;
-    user.activationToken = null;
-    user.activationExpires = null;
-    await user.save();
+    const allowedDomains = [
+      "http://localhost:3000",
+      "https://dev-membership.skyparking.online",
+    ];
 
-    // Redirect ke halaman setelah sukses aktivasi
+    let referralUrl =
+      req.query.referralUrl || "https://dev-membership.skyparking.online";
+    if (!allowedDomains.some((domain) => referralUrl.startsWith(domain))) {
+      referralUrl = "https://default.com";
+    }
+
+    if (user) {
+      user.is_active = 1;
+      await user.save();
+    } else if (userCMS) {
+      userCMS.is_active = 1;
+      await userCMS.save();
+    } else {
+      return res.status(400).json({
+        status: "fail",
+        message: "Token is invalid or has expired",
+      });
+    }
+
     res.redirect(`${referralUrl}/registerSuccess`);
   } catch (err) {
     res.status(400).json({
@@ -217,12 +344,33 @@ export const activateAccount = async (req, res) => {
 export const getUserById = async (req, res) => {
   try {
     const userId = req.userId;
-    const userById = await User.findByPk(userId);
-    const usersDetailById = await UserDetails.findOne({
-      where: {
-        MemberUserId: userId,
-      },
+
+    const userById = await User.findOne({
+      where: { id: userId },
+      attributes: [
+        "id",
+        "fullname",
+        "email",
+        "points",
+        "reward_points",
+        "customer_no",
+        "phone_number",
+        "username",
+        "gender",
+        "dob",
+        "address",
+        "is_active",
+      ],
+      include: [
+        {
+          model: MembershipCard,
+          where: { isActive: 1 },
+          attributes: ["customerNo", "RFID_Data", "vehicleType", "isActive"],
+          required: false,
+        },
+      ],
     });
+
     if (!userById) {
       return res.status(404).json({
         statusCode: 404,
@@ -232,8 +380,6 @@ export const getUserById = async (req, res) => {
     res.status(200).json({
       statusCode: 200,
       message: "Users retrieved successfully",
-      points: usersDetailById.Points,
-      detaildata: usersDetailById,
       data: userById,
     });
   } catch (err) {
@@ -247,13 +393,15 @@ export const getUserById = async (req, res) => {
 export const getUserByIdDetail = async (req, res) => {
   const userId = req.userId;
   const { Pin } = req.body;
+
   try {
-    const users = await UserDetails.findOne({
+    const users = await User.findOne({
       where: {
-        MemberUserId: userId,
+        id: userId,
       },
     });
-    if (!users || !(await users.correctPassword(Pin, users.Pin))) {
+    console.log(await users.correctPassword(Pin, users.pin));
+    if (!users || !(await users.correctPassword(Pin, users.pin))) {
       return res.status(401).json({
         status: "fail",
         message: "Incorrect pin",
@@ -298,21 +446,21 @@ export const getAllUsers = async (req, res) => {
     const rows = await User.findAll({
       limit: parseInt(limit),
       offset: parseInt(offset),
-      order: [["createdOn", "DESC"]],
-      include: [
-        {
-          model: UserDetails,
-          attributes: ["Points"],
-        },
-        {
-          model: MemberUserProduct,
-          attributes: ["CardId"],
-        },
-        {
-          model: MemberUserRole,
-          attributes: ["RoleId"],
-        },
-      ],
+      order: [["created_at", "DESC"]],
+      // include: [
+      //   {
+      //     model: UserDetails,
+      //     attributes: ["Points"],
+      //   },
+      //   {
+      //     model: MemberUserProduct,
+      //     attributes: ["CardId"],
+      //   },
+      //   {
+      //     model: MemberUserRole,
+      //     attributes: ["RoleId"],
+      //   },
+      // ],
     });
 
     // Menghitung total halaman

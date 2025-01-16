@@ -258,7 +258,7 @@ export const verifikasiPlat = async (req, res) => {
         message: "Missing platNo query parameter",
       });
     }
-    console.log("platNo");
+
     const products = await MemberUserProduct.findAll({
       where: {
         PlateNumber: platNo,

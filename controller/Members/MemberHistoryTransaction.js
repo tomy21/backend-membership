@@ -19,17 +19,41 @@ export const createMemberHistoryTransaction = async (req, res) => {
 
 // Get all MemberHistoryTransactions
 export const getAllMemberHistoryTransactions = async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+
   try {
-    const transactions = await MemberHistoryTransaction.findAll();
+    if (page < 1 || limit < 1) {
+      return res.status(400).json({
+        statusCode: 400,
+        message: "Page and limit must be greater than 0.",
+      });
+    }
+    const offset = (page - 1) * limit;
+
+    const { count: totalTransactions, rows: transactions } =
+      await MemberHistoryTransaction.findAndCountAll({
+        limit,
+        offset,
+      });
+
+    const totalPages = Math.ceil(totalTransactions / limit);
+
     res.status(200).json({
       statusCode: 200,
       message: "MemberHistoryTransactions retrieved successfully",
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalTransactions,
+        limit,
+      },
       data: transactions,
     });
-  } catch (err) {
+  } catch (error) {
     res.status(400).json({
       statusCode: 400,
-      message: err.message,
+      message: error.message,
     });
   }
 };

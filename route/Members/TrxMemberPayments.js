@@ -1,23 +1,38 @@
 import express from "express";
-import {
-  getAllPayments,
-  getPaymentById,
-  createPayment,
-  updatePayment,
-  deletePayment,
-  getPaymentByTrxId,
-} from "../../controller/Members/TrxMemberPayment.js";
+import * as trxHistoryPayment from "../../controller/Members/TrxMemberPayment.js";
+import { protect } from "../../middleware/member/authMiddleware.js";
 
 const router = express.Router();
 
-router.route("/payments").get(getAllPayments).post(createPayment);
+//transaction History
+router
+  .route("/history/transaction")
+  .get(trxHistoryPayment.getTransactions)
+  .post(trxHistoryPayment.createTransaction);
 
 router
-  .route("/payments/:id")
-  .get(getPaymentById)
-  .patch(updatePayment)
-  .delete(deletePayment);
+  .route("/history/payment-status")
+  .get(trxHistoryPayment.getTrxStatusPayment);
 
-router.route("/paymentStatus/:trxId").get(getPaymentByTrxId);
+router
+  .route("/history/transaction-detail")
+  .get(trxHistoryPayment.getTrxStatusPayment);
+
+router
+  .route("/history/transaction-byid/:id")
+  .patch(trxHistoryPayment.updateTransaction)
+  .delete(trxHistoryPayment.deleteTransaction);
+
+router
+  .route("/history/transaction-byuser")
+  .get(protect, trxHistoryPayment.getTransactionByUserId);
+
+router
+  .route("/transactionStatus/:trxId")
+  .get(trxHistoryPayment.getPaymentByTrxId);
+
+//Transaction end
+
+router.route("/history/payments").get(trxHistoryPayment.getPayment);
 
 export default router;

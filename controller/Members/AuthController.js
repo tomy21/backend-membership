@@ -223,9 +223,7 @@ export const register = async (req, res) => {
     const activationToken = newUser.createActivationToken(referralUrl);
     await newUser.save({ validate: false });
 
-    const activationURL = `${req.protocol}://${req.get(
-      "host"
-    )}/v01/member/api/auth/activate/${activationToken}`;
+    const activationURL = `https://membership.skyparking.online/v01/member/api/auth/activate/${activationToken}`;
 
     const to = newUser.email;
     const subject = "Welcome to SKY PARKING - Activate Your Account";

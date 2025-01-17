@@ -49,6 +49,14 @@ const HistoryPost = db.define(
       type: DataTypes.DATE,
       allowNull: false,
     },
+    balance_before: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    balance_after: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
     updatedAt: {
       type: DataTypes.INTEGER,
       allowNull: false,

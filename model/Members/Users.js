@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import db from "../../config/dbConfig.js";
 import MembershipCard from "./v02/MembershipCard.js";
+import VehicleList from "./v02/VehicleList.js";
 
 const User = db.define(
   "Member_Customer",
@@ -133,13 +134,13 @@ User.prototype.correctPin = async function (candidatePin, pin) {
   return await bcrypt.compare(candidatePin, pin);
 };
 
-User.hasMany(MembershipCard, {
-  foreignKey: "customerNo", // Sesuaikan dengan kolom di tabel MembershipCard
+User.hasMany(VehicleList, {
+  foreignKey: "member_customer_no", // Sesuaikan dengan kolom di tabel MembershipCard
   sourceKey: "customer_no", // Kolom yang cocok di tabel User
 });
 
-MembershipCard.belongsTo(User, {
-  foreignKey: "customerNo", // Sesuaikan dengan kolom di tabel MembershipCard
+VehicleList.belongsTo(User, {
+  foreignKey: "member_customer_no", // Sesuaikan dengan kolom di tabel MembershipCard
   targetKey: "customer_no", // Kolom yang cocok di tabel User
 });
 

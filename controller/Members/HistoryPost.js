@@ -27,6 +27,8 @@ export const HistoryPostController = async (req, res) => {
         "gate_out_time",
         "tariff",
         "status_member",
+        "balance_before",
+        "balance_after",
       ],
       limit,
       offset,
@@ -48,7 +50,7 @@ export const HistoryPostController = async (req, res) => {
         time: history.gate_in_time,
         type: "Masuk Area Parkir",
         status_member: history.status_member,
-        tariff: history.tariff,
+        balance: history.balance_before,
       },
       {
         plate_number: history.plate_number,
@@ -56,7 +58,9 @@ export const HistoryPostController = async (req, res) => {
         time: history.gate_out_time,
         type: "Keluar Area Parkir",
         status_member: history.status_member,
-        tariff: history.tariff,
+        balance: history.balance_after,
+        tariff:
+          parseInt(history.balance_before) - parseInt(history.balance_after),
       },
     ]);
 

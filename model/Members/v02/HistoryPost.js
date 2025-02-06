@@ -1,5 +1,6 @@
 import { DataTypes, Sequelize } from "sequelize";
 import db from "../../../config/dbConfig.js";
+import User from "../../Members/Users.js";
 
 const HistoryPost = db.define(
   "check_in_history",
@@ -80,5 +81,11 @@ const HistoryPost = db.define(
     timestamps: false,
   }
 );
+
+HistoryPost.belongsTo(User, {
+  foreignKey: "user_id",
+  targetKey: "id",
+  as: "userHistoryPost",
+});
 
 export default HistoryPost;

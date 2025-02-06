@@ -63,6 +63,42 @@ export const getTransactionByUserId = async (req, res) => {
   }
 };
 
+export const getTrxStatusPaymentByVA = async (req, res) => {
+  try {
+    const noVA = req.params.noVa;
+    console.log(noVA);
+    const transaction = await PaymentTransaction.findOne({
+      where: { virtual_account_number: noVA },
+      // include: [
+      //   {
+      //     model: User,
+      //     attributes: ["fullname", "email"],
+      //   },
+      // ],
+      order: [["created_at", "DESC"]], // Urutkan dari yang terbaru
+    });
+
+    if (!transaction) {
+      return res.status(404).json({
+        statusCode: 404,
+        message: "Transaction not found",
+        data: null,
+      });
+    }
+
+    res.status(200).json({
+      statusCode: 200,
+      message: "Transaction retrieved successfully",
+      data: transaction,
+    });
+  } catch (err) {
+    res.status(400).json({
+      statusCode: 400,
+      message: err.message,
+    });
+  }
+};
+
 export const getTrxStatusPayment = async (req, res) => {
   try {
     const trxId = req.query.trxId;

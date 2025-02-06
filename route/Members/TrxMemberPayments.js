@@ -28,6 +28,10 @@ router
   .get(protect, trxHistoryPayment.getTransactionByUserId);
 
 router
+  .route("/history/transaction-virtualaccount/:noVa")
+  .get(protect, trxHistoryPayment.getTrxStatusPaymentByVA);
+
+router
   .route("/transactionStatus/:trxId")
   .get(trxHistoryPayment.getPaymentByTrxId);
 

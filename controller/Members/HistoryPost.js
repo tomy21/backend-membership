@@ -1,5 +1,6 @@
-import { Sequelize } from "sequelize";
+import { Op, Sequelize } from "sequelize";
 import HistoryPost from "../../model/Members/v02/HistoryPost.js";
+import User from "../../model/Members/Users.js";
 
 export const HistoryPostController = async (req, res) => {
   const id = req.userId;
@@ -74,6 +75,52 @@ export const HistoryPostController = async (req, res) => {
       totalItems: transformedHistories.length,
       currentPage: page,
       totalPages: Math.ceil(transformedHistories.length / limit),
+    });
+  } catch (error) {
+    res.status(500).json({
+      statusCode: 500,
+      message: "Failed to retrieve transactions",
+      error: error.message,
+    });
+  }
+};
+
+export const AllTransaction = async (req, res) => {
+  const page = req.query.page || 1;
+  const limit = req.query.limit || 5;
+  const offset = (page - 1) * limit;
+  const status = req.query.status?.trim();
+  const isStatusDefined = status !== undefined && status !== null;
+  try {
+    const whereCondition = {}; // Inisialisasi objek where
+
+    console.log(status);
+    // Jika status bukan string kosong, tambahkan filter is_close
+    if (isStatusDefined && status !== "All") {
+      whereCondition.is_close = status;
+    }
+
+    const { count, rows } = await HistoryPost.findAndCountAll({
+      where: whereCondition,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [["createdAt", "DESC"]],
+      include: [
+        {
+          model: User,
+          as: "userHistoryPost",
+          attributes: ["fullname", "email"],
+        },
+      ],
+    });
+
+    const totalPages = Math.ceil(count / limit);
+
+    res.status(200).json({
+      total: count,
+      totalPages: totalPages,
+      currentPage: parseInt(page),
+      data: rows,
     });
   } catch (error) {
     res.status(500).json({

@@ -5,27 +5,18 @@ import cors from "cors";
 import path from "path";
 import authRoutes from "./route/Members/authRoute.js";
 import ProductMemberRoute from "./route/Members/Master/ProductMasterRoute.js";
-import MemberProvider from "./route/Members/MemberProviderRoute.js";
-import MemberUserProduct from "./route/Members/MemberUserProduct.js";
-import MemberHistoryTransaction from "./route/Members/MemberHistoryTransaction.js";
-import TrxHistoryMemberProduct from "./route/Members/TrxHistoryMemberProduct.js";
-import MemberProductBundle from "./route/Members/MemberProductBundle.js";
-import MemberTenants from "./route/Members/MemberTenants.js";
 import TrxMemberPayment from "./route/Members/TrxMemberPayments.js";
-import TempMemberTenantTransaction from "./route/Members/TempTransactionMemberTenant.js";
-import TrxMemberQuote from "./route/Members/TrxMemberQuota.js";
-import MemberMaster from "./route/Members/MemberMaster.js";
+
 import MemberHistoryPost from "./route/Members/MemberHistoryPost.js";
 import LocationMembers from "./route/Members/LocationMaster.js";
 import vehicleList from "./route/Members/VehicleListRoute.js";
 import Provider from "./route/Members/Master/Provider.js";
-import { initAssociations } from "./model/Members/associations.js";
 
 import CMSRoute from "./route/CMS/Auth.js";
 import RolePermission from "./route/CMS/RolePermission.js";
 import Menu from "./route/CMS/MenuRoute.js";
+import Dashboard from "./route/CMS/DashboardRoute.js";
 
-initAssociations();
 const app = express();
 
 app.use(
@@ -49,16 +40,8 @@ app.use(bodyParser.json());
 // member
 app.use("/v01/member/api/auth", authRoutes);
 app.use("/v01/member/api", ProductMemberRoute);
-app.use("/v01/member/api", MemberProvider);
-app.use("/v01/member/api", MemberUserProduct);
-app.use("/v01/member/api", MemberHistoryTransaction);
-app.use("/v01/member/api", TrxHistoryMemberProduct);
-app.use("/v01/member/api", MemberProductBundle);
-app.use("/v01/member/api", MemberTenants);
 app.use("/v01/member/api", TrxMemberPayment);
-app.use("/v01/member/api", TempMemberTenantTransaction);
-app.use("/v01/member/api", TrxMemberQuote);
-app.use("/v01/member/api", MemberMaster);
+
 app.use("/v01/member/api", MemberHistoryPost);
 app.use("/v01/member/api", LocationMembers);
 app.use("/v01/member/api", vehicleList);
@@ -68,6 +51,7 @@ app.use("/v01/member/api", Provider);
 app.use("/v01/cms/api/auth", CMSRoute);
 app.use("/v01/cms/api/auth", RolePermission);
 app.use("/v01/cms/api/auth", Menu);
+app.use("/v01/cms/api", Dashboard);
 
 const PORT = 3008;
 app.listen(PORT, () => {

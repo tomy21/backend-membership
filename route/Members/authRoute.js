@@ -13,14 +13,6 @@ router.get("/userById", protect, Users.getUserById);
 router.get("/user", protect, Users.getAllUsers);
 router.patch("/user/:id", protect, Users.getUserById);
 router.get("/activate/:token", Users.activateAccount);
-router.put("/usersDetail", protect, Users.updateUserDetails);
-
-router.post("/role", protect, Users.userRole);
-router.get("/role", protect, Users.getRoles);
-router.get("/rolesDetail", protect, Users.getRoleById);
-
-router.post("/request-password-reset", Users.requestPasswordReset);
-router.post("/reset-password", Users.resetPassword);
 
 router.post("/request-email-verification", Users.requestTokenActivation);
 

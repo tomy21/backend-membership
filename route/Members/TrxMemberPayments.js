@@ -35,8 +35,21 @@ router
   .route("/transactionStatus/:trxId")
   .get(trxHistoryPayment.getPaymentByTrxId);
 
+router
+  .route("/history/export-data")
+  .get(trxHistoryPayment.exportHistoryTransaction);
+
 //Transaction end
 
 router.route("/history/payments").get(trxHistoryPayment.getPayment);
+router
+  .route("/history/export-data-payment")
+  .get(trxHistoryPayment.exportHistoryPayment);
+router
+  .route("/history/get-history-user-byid/:id")
+  .get(trxHistoryPayment.historyUsersById);
+router
+  .route("/history/get-history-location")
+  .get(trxHistoryPayment.historyTransactionByLocation);
 
 export default router;

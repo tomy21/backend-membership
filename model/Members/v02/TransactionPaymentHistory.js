@@ -76,6 +76,11 @@ const TransactionHistoryPayment = db.define(
       values: ["MEMBERSHIP", "TOPUP"],
       allowNull: false,
     },
+    vehicle_type: {
+      type: DataTypes.ENUM,
+      values: ["MOBIL", "MOTOR"],
+      allowNull: false,
+    },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -96,6 +101,7 @@ const TransactionHistoryPayment = db.define(
 TransactionHistoryPayment.belongsTo(User, {
   foreignKey: "user_id",
   targetKey: "id",
+  as: "trxHistoryUser",
 });
 
 export default TransactionHistoryPayment;

@@ -63,6 +63,22 @@ const PaymentTransaction = db.define(
       values: ["APP_MEMBERSHIP", "APP_VOUCHER", "APP_OTHERS"],
       allowNull: false,
     },
+    RRN: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    product_name: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    location_name: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    no_tiket: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,

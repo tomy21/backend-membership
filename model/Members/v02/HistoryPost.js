@@ -1,5 +1,7 @@
 import { DataTypes, Sequelize } from "sequelize";
 import db from "../../../config/dbConfig.js";
+import User from "../../Members/Users.js";
+import LocationArea from "./LocationMaster.js";
 
 const HistoryPost = db.define(
   "check_in_history",
@@ -58,7 +60,7 @@ const HistoryPost = db.define(
       allowNull: false,
     },
     updatedAt: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.DATE,
       allowNull: false,
     },
     createdAt: {
@@ -80,5 +82,17 @@ const HistoryPost = db.define(
     timestamps: false,
   }
 );
+
+HistoryPost.belongsTo(User, {
+  foreignKey: "user_id",
+  targetKey: "id",
+  as: "userHistoryPost",
+});
+
+HistoryPost.belongsTo(LocationArea, {
+  foreignKey: "location_code",
+  targetKey: "location_code",
+  as: "locationArea",
+});
 
 export default HistoryPost;

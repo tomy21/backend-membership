@@ -4,14 +4,21 @@ import LocationArea from "../../model/Members/v02/LocationMaster.js";
 import moment from "moment";
 
 export const getAllProductMembers = async (req, res) => {
-  const { page = 1, limit = 10, search = "" } = req.query;
+  const { page = 1, limit = 10, search = "", vehicleType = "" } = req.query;
 
   try {
     const offset = (page - 1) * limit;
+    const whereCondition = {
+      [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
+    };
+
+    // Jika vehicleType tidak kosong, tambahkan ke kondisi where
+    if (vehicleType && vehicleType !== "All") {
+      whereCondition.vehicle_type = vehicleType;
+    }
+
     const { count, rows } = await ProductMembership.findAndCountAll({
-      where: {
-        [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
-      },
+      where: whereCondition,
       attributes: [
         "id",
         "product_code",
@@ -142,34 +149,51 @@ export const getByLocationByPeriode = async (req, res) => {
     type = "",
   } = req.query;
 
+  console.log("Periode:", periode);
+
   const currentDate = moment().startOf("month");
 
   try {
-    const offset = (page - 1) * limit;
+    const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+
+    // Membuat whereClause dinamis
+    const whereClause = {
+      location_code: locationCode || undefined,
+      vehicle_type: type || undefined,
+      end_date: { [Op.gte]: currentDate.toDate() }, // Tetap dipakai
+    };
+
+    // Jika periode tidak kosong, tambahkan ke whereClause
+    if (periode) {
+      whereClause.periode = periode;
+    }
+
+    // Jika search tidak kosong, gunakan LIKE
+    if (search) {
+      whereClause.product_name = { [Op.like]: `%${search}%` };
+    }
+    console.log(whereClause);
+    // Eksekusi query dengan whereClause yang sudah diperbaiki
     const { count, rows } = await ProductMembership.findAndCountAll({
-      where: {
-        periode: periode,
-        location_code: locationCode,
-        vehicle_type: type,
-        [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
-        start_date: { [Op.gte]: currentDate.toDate() },
-      },
+      where: whereClause,
       attributes: ["id", "product_name", "start_date", "end_date", "price"],
-      limit: parseInt(limit),
-      offset: parseInt(offset),
+      limit: parseInt(limit, 10),
+      offset: offset,
       order: [["created_at", "DESC"]],
-      logging: console.log, // Menampilkan query SQL di konsol
+      logging: console.log, // Debugging SQL
     });
+
+    console.log("Total Data:", count);
 
     res.json({
       status: "success",
       message: "Data fetched successfully",
-      // total: filteredRows.length,
       totalPages: Math.ceil(count / limit),
-      currentPage: parseInt(page),
+      currentPage: parseInt(page, 10),
       data: rows,
     });
   } catch (error) {
+    console.error("Error:", error);
     res.status(500).json({ message: error.message });
   }
 };

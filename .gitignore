@@ -3,3 +3,6 @@
 *.rest
 .env.local
 .env.production
+/backendMembership_backup
+/backend-membership.git.bfg-report
+*.jar

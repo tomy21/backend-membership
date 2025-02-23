@@ -203,7 +203,56 @@ export const getTransactions = async (req, res) => {
     const offset = (page - 1) * limit;
 
     const whereClause = {
-      ...(status && { statusPayment: status }), // Hanya tambahkan jika status ada
+      purchase_type: "MEMBERSHIP",
+      ...(status && { statusPayment: status, purchase_type: "MEMBERSHIP" }),
+      ...(search && {
+        [Op.or]: [
+          { trxId: { [Op.like]: `%${search}%` } },
+          { virtual_account: { [Op.like]: `%${search}%` } },
+          { product_name: { [Op.like]: `%${search}%` } },
+        ],
+      }),
+    };
+
+    const { count, rows } = await TransactionHistoryPayment.findAndCountAll({
+      where: whereClause,
+      limit: parseInt(limit, 10),
+      offset: parseInt(offset, 10),
+      include: [
+        {
+          model: User,
+          attributes: ["fullname", "email"],
+          as: "trxHistoryUser",
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+
+    res.status(200).json({
+      statusCode: 200,
+      message: "Transactions retrieved successfully",
+      pagination: {
+        total: count,
+        page: parseInt(page, 10),
+        totalPages: Math.ceil(count / limit),
+      },
+      data: rows,
+    });
+  } catch (err) {
+    res.status(400).json({
+      statusCode: 400,
+      message: err.message,
+    });
+  }
+};
+export const getTransactionsTopup = async (req, res) => {
+  try {
+    const { search, page = 1, limit = 10, status } = req.query;
+    const offset = (page - 1) * limit;
+
+    const whereClause = {
+      purchase_type: "TOPUP",
+      ...(status && { statusPayment: status, purchase_type: "TOPUP" }),
       ...(search && {
         [Op.or]: [
           { trxId: { [Op.like]: `%${search}%` } },
@@ -322,245 +371,6 @@ export const getPayment = async (req, res) => {
   }
 };
 
-export const exportHistoryTransaction = async (req, res) => {
-  const locationCode = req.query.locationCode
-    ? JSON.parse(req.query.locationCode)
-    : [];
-  const date = req.query.date;
-
-  try {
-    const whereClause = {};
-
-    if (locationCode.length > 0) {
-      whereClause.location_code = { [Op.in]: locationCode };
-    }
-
-    const dateCondition = date
-      ? {
-          createdAt: {
-            [Sequelize.Op.gte]: Sequelize.literal(`'${date} 00:00:00'`),
-            [Sequelize.Op.lt]: Sequelize.literal(`'${date} 23:59:59'`),
-          },
-        }
-      : null;
-
-    const result = await TransactionHistoryPayment.findAndCountAll({
-      where: {
-        ...whereClause,
-        ...(dateCondition ? dateCondition : {}),
-      },
-      include: [
-        {
-          model: User,
-          as: "trxHistoryUser",
-          attributes: ["fullname", "email"],
-        },
-      ],
-    });
-
-    if (result) {
-      const workbook = new ExcelJs.Workbook();
-      const worksheet = workbook.addWorksheet("Transaction Membership");
-
-      worksheet.columns = [
-        { header: "No", key: "No", width: 5 },
-        { header: "Transaction Date", width: 20, key: "createdAt" },
-        { header: "Invoice No", width: 40, key: "invoice_id" },
-        { header: "Name", width: 35, key: "fullname" },
-        { header: "Email", width: 35, key: "email" },
-        { header: "Virtual Account Number", width: 35, key: "virtual_account" },
-        { header: "Transaction Code", width: 30, key: "trxId" },
-        { header: "Product Name", width: 35, key: "product_name" },
-        { header: "Product Type", width: 20, key: "purchase_type" },
-        { header: "Payment Method", width: 30, key: "transactionType" },
-        { header: "Amount", width: 30, key: "price" },
-        { header: "Status", width: 20, key: "statusPayment" },
-      ];
-
-      worksheet.eachRow((row) => {
-        row.eachCell((cell) => {
-          cell.alignment = { vertical: "middle", horizontal: "center" };
-        });
-      });
-
-      for (const [index, value] of result.rows.entries()) {
-        const row = worksheet.addRow({
-          No: index + 1,
-          createdAt: value.createdAt
-            ? moment(value.createdAt)
-                .tz("Asia/Jakarta")
-                .format("YYYY-MM-DD HH:mm:ss")
-            : "-",
-          invoice_id: value.invoice_id || "-",
-          fullname: value.trxHistoryUser ? value.trxHistoryUser?.fullname : "-",
-          email: value.trxHistoryUser ? value.trxHistoryUser?.email : "-",
-          virtual_account: value.virtual_account || "-",
-          trxId: value.trxId || "-",
-          product_name: value.product_name || "-",
-          purchase_type: value.purchase_type || "-",
-          purchase_type: value.transactionType || "-",
-
-          price: value.price || "-",
-          statusPayment: value.statusPayment || "-",
-        });
-
-        worksheet.getRow(1).eachCell((cell) => {
-          cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; // Bold & warna putih
-          cell.fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "0070C0" }, // Background biru
-          };
-          cell.alignment = { vertical: "middle", horizontal: "center" };
-        });
-      }
-
-      const fileName =
-        locationCode.length > 0 && date
-          ? `History_transaction_${date}.xlsx`
-          : `History_transaction_alldate.xlsx`;
-
-      res.setHeader(
-        "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      );
-      res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
-
-      await workbook.xlsx.write(res);
-      res.end();
-    } else {
-      res.status(400).json({ success: false, message: "Get data failed" });
-    }
-  } catch (error) {
-    console.log("Error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
-  }
-};
-
-export const exportHistoryPayment = async (req, res) => {
-  const locationCode = req.query.locationCode
-    ? JSON.parse(req.query.locationCode)
-    : [];
-  const date = req.query.date;
-
-  try {
-    const whereClause = {};
-
-    if (locationCode.length > 0) {
-      whereClause.location_code = { [Op.in]: locationCode };
-    }
-
-    const dateCondition = date
-      ? {
-          created_at: {
-            [Sequelize.Op.gte]: Sequelize.literal(`'${date} 00:00:00'`),
-            [Sequelize.Op.lt]: Sequelize.literal(`'${date} 23:59:59'`),
-          },
-        }
-      : null;
-
-    const result = await PaymentTransaction.findAndCountAll({
-      where: {
-        ...whereClause,
-        ...(dateCondition ? dateCondition : {}),
-      },
-    });
-
-    if (result) {
-      const workbook = new ExcelJs.Workbook();
-      const worksheet = workbook.addWorksheet("Transaction Membership");
-
-      worksheet.columns = [
-        { header: "No", key: "No", width: 5 },
-        { header: "Transaction Date", width: 20, key: "createdAt" },
-        { header: "Ticket Number", width: 35, key: "no_tiket" },
-        { header: "Product Name", width: 20, key: "product_name" },
-        { header: "Location", width: 35, key: "location_name" },
-        { header: "Transaction Code", width: 30, key: "trx_id" },
-        { header: "Invoice Number", width: 30, key: "invoice_number" },
-        {
-          header: "Virtual Account Name",
-          width: 35,
-          key: "virtual_account_name",
-        },
-        {
-          header: "Virtual Account Number",
-          width: 35,
-          key: "virtual_account_number",
-        },
-        {
-          header: "Virtual Account Email",
-          width: 35,
-          key: "virtual_account_email",
-        },
-        { header: "Payment Method", width: 30, key: "payment_using" },
-        { header: "Product", width: 35, key: "app_module" },
-        { header: "RRN", width: 20, key: "RRN" },
-        { header: "Amount", width: 30, key: "paid_amount" },
-        { header: "Status", width: 20, key: "status_transaction" },
-      ];
-
-      worksheet.getRow(1).eachCell((cell) => {
-        cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; // Bold & warna putih
-        cell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: "0070C0" }, // Background biru
-        };
-        cell.alignment = { vertical: "middle", horizontal: "center" };
-      });
-
-      for (const [index, value] of result.rows.entries()) {
-        const row = worksheet.addRow({
-          No: index + 1,
-          createdAt: value.created_at
-            ? moment(value.created_at)
-                .tz("Asia/Jakarta")
-                .format("YYYY-MM-DD HH:mm:ss")
-            : "-",
-          no_tiket: value.no_tiket || "-",
-          product_name: value.product_name || "-",
-          location_name: value.location_name || "-",
-          trx_id: value.trx_id || "-",
-          invoice_number: value.invoice_number || "-",
-          virtual_account_name: value.virtual_account_name || "-",
-          virtual_account_number: value.virtual_account_number || "-",
-          virtual_account_email: value.virtual_account_email || "-",
-          payment_using: value.payment_using || "-",
-          app_module: value.app_module || "-",
-          RRN: value.RRN || "-",
-          purchase_type: value.transactionType || "-",
-          paid_amount: value.paid_amount || "-",
-          status_transaction: value.status_transaction || "-",
-        });
-
-        row.eachCell((cell) => {
-          cell.alignment = { vertical: "middle", horizontal: "center" };
-        });
-      }
-
-      const fileName =
-        locationCode.length > 0 && date
-          ? `History_Payment_${date}.xlsx`
-          : `History_Payment_alldate.xlsx`;
-
-      res.setHeader(
-        "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      );
-      res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
-
-      await workbook.xlsx.write(res);
-      res.end();
-    } else {
-      res.status(400).json({ success: false, message: "Get data failed" });
-    }
-  } catch (error) {
-    console.log("Error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
-  }
-};
-
 export const historyUsersById = async (req, res) => {
   try {
     const id = req.params.id;
@@ -577,12 +387,12 @@ export const historyUsersById = async (req, res) => {
 
     const transactions = await TransactionHistoryPayment.findAll({
       where: { user_id: id },
-      order: [["timestamp", "DESC"]],
+      order: [["createdAt", "ASC"]], // Urutkan dari yang paling lama
     });
 
     const checkins = await HistoryPost.findAll({
       where: { user_id: id },
-      order: [["gate_in_time", "DESC"]],
+      order: [["createdAt", "ASC"]], // Urutkan dari yang paling lama
     });
 
     let currentPoint = 0;
@@ -592,10 +402,10 @@ export const historyUsersById = async (req, res) => {
       if (trx.purchase_type === "TOPUP") {
         currentPoint += parseInt(trx.price);
         history.push({
-          date: trx.timestamp,
+          date: trx.createdAt,
           description: "Topup Point",
-          debet: "",
-          kredit: trx.price,
+          debet: trx.price, // Tukar posisi debet jadi kredit
+          kredit: "",
           currentPoint: currentPoint,
         });
       } else if (
@@ -604,10 +414,10 @@ export const historyUsersById = async (req, res) => {
       ) {
         currentPoint -= parseInt(trx.price);
         history.push({
-          date: trx.timestamp,
-          description: `Pembelian ${trx.product_name}`,
-          debet: trx.price,
-          kredit: "",
+          date: trx.createdAt,
+          description: `Pembelian membership ${trx.product_name} dengan Point`,
+          debet: "",
+          kredit: trx.price, // Tukar posisi kredit jadi debet
           currentPoint: currentPoint,
         });
       }
@@ -616,15 +426,15 @@ export const historyUsersById = async (req, res) => {
     checkins.forEach((checkin) => {
       currentPoint -= parseInt(checkin.tariff);
       history.push({
-        date: checkin.gate_in_time,
+        date: checkin.createdAt,
         description: `Parking ${checkin.status_member} di ${checkin.location_name}`,
-        debet: checkin.tariff,
-        kredit: "",
+        debet: "",
+        kredit: checkin.tariff, // Tukar posisi kredit jadi debet
         currentPoint: currentPoint,
       });
     });
 
-    history.sort((a, b) => new Date(b.date) - new Date(a.date));
+    // Data sudah urut dari yang paling lama, jadi tidak perlu sorting lagi
 
     // Filter berdasarkan search query jika ada
     if (search) {
@@ -727,5 +537,55 @@ export const historyTransactionByLocation = async (req, res) => {
   } catch (error) {
     console.error("Error fetching transaction summary:", error);
     res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const transactionByLocation = async (req, res) => {
+  try {
+    // Ambil query parameter untuk pagination (default: page 1, limit 10)
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+
+    // Hitung total data untuk pagination
+    const totalItems = await TransactionHistoryPayment.count({
+      where: { location_code: req.params.locationCode },
+    });
+
+    // Ambil data dengan pagination
+    const response = await TransactionHistoryPayment.findAll({
+      where: {
+        location_code: req.params.locationCode,
+      },
+      attributes: ["id", "location_code", "location_name", "vehicle_type"],
+      include: [
+        {
+          model: User,
+          as: "trxHistoryUser",
+          attributes: ["id", "fullname", "email", "points"],
+        },
+      ],
+      limit: parseInt(limit), // Batasi jumlah data per halaman
+      offset: parseInt(offset), // Mulai dari index tertentu
+    });
+
+    // Hitung total halaman
+    const totalPages = Math.ceil(totalItems / limit);
+
+    return res.json({
+      success: true,
+      message: "Data retrieved successfully",
+      totalItems,
+      totalPages,
+      currentPage: parseInt(page),
+      limit: parseInt(limit),
+      data: response,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
   }
 };

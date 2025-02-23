@@ -4,14 +4,21 @@ import LocationArea from "../../model/Members/v02/LocationMaster.js";
 import moment from "moment";
 
 export const getAllProductMembers = async (req, res) => {
-  const { page = 1, limit = 10, search = "" } = req.query;
+  const { page = 1, limit = 10, search = "", vehicleType = "" } = req.query;
 
   try {
     const offset = (page - 1) * limit;
+    const whereCondition = {
+      [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
+    };
+
+    // Jika vehicleType tidak kosong, tambahkan ke kondisi where
+    if (vehicleType && vehicleType !== "All") {
+      whereCondition.vehicle_type = vehicleType;
+    }
+
     const { count, rows } = await ProductMembership.findAndCountAll({
-      where: {
-        [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
-      },
+      where: whereCondition,
       attributes: [
         "id",
         "product_code",

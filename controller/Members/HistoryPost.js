@@ -1,9 +1,6 @@
 import { Op, Sequelize } from "sequelize";
 import HistoryPost from "../../model/Members/v02/HistoryPost.js";
 import User from "../../model/Members/Users.js";
-import LocationArea from "../../model/Members/v02/LocationMaster.js";
-import ExcelJs from "exceljs";
-import moment from "moment/moment.js";
 
 export const HistoryPostController = async (req, res) => {
   const id = req.userId;
@@ -101,6 +98,7 @@ export const AllTransaction = async (req, res) => {
     // Jika status bukan string kosong, tambahkan filter is_close
     if (isStatusDefined && status !== "All") {
       whereCondition.is_close = status;
+      whereCondition.gate_in_time = { [Op.ne]: null };
     }
 
     if (statusMember === "NON-MEMBER") {
@@ -139,34 +137,35 @@ export const AllTransaction = async (req, res) => {
   }
 };
 
-export const exportDataTransaksiPost = async (req, res) => {
-  const locationCode = req.query.locationCode
-    ? JSON.parse(req.query.locationCode)
-    : [];
-  const startDate = req.query.startDate;
-  const endDate = req.query.endDate;
+export const transactionsCasual = async (req, res) => {
+  const page = req.query.page || 1;
+  const limit = req.query.limit || 5;
+  const offset = (page - 1) * limit;
+
+  // Ambil bulan dari query, default ke bulan sekarang jika tidak diberikan
+  const selectedMonth = req.query.month
+    ? parseInt(req.query.month) // Jika diberikan, gunakan query
+    : new Date().getMonth() + 1; // Default ke bulan sekarang (getMonth() mulai dari 0)
 
   try {
-    const whereClause = {};
-
-    if (locationCode.length > 0) {
-      whereClause.location_code = { [Op.in]: locationCode };
-    }
-
-    const dateCondition = date
-      ? {
-          createdAt: {
-            [Sequelize.Op.gte]: `${startDate} 00:00:00`,
-            [Sequelize.Op.lt]: `${endDate} 23:59:59`,
-          },
-        }
-      : null;
-
-    const result = await HistoryPost.findAndCountAll({
-      where: {
-        ...whereClause,
-        ...(dateCondition ? dateCondition : {}),
+    // Filter transaksi berdasarkan bulan
+    const whereCondition = {
+      status_member: "NON-MEMBER",
+      is_close: 1,
+      createdAt: {
+        [Op.between]: [
+          new Date(new Date().getFullYear(), selectedMonth - 1, 1), // Awal bulan
+          new Date(new Date().getFullYear(), selectedMonth, 0, 23, 59, 59), // Akhir bulan
+        ],
       },
+    };
+
+    // Ambil data transaksi
+    const { count, rows } = await HistoryPost.findAndCountAll({
+      where: whereCondition,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [["createdAt", "DESC"]],
       include: [
         {
           model: User,
@@ -176,74 +175,39 @@ export const exportDataTransaksiPost = async (req, res) => {
       ],
     });
 
-    if (result) {
-      const workbook = new ExcelJs.Workbook();
-      const worksheet = workbook.addWorksheet("Transaction Membership");
+    // Hitung total jumlah tariff untuk bulan yang dipilih
+    const totalTariff = await HistoryPost.sum("tariff", {
+      where: whereCondition,
+    });
 
-      worksheet.columns = [
-        { header: "No", key: "No", width: 5 },
-        { header: "Location Code", width: 20, key: "location_code" },
-        { header: "Location Name", width: 35, key: "location_name" },
-        { header: "Customer Name", width: 35, key: "username" },
-        { header: "Plate Number", width: 20, key: "plate_number" },
-        { header: "Status Membership", width: 20, key: "status_membership" },
-        { header: "In Time", width: 30, key: "in_time" },
-        { header: "Out TIme", width: 30, key: "out_time" },
-        { header: "Tariff", width: 20, key: "tariff" },
-        { header: "Status", width: 20, key: "status" },
-      ];
+    // Ambil daftar unik bulan yang tersedia di database
+    const monthsAvailable = await HistoryPost.findAll({
+      attributes: [
+        [Sequelize.fn("MONTH", Sequelize.col("createdAt")), "month"],
+      ],
+      group: ["month"],
+      order: [[Sequelize.fn("MONTH", Sequelize.col("createdAt")), "ASC"]],
+      raw: true,
+    });
 
-      worksheet.eachRow((row) => {
-        row.eachCell((cell) => {
-          cell.alignment = { vertical: "middle", horizontal: "center" };
-        });
-      });
+    // Ubah hasil menjadi array angka bulan
+    const availableMonths = monthsAvailable.map((m) => m.month);
 
-      for (const [index, value] of result.rows.entries()) {
-        const row = worksheet.addRow({
-          No: index + 1,
-          location_code: value.location_code || "-",
-          location_name: value.location_name || "-",
-          username: value.userHistoryPost
-            ? value.userHistoryPost?.fullname
-            : "-",
-          plate_number: value.plate_number || "-",
-          status_membership: value.status_member || "-",
-          in_time: value.gate_in_time
-            ? moment(value.gate_in_time)
-                .tz("Asia/Jakarta")
-                .format("YYYY-MM-DD HH:mm:ss")
-            : "-",
-          out_time: value.gate_out_time
-            ? moment(value.gate_out_time)
-                .tz("Asia/Jakarta")
-                .format("YYYY-MM-DD HH:mm:ss")
-            : "-",
-          tariff: value.tariff || "-",
-          status: value.is_close === 1 ? "Out Area Parking" : "In Area Parking",
-        });
+    const totalPages = Math.ceil(count / limit);
 
-        row.eachCell((cell) => {
-          cell.alignment = { vertical: "middle", horizontal: "center" };
-        });
-      }
-
-      const fileName =
-        locationCode.length > 0 && date ? `${date}.xlsx` : `alldate.xlsx`;
-
-      res.setHeader(
-        "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      );
-      res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
-
-      await workbook.xlsx.write(res);
-      res.end();
-    } else {
-      res.status(400).json({ success: false, message: "Get data failed" });
-    }
+    res.status(200).json({
+      total: count,
+      totalPages: totalPages,
+      currentPage: parseInt(page),
+      totalTariff: totalTariff || 0, // Default ke 0 jika tidak ada transaksi
+      availableMonths: availableMonths, // List bulan untuk dropdown
+      data: rows,
+    });
   } catch (error) {
-    console.log("Error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({
+      statusCode: 500,
+      message: "Failed to retrieve transactions",
+      error: error.message,
+    });
   }
 };

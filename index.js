@@ -16,6 +16,7 @@ import CMSRoute from "./route/CMS/Auth.js";
 import RolePermission from "./route/CMS/RolePermission.js";
 import Menu from "./route/CMS/MenuRoute.js";
 import Dashboard from "./route/CMS/DashboardRoute.js";
+import ExportData from "./route/CMS/ExportDataRoute.js";
 
 const app = express();
 
@@ -52,6 +53,7 @@ app.use("/v01/cms/api/auth", CMSRoute);
 app.use("/v01/cms/api/auth", RolePermission);
 app.use("/v01/cms/api/auth", Menu);
 app.use("/v01/cms/api", Dashboard);
+app.use("/v01/cms/api", ExportData);
 
 const PORT = 3008;
 app.listen(PORT, () => {

@@ -13,7 +13,7 @@ export const getAllLocationAreas = async (req, res) => {
           { location_name: { [Op.like]: `%${search}%` } },
         ],
       },
-      attributes: ["id", "location_code", "location_name", "KID"],
+      attributes: ["id", "location_code", "location_name", "KID", "address"],
       limit: parseInt(limit),
       offset: parseInt(offset),
       order: [["created_at", "DESC"]],

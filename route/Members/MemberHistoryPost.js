@@ -1,20 +1,12 @@
 import express from "express";
-import {
-  getAllMemberPoints,
-  getMemberPointById,
-  getMemberPointsByCardId,
-} from "../../controller/Members/MemberHistoryPost.js";
+import * as History from "../../controller/Members/HistoryPost.js";
 import { protect } from "../../middleware/member/authMiddleware.js";
 
 const router = express.Router();
 
 // Get all with pagination and search
-router.get("/history-post", getAllMemberPoints);
-
-// Get by ID
-router.get("/history-post/getById", protect, getMemberPointById);
-
-// Get by CardId
-router.get("/history-post/card/:memberUserId", getMemberPointsByCardId);
+router.get("/history-post", protect, History.HistoryPostController);
+router.get("/history-post-all", protect, History.AllTransaction);
+router.route("/history-post-casual").get(protect, History.transactionsCasual);
 
 export default router;

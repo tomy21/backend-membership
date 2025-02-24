@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import User from "../../model/Members/Users.js";
+import UserCMS from "../../model/Members/v02/UserCMS.js";
 
 export const protect = async (req, res, next) => {
   let token;
@@ -9,10 +10,11 @@ export const protect = async (req, res, next) => {
     token = req.cookies.refreshToken;
   }
 
+  // Jika token tidak ada
   if (!token) {
     return res.status(401).json({
       status: "fail",
-      message: "You are not logged in! Please log in to get access.",
+      message: "Anda belum login. Silakan login untuk mendapatkan akses.",
     });
   }
 

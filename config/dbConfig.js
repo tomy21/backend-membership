@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 import { Sequelize } from "sequelize";
-dotenv.config({ path: ".env.membershipV2" });
+dotenv.config();
 
 const db = new Sequelize(
   process.env.DB_NAME,
@@ -10,7 +10,13 @@ const db = new Sequelize(
     host: process.env.DB_HOST,
     dialect: "mysql",
     logging: false,
-    timezone: "+07:00",
+    // timezone: "+07:00",
+    pool: {
+      max: 5,
+      min: 0,
+      acquire: 30000,
+      idle: 10000,
+    },
   }
 );
 

@@ -1,5 +1,9 @@
 import { DataTypes, Sequelize } from "sequelize";
 import db from "../../../config/dbConfig.js";
+<<<<<<< HEAD
+=======
+import LocationArea from "./LocationMaster.js";
+>>>>>>> production_v2
 
 const ProductMembership = db.define(
   "membership_product",
@@ -49,6 +53,27 @@ const ProductMembership = db.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
+<<<<<<< HEAD
+=======
+    periode: {
+      type: DataTypes.ENUM,
+      values: [
+        "1 Bulan",
+        "2 Bulan",
+        "3 Bulan",
+        "4 Bulan",
+        "5 Bulan",
+        "6 Bulan",
+        "7 Bulan",
+        "8 Bulan",
+        "9 Bulan",
+        "10 Bulan",
+        "11 Bulan",
+        "12 Bulan",
+      ],
+      allowNull: false,
+    },
+>>>>>>> production_v2
     Create_by: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -74,4 +99,12 @@ const ProductMembership = db.define(
   }
 );
 
+<<<<<<< HEAD
+=======
+ProductMembership.belongsTo(LocationArea, {
+  foreignKey: "location_code",
+  targetKey: "location_code",
+});
+
+>>>>>>> production_v2
 export default ProductMembership;

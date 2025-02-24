@@ -10,6 +10,9 @@ router
 
 router.route("/product-byLocation/:code").get(ProductMaster.getByLocationCode);
 
+router.route("/product-periode").get(ProductMaster.getByLocationByPeriode);
+router.route("/product-byVehicle/:type/:code").get(ProductMaster.getByVehicle);
+
 router
   .route("/product/:id")
   .get(ProductMaster.getProductMemberById)

@@ -25,7 +25,6 @@ export const getAllTrxHistories = async (req, res) => {
         },
       },
     });
-    console.log(memberUserProducts);
     res.status(200).json(memberUserProducts);
   } catch (error) {
     res.status(400).json({ error: error.message });

@@ -1,23 +1,10 @@
 import express from "express";
-import {
-  register,
-  login,
-  logout,
-  activateAccount,
-  getUserById,
-  getUserByIdDetail,
-  getAllUsers,
-  userRole,
-  getRoles,
-  getRoleById,
-  updateUserDetails,
-  requestPasswordReset,
-  resetPassword,
-} from "../../controller/Members/AuthController.js";
+import * as Users from "../../controller/Members/AuthController.js";
 import { protect } from "../../middleware/member/authMiddleware.js";
 
 const router = express.Router();
 
+<<<<<<< HEAD
 router.post("/register", register);
 router.post("/login", login);
 router.post("/verifikasi", protect, getUserByIdDetail);
@@ -32,9 +19,19 @@ router.put("/usersDetail", protect, updateUserDetails);
 router.post("/role", protect, userRole);
 router.get("/role", protect, getRoles);
 router.get("/rolesDetail", protect, getRoleById);
+=======
+router.post("/register", Users.register);
+router.post("/login", Users.login);
+router.post("/verifikasi", protect, Users.getUserByIdDetail);
+router.get("/logout", Users.logout);
 
-router.post("/request-password-reset", requestPasswordReset);
-router.post("/reset-password", resetPassword);
+router.get("/userById", protect, Users.getUserById);
+router.get("/user", protect, Users.getAllUsers);
+router.patch("/user/:id", protect, Users.getUserById);
+router.get("/activate/:token", Users.activateAccount);
+>>>>>>> production_v2
+
+router.post("/request-email-verification", Users.requestTokenActivation);
 
 router.get("/protected", protect, (req, res) => {
   const token = req.cookies.refreshToken;

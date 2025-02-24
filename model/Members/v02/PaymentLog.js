@@ -1,59 +1,57 @@
 import { DataTypes, Sequelize } from "sequelize";
 import db from "../../../config/dbConfig.js";
 
-const LocationArea = db.define(
-  "location_area",
+const PaymentLog = db.define(
+  "payment_log",
   {
     id: {
       type: DataTypes.STRING,
       primaryKey: true,
     },
-    location_code: {
+    status_module: {
       type: DataTypes.STRING,
       allowNull: false,
     },
-    location_name: {
+    module_name: {
       type: DataTypes.STRING,
       allowNull: false,
     },
-    KID: {
+    virtual_account_name: {
       type: DataTypes.STRING,
       allowNull: false,
     },
-<<<<<<< HEAD
-=======
-    address: {
+    virtual_account_number: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    request_payload: {
       type: DataTypes.TEXT,
       allowNull: false,
     },
-    coordinate: {
+    response_payload: {
       type: DataTypes.TEXT,
       allowNull: false,
     },
->>>>>>> production_v2
-    Create_by: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-    },
-    Update_by: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-    },
-    created_at: {
+    createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: Sequelize.NOW,
     },
-    updated_at: {
+    updatedAt: {
       type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: Sequelize.NOW,
+    },
+    endpoint: {
+      type: DataTypes.STRING,
       allowNull: false,
       defaultValue: Sequelize.NOW,
     },
   },
   {
-    tableName: "location_area",
+    tableName: "payment_log",
     timestamps: false,
   }
 );
 
-export default LocationArea;
+export default PaymentLog;

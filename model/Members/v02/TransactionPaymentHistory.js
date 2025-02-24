@@ -59,6 +59,17 @@ const TransactionHistoryPayment = db.define(
       ],
       allowNull: false,
     },
+<<<<<<< HEAD
+=======
+    location_code: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    location_name: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+>>>>>>> production_v2
     invoice_id: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -68,6 +79,14 @@ const TransactionHistoryPayment = db.define(
       values: ["MEMBERSHIP", "TOPUP"],
       allowNull: false,
     },
+<<<<<<< HEAD
+=======
+    vehicle_type: {
+      type: DataTypes.ENUM,
+      values: ["MOBIL", "MOTOR"],
+      allowNull: false,
+    },
+>>>>>>> production_v2
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -88,6 +107,10 @@ const TransactionHistoryPayment = db.define(
 TransactionHistoryPayment.belongsTo(User, {
   foreignKey: "user_id",
   targetKey: "id",
+<<<<<<< HEAD
+=======
+  as: "trxHistoryUser",
+>>>>>>> production_v2
 });
 
 export default TransactionHistoryPayment;

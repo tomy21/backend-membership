@@ -1,4 +1,9 @@
 /node_modules
 .env
 *.rest
+.env.local
+.env.production
+/backendMembership_backup
+/backend-membership.git.bfg-report
+*.jar
 .env.membershipV2

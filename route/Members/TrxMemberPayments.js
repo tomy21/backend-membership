@@ -4,19 +4,53 @@ import { protect } from "../../middleware/member/authMiddleware.js";
 
 const router = express.Router();
 
+//transaction History
 router
-  .route("/history/payments")
+  .route("/history/transaction")
   .get(trxHistoryPayment.getTransactions)
   .post(trxHistoryPayment.createTransaction);
+router
+  .route("/history/transaction-topup")
+  .get(trxHistoryPayment.getTransactionsTopup);
 
 router
-  .route("/history/payments-byid/:id")
+  .route("/history/payment-status")
+  .get(trxHistoryPayment.getTrxStatusPayment);
+
+router
+  .route("/history/transaction-detail")
+  .get(trxHistoryPayment.getTrxStatusPayment);
+
+router
+  .route("/history/transaction-byid/:id")
   .patch(trxHistoryPayment.updateTransaction)
   .delete(trxHistoryPayment.deleteTransaction);
 
 router
-  .route("/history/payment-detail")
+  .route("/history/transaction-byuser")
   .get(protect, trxHistoryPayment.getTransactionByUserId);
-router.route("/paymentStatus/:trxId").get(trxHistoryPayment.getPaymentByTrxId);
+
+router
+  .route("/history/transaction-virtualaccount/:noVa")
+  .get(protect, trxHistoryPayment.getTrxStatusPaymentByVA);
+
+router
+  .route("/transactionStatus/:trxId")
+  .get(trxHistoryPayment.getPaymentByTrxId);
+
+router
+  .route("/history/transaction-history-bylocation/:locationCode")
+  .get(trxHistoryPayment.transactionByLocation);
+
+//Transaction end
+
+router.route("/history/payments").get(trxHistoryPayment.getPayment);
+
+router
+  .route("/history/get-history-user-byid/:id")
+  .get(trxHistoryPayment.historyUsersById);
+router
+  .route("/history/get-history-location")
+  .get(trxHistoryPayment.historyTransactionByLocation);
 
 export default router;

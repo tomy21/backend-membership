@@ -6,35 +6,69 @@ import MasterCard from "../../model/Members/v02/MasterCard.js";
 // Helper untuk menentukan kategori waktu
 const getDateRange = (rangeType) => {
   const now = new Date();
-  let startDate;
-  let format;
-  let categories = [];
+  let startDate,
+    format,
+    categories = [];
 
   switch (rangeType) {
     case "days": {
-      const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
-      startDate = new Date(weekStart);
-      format = "%a"; // Nama hari singkat (Sun, Mon, ...)
-      categories = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      break;
-    }
-    case "week": {
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      startDate = new Date(monthStart);
-      format = Sequelize.literal(
-        "CONCAT('Week ', WEEK(createdAt, 1) - WEEK(DATE_SUB(createdAt, INTERVAL DAYOFMONTH(createdAt)-1 DAY), 1) + 1)"
-      ); // Perbaikan
-      const totalWeeks = Math.ceil((now.getDate() + monthStart.getDay()) / 7);
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      format = "%Y-%m-%d"; // Format tanggal lengkap
+      const today = now.getDate();
       categories = Array.from(
-        { length: totalWeeks },
-        (_, i) => `Week ${i + 1}`
+        { length: today },
+        (_, i) =>
+          new Date(now.getFullYear(), now.getMonth(), i + 1)
+            .toISOString()
+            .split("T")[0]
       );
       break;
     }
+
+    case "week": {
+      const firstDayOfYear = new Date(now.getFullYear(), 0, 1);
+      const firstDayOfLastMonth = new Date(
+        now.getFullYear(),
+        now.getMonth() - 1,
+        1
+      );
+      const firstDayOfThisMonth = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        1
+      );
+
+      startDate = firstDayOfLastMonth; // Mulai dari awal bulan lalu
+      format = Sequelize.literal("WEEK(createdAt, 1)"); // Ambil nomor minggu sejak awal tahun
+
+      // Hitung minggu pertama dari bulan lalu
+      const weekStart = Math.ceil(
+        ((firstDayOfLastMonth - firstDayOfYear) / (1000 * 60 * 60 * 24) +
+          firstDayOfYear.getDay() +
+          1) /
+          7
+      );
+
+      // Hitung minggu terakhir bulan ini
+      const currentWeek = Math.ceil(
+        ((now - firstDayOfYear) / (1000 * 60 * 60 * 24) +
+          firstDayOfYear.getDay() +
+          1) /
+          7
+      );
+
+      // Buat array kategori yang benar (mulai dari minggu bulan lalu hingga minggu sekarang)
+      categories = Array.from(
+        { length: currentWeek - weekStart + 1 },
+        (_, i) => `Week ${weekStart + i}`
+      );
+
+      break;
+    }
+
     case "month": {
-      const yearStart = new Date(now.getFullYear(), 0, 1);
-      startDate = new Date(yearStart);
-      format = "%b"; // Nama bulan (Jan, Feb, ...)
+      startDate = new Date(now.getFullYear(), 0, 1);
+      format = "%b"; // Format bulan singkat (Jan, Feb, Mar, ...)
       categories = [
         "Jan",
         "Feb",
@@ -51,14 +85,16 @@ const getDateRange = (rangeType) => {
       ];
       break;
     }
+
     case "year": {
-      startDate = new Date(now.getFullYear() - 6, 0, 1);
-      format = "%Y"; // Tahun
-      categories = Array.from({ length: 7 }, (_, i) =>
-        (now.getFullYear() - 6 + i).toString()
+      startDate = new Date(now.getFullYear() - 2, 0, 1);
+      format = "%Y"; // Format tahun
+      categories = Array.from({ length: 3 }, (_, i) =>
+        (now.getFullYear() - 2 + i).toString()
       );
       break;
     }
+
     default:
       startDate = new Date(now.getFullYear(), 0, 1);
       format = "%b";
@@ -105,16 +141,22 @@ export const getMembershipStatistics = async (req, res) => {
       order: [["date", "ASC"]],
     });
 
-    // Ubah hasil query ke dalam bentuk dictionary
+    console.log(
+      "Transactions:",
+      transactions.map((trx) => trx.dataValues)
+    );
+    console.log("Categories:", categories);
+
     const dataMap = transactions.reduce((acc, trx) => {
-      acc[trx.dataValues.date] = trx.dataValues.count;
+      let key =
+        range === "week" ? `Week ${trx.dataValues.date}` : trx.dataValues.date;
+      acc[key] = trx.dataValues.count;
       return acc;
     }, {});
 
-    // Susun ulang agar sesuai dengan urutan kategori
-    const seriesData = categories.map((label) => dataMap[label] || 0);
+    console.log("DataMap:", dataMap);
 
-    // Hitung total semua transaksi dalam rentang waktu yang dipilih
+    const seriesData = categories.map((label) => dataMap[label] || 0);
     const totalMemberships = seriesData.reduce((a, b) => a + b, 0);
 
     res.json({ categories, series: seriesData, total: totalMemberships });
@@ -133,19 +175,21 @@ export const totalValue = async (req, res) => {
     const totalMembershipActive = await User.count({
       where: {
         is_active: 1,
-        created_at: {
-          [Op.between]: [startOfMonth, endOfMonth], // Filter bulan ini
-        },
+        // created_at: {
+        //   [Op.between]: [startOfMonth, endOfMonth], // Filter bulan ini
+        // },
       },
     });
     const totalMembershipNonActive = await User.count({
       where: {
         is_active: 0,
-        created_at: {
-          [Op.between]: [startOfMonth, endOfMonth], // Filter bulan ini
-        },
+        // created_at: {
+        //   [Op.between]: [startOfMonth, endOfMonth], // Filter bulan ini
+        // },
       },
     });
+
+    const totalBalancePoint = await User.sum("Points");
 
     const totalPrice = await TransactionHistoryPayment.findOne({
       attributes: [[Sequelize.fn("SUM", Sequelize.col("price")), "totalPrice"]],
@@ -182,6 +226,7 @@ export const totalValue = async (req, res) => {
       totalMembershipActive,
       totalMembershipNonActive,
       totalPrice,
+      totalBalancePoint,
       CardUsed,
       CardNotUsed,
     });

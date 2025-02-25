@@ -4,6 +4,22 @@ import { protect } from "../../middleware/member/authMiddleware.js";
 
 const router = express.Router();
 
+<<<<<<< HEAD
+router.post("/register", register);
+router.post("/login", login);
+router.post("/verifikasi", protect, getUserByIdDetail);
+router.get("/logout", logout);
+
+router.get("/userById", protect, getUserById);
+router.get("/user", protect, getAllUsers);
+router.patch("/user/:id", protect, getUserById);
+router.get("/activate/:token", activateAccount);
+router.put("/usersDetail", protect, updateUserDetails);
+
+router.post("/role", protect, userRole);
+router.get("/role", protect, getRoles);
+router.get("/rolesDetail", protect, getRoleById);
+=======
 router.post("/register", Users.register);
 router.post("/login", Users.login);
 router.post("/verifikasi", protect, Users.getUserByIdDetail);
@@ -13,6 +29,7 @@ router.get("/userById", protect, Users.getUserById);
 router.get("/user", protect, Users.getAllUsers);
 router.patch("/user/:id", protect, Users.getUserById);
 router.get("/activate/:token", Users.activateAccount);
+>>>>>>> production_v2
 
 router.post("/request-email-verification", Users.requestTokenActivation);
 

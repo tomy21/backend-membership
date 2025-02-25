@@ -5,11 +5,53 @@ import { Op, Sequelize } from "sequelize";
 import { v4 as uuidv4 } from "uuid";
 import { errorResponse, successResponse } from "../../config/response.js";
 import bcrypt from "bcryptjs/dist/bcrypt.js";
+<<<<<<< HEAD
+import MembershipCard from "../../model/Members/v02/MembershipCard.js";
+
+const signToken = (user, rememberMe) => {
+  const expiresIn = rememberMe ? "30d" : "1d";
+
+  const payload = {
+    id: user.id,
+    username: user.username,
+    iat: Math.floor(Date.now() / 1000),
+    // iss: "https://skyparking.online",
+    // jti: uuidv4(),
+    // nbf: Math.floor(Date.now() / 1000),
+    // role: user.Role,
+    // sub: user.UserName,
+  };
+
+  const token = jwt.sign(payload, process.env.JWT_SECRET, {
+    expiresIn,
+  });
+
+  return token;
+};
+
+const createSendToken = (user, statusCode, res, rememberMe) => {
+  const token = signToken(user, rememberMe);
+
+  res.cookie("refreshToken", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    expires: new Date(Date.now() + (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000),
+    sameSite: process.env.NODE_ENV === "production" ? "Strict" : "Lax",
+  });
+
+  res.status(statusCode).json({
+    status: "success",
+    token,
+    message: "Login Successfully",
+  });
+};
+=======
 import UserCMS from "../../model/Members/v02/UserCMS.js";
 import { sendEmailRegister } from "../../config/EmailService.js";
 import { createSendToken } from "../../config/ConfigToken.js";
 import VehicleList from "../../model/Members/v02/VehicleList.js";
 import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
+>>>>>>> production_v2
 
 export const login = async (req, res) => {
   const { identifier, password, rememberMe } = req.body;
@@ -22,6 +64,25 @@ export const login = async (req, res) => {
     });
   }
 
+<<<<<<< HEAD
+  // Find user by username, email, or phone number
+  const user = await User.findOne({
+    where: {
+      [Op.or]: [
+        { username: identifier },
+        { email: identifier },
+        { phone_number: identifier },
+      ],
+    },
+  });
+
+  console.log(user);
+
+  if (!user || !(await user.correctPassword(password, user.password))) {
+    return res.status(401).json({
+      status: "fail",
+      message: "Incorrect identifier or password",
+=======
   try {
     // Cari user di database User
     let user = await User.findOne({
@@ -99,10 +160,16 @@ export const login = async (req, res) => {
       status: "error",
       message: "Terjadi kesalahan pada server. Silakan coba lagi nanti.",
       error: error.message, // Opsional: Hapus di produksi jika terlalu sensitif
+>>>>>>> production_v2
     });
   }
 };
 
+<<<<<<< HEAD
+  // Update the last login time
+  // user.LastLogin = new Date();
+  // await user.save({ validate: false });
+=======
 export const requestTokenActivation = async (req, res) => {
   try {
     const { email, referralUrl } = req.body;
@@ -111,6 +178,7 @@ export const requestTokenActivation = async (req, res) => {
         [Op.or]: [{ email: email }, { username: email }],
       },
     });
+>>>>>>> production_v2
 
     if (!user) {
       return res.status(404).json({
@@ -185,6 +253,10 @@ export const requestTokenActivation = async (req, res) => {
 
 export const register = async (req, res) => {
   try {
+<<<<<<< HEAD
+    const { username, email, password, phone, pin, roleId, referralUrl } =
+      req.body;
+=======
     const {
       fullname,
       email,
@@ -200,6 +272,7 @@ export const register = async (req, res) => {
 
     // Generate a unique customer number
     const customerNo = Math.floor(1000000000 + Math.random() * 9000000000); // Generate a random 10-digit number
+>>>>>>> production_v2
 
     const newUser = await User.create({
       fullname: fullname,
@@ -219,7 +292,7 @@ export const register = async (req, res) => {
 
     const activationURL = `${req.protocol}://${req.get(
       "host"
-    )}/v01/member/api/auth/activate/${activationToken}`;
+    )}/v01/member/api/auth/activate/${activationToken}?referralUrl=${referralUrl}`;
 
     const to = newUser.email;
     const subject = "Welcome to SKY PARKING - Activate Your Account";
@@ -256,7 +329,48 @@ export const register = async (req, res) => {
       },
     ];
 
+<<<<<<< HEAD
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: newUser.Email,
+      subject: "Welcome to SKY PARKING - Activate Your Account",
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="text-align: center; padding-bottom: 20px;">
+            <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
+          </div>
+          <h2 style="color: #333;">Hi, ${newUser.UserName}</h2>
+          <p style="color: #555;">
+            Terima kasih telah menggunakan layanan membership <strong>SKY PARKING</strong>. Kami sangat senang menyambut kamu!
+            Sebelum kamu bisa menikmati semua keuntungan sebagai member, silakan aktifkan akunmu dengan mengklik tombol di bawah ini.
+          </p>
+          <div style="text-align: center; margin: 20px 0;">
+            <a href="${activationURL}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
+              Aktifkan Akun
+            </a>
+          </div>
+          <p style="color: #555;">
+            Jika kamu mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
+          </p>
+          <p style="color: #555;">
+            Best Regards,<br/>
+            <strong>SKY Parking Utama</strong>
+          </p>
+        </div>
+      `,
+      attachments: [
+        {
+          filename: "logo.png", // Nama file yang akan muncul di email
+          path: "./images/logo.png", // Path ke file gambar yang berada di direktori lokal
+          cid: "logo", // Content-ID yang digunakan di dalam body email
+        },
+      ],
+    };
+
+    await transporter.sendMail(mailOptions);
+=======
     await sendEmailRegister({ to, subject, html, attachments });
+>>>>>>> production_v2
 
     createSendToken(newUser, 201, res);
   } catch (err) {
@@ -304,6 +418,16 @@ export const activateAccount = async (req, res) => {
       });
     }
 
+<<<<<<< HEAD
+    const referralUrl = req.query.referralUrl;
+    console.log(referralUrl);
+    user.EmailConfirmed = 1;
+    user.activationToken = null;
+    user.activationExpires = null;
+    await user.save();
+
+    // Redirect ke halaman setelah sukses aktivasi
+=======
     const allowedDomains = [
       "http://localhost:3000",
       "https://dev-membership.skyparking.online",
@@ -328,6 +452,7 @@ export const activateAccount = async (req, res) => {
       });
     }
 
+>>>>>>> production_v2
     res.redirect(`${referralUrl}/registerSuccess`);
   } catch (err) {
     res.status(400).json({
@@ -340,16 +465,30 @@ export const activateAccount = async (req, res) => {
 export const getUserById = async (req, res) => {
   try {
     const userId = req.userId;
+<<<<<<< HEAD
+    const userById = await User.findOne({
+      where: { id: userId },
+      attributes: [
+=======
 
     const userById = await User.findOne({
       where: { id: userId },
       attributes: [
         "id",
+>>>>>>> production_v2
         "fullname",
         "email",
         "points",
         "reward_points",
         "customer_no",
+<<<<<<< HEAD
+      ],
+      include: [
+        {
+          model: MembershipCard,
+          where: { isActive: 1 },
+          attributes: ["customerNo", "RFID_Data", "vehicleType", "isActive"],
+=======
         "phone_number",
         "username",
         "gender",
@@ -370,10 +509,16 @@ export const getUserById = async (req, res) => {
               attributes: ["is_active"],
             },
           ],
+>>>>>>> production_v2
         },
       ],
     });
 
+<<<<<<< HEAD
+    console.log(JSON.stringify(userById, null, 2));
+
+=======
+>>>>>>> production_v2
     if (!userById) {
       return res.status(404).json({
         statusCode: 404,
@@ -465,3 +610,214 @@ export const getAllUsers = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+<<<<<<< HEAD
+
+export const userRole = async (req, res) => {
+  try {
+    const { Name, NormalizedName, ConcurrencyStamp } = req.body;
+    const role = await MemberRole.create({
+      Name,
+      NormalizedName,
+      ConcurrencyStamp,
+    });
+    return successResponse(res, 200, "Get Data successfully", {
+      role,
+    });
+  } catch (err) {
+    return errorResponse(res, 500, "Error", err.message);
+  }
+};
+
+export const getRoles = async (req, res) => {
+  try {
+    const roles = await MemberRole.findAll();
+    return successResponse(res, 200, "Get Data successfully", {
+      roles,
+    });
+  } catch (error) {
+    return errorResponse(res, 500, "Error", error.message);
+  }
+};
+
+export const getRoleById = async (req, res) => {
+  try {
+    const dataRoles = await MemberUserRole.findByPk(req.userId);
+    return successResponse(res, 200, "Get Data successfully", {
+      dataRoles,
+    });
+  } catch (error) {
+    return errorResponse(res, 500, "Error", error.message);
+  }
+};
+
+export const updateUserDetails = async (req, res) => {
+  const id = req.userId;
+  const {
+    FullName,
+    IpAddress,
+    Gender,
+    Birthdate,
+    Address,
+    IdNumber,
+    Points,
+    RewardPoints,
+    P256dh,
+    Auth,
+    Url,
+    Pin,
+  } = req.body;
+
+  try {
+    const user = await UserDetails.findOne({ where: { Id: id } });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    user.FullName = FullName || user.FullName;
+    user.IpAddress = IpAddress || user.IpAddress;
+    user.Gender = Gender || user.Gender;
+    user.Birthdate = Birthdate || user.Birthdate;
+    user.Address = Address || user.Address;
+    user.IdNumber = IdNumber || user.IdNumber;
+    user.Points = Points !== undefined ? Points : user.Points; // Check if Points is explicitly passed
+    user.RewardPoints =
+      RewardPoints !== undefined ? RewardPoints : user.RewardPoints;
+    user.P256dh = P256dh || user.P256dh;
+    user.Auth = Auth || user.Auth;
+    user.Url = Url || user.Url;
+    user.Pin = Pin || user.Pin;
+
+    // Save the updated user details
+    await user.save();
+
+    res.status(200).json({
+      message: "User details updated successfully",
+      data: user,
+    });
+  } catch (error) {
+    console.error("Error updating user details:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const requestPasswordReset = async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    const user = await User.findOne({ where: { Email: email } });
+    if (!user) {
+      return res
+        .status(404)
+        .json({ status: "fail", message: "User not found" });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
+
+    const data = await MemberUserToken.create({
+      UserId: user.id,
+      LoginProvider: "reset_password",
+      Name: "password_reset_token",
+      Value: hashedToken,
+      ExpiredDate: new Date(Date.now() + 30 * 60 * 1000), // Token berlaku 30 menit
+    });
+
+    // Kirim email dengan token
+    const resetURL = `https://membership.skyparking.online/reset-password?token=${resetToken}`;
+
+    const transporter = nodemailer.createTransport({
+      host: "smtp.office365.com", // Server SMTP Outlook
+      port: 587, // Port SMTP
+      secure: false, // Gunakan false untuk port 587
+      auth: {
+        user: process.env.EMAIL_USER, // Gantilah dengan email pengguna Outlook Anda
+        pass: process.env.EMAIL_PASS, // Gantilah dengan password email pengguna Outlook Anda
+      },
+      tls: {
+        ciphers: "SSLv3", // Menetapkan cipher yang aman
+      },
+    });
+
+    // Contoh pengiriman email
+    const mailOptions = {
+      from: process.env.EMAIL_USER, // Gantilah dengan email pengguna Outlook Anda
+      to: email, // Email tujuan
+      subject: "Account Activation",
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="text-align: center; padding-bottom: 20px;">
+            <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
+          </div>
+          <h2 style="color: #333;">Hi,</h2>
+          <p style="color: #555;">
+            Password anda akan di reset silahkan klik button di bawah ini untuk memasukan password baru
+          </p>
+          <div style="text-align: center; margin: 20px 0;">
+            <a href="${resetURL}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
+              Aktifkan Akun
+            </a>
+          </div>
+          <p style="color: #555;">
+            Jika kamu mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
+          </p>
+          <p style="color: #555;">
+            Best Regards,<br/>
+            <strong>SKY Parking Utama</strong>
+          </p>
+        </div>
+      `,
+      attachments: [
+        {
+          filename: "logo.png", // Nama file yang akan muncul di email
+          path: "./images/logo.png", // Path ke file gambar yang berada di direktori lokal
+          cid: "logo", // Content-ID yang digunakan di dalam body email
+        },
+      ],
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.status(200).json({
+      status: "success",
+      message: "Reset password email sent successfully",
+    });
+  } catch (err) {
+    res.status(500).json({ status: "fail", message: err.message });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  try {
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const memberUserToken = await MemberUserToken.findOne({
+      where: {
+        Value: hashedToken,
+        ExpiredDate: { [Op.gt]: new Date() }, // Cek apakah token belum expired
+      },
+    });
+
+    if (!memberUserToken) {
+      return res
+        .status(400)
+        .json({ status: "fail", message: "Invalid or expired token" });
+    }
+    const user = await User.findByPk(memberUserToken.UserId);
+    user.PasswordHash = await bcrypt.hash(newPassword, 12);
+    await user.save();
+
+    res
+      .status(200)
+      .json({ status: "success", message: "Password reset successfully" });
+  } catch (err) {
+    res.status(500).json({ status: "fail", message: err.message });
+  }
+};
+=======
+>>>>>>> production_v2

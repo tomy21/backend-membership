@@ -83,39 +83,22 @@ export const deleteProviderPayment = async (req, res) => {
 // Get payment providers by type_payment
 export const getByTypePayment = async (req, res) => {
   const { type, locationCode } = req.query;
-
+  console.log(type, locationCode);
   try {
     let payments;
 
-    // Jika locationCode === "004SK"
     if (locationCode === "004SK") {
       payments = await ProviderPayment.findAll({
-        where: {
-          type_payment: type,
-          is_show: 1,
-          code_bank: {
-            [Op.ne]: "BCA",
-          },
-        },
+        where: { type_payment: type, gateway_partner: "NOBU", is_show: 1 },
       });
       return res.status(200).json(payments);
-    }
-
-    // Jika locationCode tidak diberikan atau null
-    if (!locationCode) {
+    } else {
       payments = await ProviderPayment.findAll({
         where: { type_payment: type, is_show: 1 },
       });
       return res.status(200).json(payments);
     }
-
-    // Untuk nilai locationCode lainnya
-    payments = await ProviderPayment.findAll({
-      where: { type_payment: type, is_show: 1 },
-    });
-    return res.status(200).json(payments);
   } catch (error) {
-    console.error("Error in getByTypePayment:", error);
     return res.status(500).json({ error: error.message });
   }
 };

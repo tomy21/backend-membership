@@ -1,3 +1,8 @@
+<<<<<<< HEAD
+import { Op } from "sequelize";
+import TransactionHistoryPayment from "../../model/Members/v02/TransactionPaymentHistory.js";
+import User from "../../model/Members/Users.js";
+=======
 import { Op, Sequelize } from "sequelize";
 import TransactionHistoryPayment from "../../model/Members/v02/TransactionPaymentHistory.js";
 import User from "../../model/Members/Users.js";
@@ -6,6 +11,7 @@ import moment from "moment/moment.js";
 import ExcelJs from "exceljs";
 import HistoryPost from "../../model/Members/v02/HistoryPost.js";
 import { errorResponse, successResponse } from "../../config/response.js";
+>>>>>>> production_v2
 
 export const createTransaction = async (req, res) => {
   try {
@@ -19,6 +25,8 @@ export const createTransaction = async (req, res) => {
     res.status(400).json({
       statusCode: 400,
       message: err.message,
+<<<<<<< HEAD
+=======
     });
   }
 };
@@ -100,21 +108,182 @@ export const getTrxStatusPaymentByVA = async (req, res) => {
     res.status(400).json({
       statusCode: 400,
       message: err.message,
+>>>>>>> production_v2
     });
   }
 };
 
+<<<<<<< HEAD
+export const getTransactionByUserId = async (req, res) => {
+  try {
+    const id = req.userId;
+
+    // Ambil query limit dan page dari request, gunakan default jika tidak ada
+    const limit = parseInt(req.query.limit) || 10; // Default 10 item per halaman
+    const page = parseInt(req.query.page) || 1; // Default halaman pertama
+    const offset = (page - 1) * limit;
+
+    const { count, rows: transactions } =
+      await TransactionHistoryPayment.findAndCountAll({
+        where: { user_id: id },
+        include: [
+          {
+            model: User,
+            attributes: ["fullname", "email"],
+          },
+        ],
+        limit: limit,
+        offset: offset,
+        order: [["createdAt", "DESC"]], // Urutkan dari yang terbaru
+      });
+
+    if (!transactions.length) {
+      return res.status(404).json({
+        statusCode: 404,
+        message: "Transaction not found",
+      });
+    }
+
+    res.status(200).json({
+      statusCode: 200,
+      message: "Transaction retrieved successfully",
+      data: transactions,
+      meta: {
+        totalItems: count,
+        currentPage: page,
+        totalPages: Math.ceil(count / limit),
+      },
+    });
+  } catch (err) {
+    res.status(400).json({
+      statusCode: 400,
+      message: err.message,
+    });
+  }
+};
+
+export const updateTransaction = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [updated] = await TransactionHistoryPayment.update(req.body, {
+      where: { id },
+    });
+
+    if (!updated) {
+      return res.status(404).json({
+        statusCode: 404,
+        message: "Transaction not found",
+      });
+    }
+
+    const updatedTransaction = await TransactionHistoryPayment.findOne({
+      where: { id },
+    });
+    res.status(200).json({
+      statusCode: 200,
+      message: "Transaction updated successfully",
+      data: updatedTransaction,
+    });
+  } catch (err) {
+    res.status(400).json({
+      statusCode: 400,
+      message: err.message,
+    });
+  }
+};
+
+export const deleteTransaction = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await TransactionHistoryPayment.destroy({
+      where: { id },
+    });
+
+    if (!deleted) {
+      return res.status(404).json({
+        statusCode: 404,
+        message: "Transaction not found",
+      });
+    }
+
+    res.status(200).json({
+      statusCode: 200,
+      message: "Transaction deleted successfully",
+    });
+  } catch (err) {
+    res.status(400).json({
+      statusCode: 400,
+      message: err.message,
+    });
+  }
+};
+
+export const getTransactions = async (req, res) => {
+  try {
+    const { search, page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const whereClause = search
+      ? {
+          [Op.or]: [
+            { trxId: { [Op.like]: `%${search}%` } },
+            { virtual_account: { [Op.like]: `%${search}%` } },
+            { product_name: { [Op.like]: `%${search}%` } },
+          ],
+        }
+      : {};
+
+    const { count, rows } = await TransactionHistoryPayment.findAndCountAll({
+      where: whereClause,
+      limit: parseInt(limit, 10),
+      offset: parseInt(offset, 10),
+=======
 export const getTrxStatusPayment = async (req, res) => {
   try {
     const trxId = req.query.trxId;
 
     const transaction = await TransactionHistoryPayment.findOne({
       where: { trxId: trxId },
+>>>>>>> production_v2
       include: [
         {
           model: User,
           attributes: ["fullname", "email"],
+<<<<<<< HEAD
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+
+    res.status(200).json({
+      statusCode: 200,
+      message: "Transactions retrieved successfully",
+      data: rows,
+      meta: {
+        total: count,
+        page: parseInt(page, 10),
+        lastPage: Math.ceil(count / limit),
+      },
+    });
+  } catch (err) {
+    res.status(400).json({
+      statusCode: 400,
+      message: err.message,
+    });
+  }
+};
+export const getPaymentByTrxId = async (req, res) => {
+  try {
+    const { trxId } = req.params;
+    const transaction = await TransactionHistoryPayment.findOne({
+      where: { trxId },
+      include: [
+        {
+          model: User,
+          attributes: ["fullname", "email"],
+=======
           as: "trxHistoryUser",
+>>>>>>> production_v2
         },
       ],
       order: [["createdAt", "DESC"]], // Urutkan dari yang terbaru
@@ -124,7 +293,10 @@ export const getTrxStatusPayment = async (req, res) => {
       return res.status(404).json({
         statusCode: 404,
         message: "Transaction not found",
+<<<<<<< HEAD
+=======
         data: null,
+>>>>>>> production_v2
       });
     }
 
@@ -133,6 +305,8 @@ export const getTrxStatusPayment = async (req, res) => {
       message: "Transaction retrieved successfully",
       data: transaction,
     });
+<<<<<<< HEAD
+=======
   } catch (err) {
     res.status(400).json({
       statusCode: 400,
@@ -319,11 +493,14 @@ export const getPaymentByTrxId = async (req, res) => {
       message: "Transaction retrieved successfully",
       data: transaction,
     });
+>>>>>>> production_v2
   } catch (err) {
     res.status(400).json({
       statusCode: 400,
       message: err.message,
     });
+<<<<<<< HEAD
+=======
   }
 };
 
@@ -587,5 +764,6 @@ export const transactionByLocation = async (req, res) => {
       message: "Internal server error",
       error: error.message,
     });
+>>>>>>> production_v2
   }
 };

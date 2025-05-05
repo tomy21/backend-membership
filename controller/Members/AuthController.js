@@ -51,9 +51,6 @@ export const login = async (req, res) => {
       },
     });
 
-    console.log(user);
-    console.log(decryptedData);
-
     // Jika tidak ditemukan di User, cari di UserCMS
     if (!user) {
       user = await UserCMS.findOne({
@@ -117,8 +114,6 @@ export const login = async (req, res) => {
           "Akun Anda belum registrasi. Silakan registrasi terlebih dahulu.",
       });
     }
-
-    console.log(user, 200, res, rememberMe);
 
     // Jika semua validasi lolos, buat token dan kirimkan respons sukses
     createSendToken(user, 200, res, rememberMe);

@@ -68,12 +68,12 @@ export const getTransactionByUserId = async (req, res) => {
   }
 };
 
-export const getTrxStatusPaymentByVA = async (req, res) => {
+export const getTrxStatusPaymentByTrxid = async (req, res) => {
   try {
-    const noVA = req.params.noVa;
-    console.log(noVA);
+    const idTrx = req.params.idTrx;
+
     const transaction = await PaymentTransaction.findOne({
-      where: { virtual_account_number: noVA },
+      where: { trx_id: idTrx },
       // include: [
       //   {
       //     model: User,

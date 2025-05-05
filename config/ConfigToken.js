@@ -36,13 +36,12 @@ export const createSendToken = (user, statusCode, res, rememberMe) => {
     token,
     message: "Successfully",
   };
+  console.log(response);
 
   const encryptedData = CryptoJS.AES.encrypt(
     JSON.stringify(response),
     secret_key
   ).toString();
-
-  console.log(encryptedData);
 
   res.status(statusCode).json({
     data: encryptedData,

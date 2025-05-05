@@ -28,7 +28,7 @@ export const login = async (req, res) => {
 
   const bytes = CryptoJS.AES.decrypt(data, secret_key);
   const decryptedData = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
-  console.log(decryptedData);
+  console.log(secret_key);
   const { identifier, password, rememberMe } = decryptedData;
 
   if (!identifier || !password) {

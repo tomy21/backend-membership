@@ -115,6 +115,8 @@ export const login = async (req, res) => {
       });
     }
 
+    console.log(user, 200, res, rememberMe);
+
     // Jika semua validasi lolos, buat token dan kirimkan respons sukses
     createSendToken(user, 200, res, rememberMe);
   } catch (error) {

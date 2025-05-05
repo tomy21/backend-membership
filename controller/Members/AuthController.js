@@ -30,7 +30,8 @@ export const login = async (req, res) => {
   const decryptedData = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
 
   const { identifier, password, rememberMe } = decryptedData;
-
+  console.log(identifier, password, rememberMe);
+  console.log(decryptedData);
   if (!identifier || !password) {
     return res.status(400).json({
       status: "fail",

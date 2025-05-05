@@ -42,6 +42,8 @@ export const createSendToken = (user, statusCode, res, rememberMe) => {
     secret_key
   ).toString();
 
+  console.log(encryptedData);
+
   res.status(statusCode).json({
     data: encryptedData,
   });

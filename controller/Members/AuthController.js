@@ -12,7 +12,7 @@ import VehicleList from "../../model/Members/v02/VehicleList.js";
 import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 import dotenv from "dotenv";
 import CryptoJS from "crypto-js";
-dotenv.config({ path: ".env.local" });
+dotenv.config({ path: ".env" });
 
 const secret_key = process.env.SECRET_KEY;
 

@@ -15,6 +15,8 @@ router.patch("/user/:id", protect, Users.getUserById);
 router.get("/activate/:token", Users.activateAccount);
 
 router.post("/request-email-verification", Users.requestTokenActivation);
+router.post("/request-reset-password", Users.requestResetPassword);
+router.post("/request-change-password", Users.changePassword);
 
 router.get("/protected", protect, (req, res) => {
   const token = req.cookies.refreshToken;

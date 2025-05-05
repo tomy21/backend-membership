@@ -1,4 +1,9 @@
 import jwt from "jsonwebtoken";
+import CryptoJS from "crypto-js";
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
+
+const secret_key = process.env.SECRET_KEY;
 
 export const signToken = (user, rememberMe) => {
   const expiresIn = rememberMe ? "30d" : "1d";
@@ -20,15 +25,24 @@ export const createSendToken = (user, statusCode, res, rememberMe) => {
   const token = signToken(user, rememberMe);
 
   res.cookie("refreshToken", token, {
-    httpOnly: true,
+    httpOnly: false,
     secure: process.env.NODE_ENV === "production",
     expires: new Date(Date.now() + (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000),
-    // sameSite: "None",
+    // sameSite: "Lax",
   });
 
-  res.status(statusCode).json({
+  const response = {
     status: "success",
     token,
     message: "Successfully",
+  };
+
+  const encryptedData = CryptoJS.AES.encrypt(
+    JSON.stringify(response),
+    secret_key
+  ).toString();
+
+  res.status(statusCode).json({
+    data: encryptedData,
   });
 };

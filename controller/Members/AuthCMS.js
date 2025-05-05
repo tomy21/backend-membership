@@ -12,7 +12,7 @@ export const login = async (req, res) => {
     return res.status(400).json({
       status: "fail",
       message:
-        "Harap masukkan identifier (username, email, atau nomor telepon) dan password.",
+        "Harap masukkan sadf identifier (username, email, atau nomor telepon) dan password.",
     });
   }
 

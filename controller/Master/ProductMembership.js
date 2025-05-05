@@ -149,8 +149,6 @@ export const getByLocationByPeriode = async (req, res) => {
     type = "",
   } = req.query;
 
-  console.log("Periode:", periode);
-
   const currentDate = moment().startOf("month");
 
   try {
@@ -160,7 +158,7 @@ export const getByLocationByPeriode = async (req, res) => {
     const whereClause = {
       location_code: locationCode || undefined,
       vehicle_type: type || undefined,
-      end_date: { [Op.gte]: currentDate.toDate() }, // Tetap dipakai
+      // end_date: { [Op.gte]: currentDate.toDate() }, // Tetap dipakai
     };
 
     // Jika periode tidak kosong, tambahkan ke whereClause
@@ -182,8 +180,6 @@ export const getByLocationByPeriode = async (req, res) => {
       order: [["created_at", "DESC"]],
       logging: console.log, // Debugging SQL
     });
-
-    console.log("Total Data:", count);
 
     res.json({
       status: "success",

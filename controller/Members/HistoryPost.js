@@ -36,9 +36,9 @@ export const HistoryPostController = async (req, res) => {
       order: [["createdAt", "DESC"]],
     });
 
-    if (!histories.length) {
-      return res.status(404).json({
-        statusCode: 404,
+    if (!histories) {
+      return res.status(500).json({
+        statusCode: 500,
         message: "No history found",
       });
     }

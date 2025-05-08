@@ -16,6 +16,7 @@ export const signToken = (user, rememberMe) => {
 
   const token = jwt.sign(payload, process.env.JWT_SECRET, {
     expiresIn,
+    algorithm: "HS256",
   });
 
   return token;
@@ -23,12 +24,12 @@ export const signToken = (user, rememberMe) => {
 
 export const createSendToken = (user, statusCode, res, rememberMe) => {
   const token = signToken(user, rememberMe);
-  console.log(user);
+
   res.cookie("refreshToken", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     expires: new Date(Date.now() + (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000),
-    sameSite: "Lax",
+    sameSite: "strict",
   });
 
   const response = {
@@ -36,7 +37,6 @@ export const createSendToken = (user, statusCode, res, rememberMe) => {
     token,
     message: "Successfully",
   };
-  console.log(response);
 
   const encryptedData = CryptoJS.AES.encrypt(
     JSON.stringify(response),

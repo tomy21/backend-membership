@@ -61,8 +61,8 @@ export const getTransactionByUserId = async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(400).json({
-      statusCode: 400,
+    res.status(401).json({
+      statusCode: 401,
       message: err.message,
     });
   }

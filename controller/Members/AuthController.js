@@ -556,8 +556,8 @@ export const getUserByIdDetail = async (req, res) => {
       message: "Pin is valid",
     });
   } catch (err) {
-    res.status(400).json({
-      statusCode: 400,
+    res.status(401).json({
+      statusCode: 401,
       message: err.message,
     });
   }

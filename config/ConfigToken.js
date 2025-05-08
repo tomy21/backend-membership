@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import CryptoJS from "crypto-js";
 import dotenv from "dotenv";
-dotenv.config({ path: ".env.local" });
+dotenv.config({ path: ".env" });
 
 const secret_key = process.env.SECRET_KEY;
 

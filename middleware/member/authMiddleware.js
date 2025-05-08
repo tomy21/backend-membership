@@ -20,7 +20,9 @@ export const protect = async (req, res, next) => {
 
   try {
     // Verifikasi token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
+      algorithms: ["HS256"],
+    });
     req.userId = decoded.id;
 
     // Cari user berdasarkan ID yang ada di token

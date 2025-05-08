@@ -233,7 +233,7 @@ export const requestResetPassword = async (req, res) => {
     });
 
     const activationURL = `${referralUrl}/change-password?token=${token}`;
-    console.log("activationURL", activationURL);
+
     const to = user.email;
     const subject = "Welcome to SKY PARKING - Reset Your Password";
     const html = `
@@ -544,7 +544,7 @@ export const getUserByIdDetail = async (req, res) => {
         id: userId,
       },
     });
-    console.log(await users.correctPassword(Pin, users.pin));
+
     if (!users || !(await users.correctPassword(Pin, users.pin))) {
       return res.status(401).json({
         status: "fail",
@@ -564,12 +564,12 @@ export const getUserByIdDetail = async (req, res) => {
 };
 
 export const logout = (req, res) => {
-  res.cookie("refreshToken", "loggedout", {
-    expires: new Date(Date.now() + 10 * 1000),
+  res.cookie("refreshToken", "", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "None",
-    domain: ".skyparking.online",
+    sameSite: "strict",
+    path: "/",
+    expires: new Date(0),
   });
 
   res.status(200).json({

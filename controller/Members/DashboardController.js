@@ -141,20 +141,12 @@ export const getMembershipStatistics = async (req, res) => {
       order: [["date", "ASC"]],
     });
 
-    console.log(
-      "Transactions:",
-      transactions.map((trx) => trx.dataValues)
-    );
-    console.log("Categories:", categories);
-
     const dataMap = transactions.reduce((acc, trx) => {
       let key =
         range === "week" ? `Week ${trx.dataValues.date}` : trx.dataValues.date;
       acc[key] = trx.dataValues.count;
       return acc;
     }, {});
-
-    console.log("DataMap:", dataMap);
 
     const seriesData = categories.map((label) => dataMap[label] || 0);
     const totalMemberships = seriesData.reduce((a, b) => a + b, 0);

@@ -170,7 +170,7 @@ export const getByLocationByPeriode = async (req, res) => {
     if (search) {
       whereClause.product_name = { [Op.like]: `%${search}%` };
     }
-    console.log(whereClause);
+
     // Eksekusi query dengan whereClause yang sudah diperbaiki
     const { count, rows } = await ProductMembership.findAndCountAll({
       where: whereClause,

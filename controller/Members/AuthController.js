@@ -565,10 +565,10 @@ export const getUserByIdDetail = async (req, res) => {
 
 export const logout = (req, res) => {
   res.cookie("refreshToken", "", {
-    httpOnly: false,
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    // sameSite: "strict",
-    // path: "/",
+    sameSite: "strict",
+    path: "/",
     expires: new Date(0),
   });
 

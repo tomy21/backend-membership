@@ -11,6 +11,7 @@ import MemberHistoryPost from "./route/Members/MemberHistoryPost.js";
 import LocationMembers from "./route/Members/LocationMaster.js";
 import vehicleList from "./route/Members/VehicleListRoute.js";
 import Provider from "./route/Members/Master/Provider.js";
+import ExportSummary from "./route/Members/Export/ExportData.js";
 
 import CMSRoute from "./route/CMS/Auth.js";
 import RolePermission from "./route/CMS/RolePermission.js";
@@ -47,6 +48,7 @@ app.use("/v01/member/api", MemberHistoryPost);
 app.use("/v01/member/api", LocationMembers);
 app.use("/v01/member/api", vehicleList);
 app.use("/v01/member/api", Provider);
+app.use("/v01/member/api", ExportSummary);
 
 //CMS
 app.use("/v01/cms/api/auth", CMSRoute);

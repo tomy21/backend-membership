@@ -527,3 +527,113 @@ export const exportDataHistoryPointByUser = async (req, res) => {
     return errorResponse(res, 500, e.message);
   }
 };
+
+export const exportHistoryPaymentByUser = async (req, res) => {
+  const id = req.userId;
+  const locationCode = req.query.locationCode
+    ? JSON.parse(req.query.locationCode)
+    : [];
+  const startDate = req.query.startDate;
+  const endDate = req.query.endDate;
+  console.log(startDate, endDate);
+  try {
+    const whereClause = {};
+
+    if (locationCode.length > 0) {
+      whereClause.location_code = { [Op.in]: locationCode };
+    }
+
+    if (id) {
+      whereClause.user_id = id;
+    }
+
+    const dateCondition =
+      startDate && endDate
+        ? {
+            createdAt: {
+              [Sequelize.Op.gte]: `${startDate} 00:00:00`,
+              [Sequelize.Op.lt]: `${endDate} 23:59:59`,
+            },
+          }
+        : {};
+
+    const result = await TransactionHistoryPayment.findAndCountAll({
+      where: {
+        ...whereClause,
+        ...dateCondition,
+      },
+    });
+    console.log(startDate, endDate, result);
+    if (result.count > 0) {
+      const workbook = new ExcelJs.Workbook();
+      const worksheet = workbook.addWorksheet("Transaction Membership");
+
+      worksheet.columns = [
+        { header: "No", key: "No", width: 5 },
+        { header: "Transaction Date", width: 20, key: "dateTransaction" },
+        { header: "Transaction Time", width: 20, key: "timeTransaction" },
+        { header: "Transaction Code", width: 20, key: "trxId" },
+        { header: "Location", width: 35, key: "location_name" },
+        { header: "Type Transaction", width: 35, key: "purchase_type" },
+        { header: "Periode", width: 35, key: "periode" },
+
+        {
+          header: "Virtual Account",
+          width: 35,
+          key: "virtual_account",
+        },
+      ];
+
+      worksheet.getRow(1).eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; // Bold & warna putih
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "0070C0" }, // Background biru
+        };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+      });
+
+      for (const [index, value] of result.rows.entries()) {
+        const row = worksheet.addRow({
+          No: index + 1,
+          dateTransaction: value.createdAt
+            ? moment(value.createdAt).tz("Asia/Jakarta").format("YYYY-MM-DD")
+            : "-",
+          timeTransaction: value.createdAt
+            ? moment(value.createdAt).tz("Asia/Jakarta").format("HH:mm:ss")
+            : "-",
+          trxId: value.trxId || "-",
+          virtual_account: value.virtual_account || "-",
+          location_name: value.location_name || "-",
+          purchase_type: value.purchase_type || "-",
+          periode: value.periode || "-",
+        });
+
+        row.eachCell((cell) => {
+          cell.alignment = { vertical: "middle", horizontal: "center" };
+        });
+      }
+
+      const fileName = startDate
+        ? `History_Payment_${startDate}_to_${endDate}.xlsx`
+        : `History_Payment_alldate.xlsx`;
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
+
+      await workbook.xlsx.write(res);
+      res.end();
+    } else if (result.count === 0) {
+      res.status(402).json({ success: false, message: "No Data Found" });
+    } else {
+      res.status(402).json({ success: false, message: "Get data failed" });
+    }
+  } catch (error) {
+    console.log("Error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};

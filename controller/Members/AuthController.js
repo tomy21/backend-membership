@@ -221,7 +221,7 @@ export const requestResetPassword = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({
+      return res.status(401).json({
         status: "fail",
         message: "User tidak ditemukan.",
       });
@@ -565,10 +565,10 @@ export const getUserByIdDetail = async (req, res) => {
 
 export const logout = (req, res) => {
   res.cookie("refreshToken", "", {
-    httpOnly: true,
+    httpOnly: false,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    path: "/",
+    // sameSite: "strict",
+    // path: "/",
     expires: new Date(0),
   });
 

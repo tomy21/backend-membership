@@ -30,11 +30,21 @@ export const getTransactionByUserId = async (req, res) => {
     // Ambil query limit dan page dari request, gunakan default jika tidak ada
     const limit = parseInt(req.query.limit) || 10; // Default 10 item per halaman
     const page = parseInt(req.query.page) || 1; // Default halaman pertama
+    const search = req.query.search || "";
     const offset = (page - 1) * limit;
 
     const { count, rows: transactions } =
       await TransactionHistoryPayment.findAndCountAll({
-        where: { user_id: id },
+        where: {
+          user_id: id,
+          ...(search && {
+            [Op.or]: [
+              { trxId: { [Op.like]: `%${search}%` } },
+              { virtual_account: { [Op.like]: `%${search}%` } },
+              { product_name: { [Op.like]: `%${search}%` } },
+            ],
+          }),
+        },
         include: [
           {
             model: User,
@@ -72,28 +82,27 @@ export const getTrxStatusPaymentByTrxid = async (req, res) => {
   try {
     const idTrx = req.params.idTrx;
 
-    const transaction = await PaymentTransaction.findOne({
+    const paymentTrx = await PaymentTransaction.findOne({
       where: { trx_id: idTrx },
-      // include: [
-      //   {
-      //     model: User,
-      //     attributes: ["fullname", "email"],
-      //   },
-      // ],
-      order: [["created_at", "DESC"]], // Urutkan dari yang terbaru
+      order: [["created_at", "DESC"]],
     });
 
-    if (!transaction) {
-      return res.status(404).json({
-        statusCode: 404,
-        message: "Transaction not found",
-        data: null,
+    if (paymentTrx) {
+      return res.status(200).json({
+        statusCode: 200,
+        message: "Payment transaction retrieved successfully",
+        data: paymentTrx,
       });
     }
 
-    res.status(200).json({
+    const transaction = await TransactionHistoryPayment.findOne({
+      where: { trxId: idTrx },
+      order: [["createdAt", "DESC"]],
+    });
+
+    return res.status(200).json({
       statusCode: 200,
-      message: "Transaction retrieved successfully",
+      message: "Transaction history retrieved successfully",
       data: transaction,
     });
   } catch (err) {

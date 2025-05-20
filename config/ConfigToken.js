@@ -29,8 +29,8 @@ export const createSendToken = (user, statusCode, res, rememberMe) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     expires: new Date(Date.now() + (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000),
-    // sameSite: "strict",
-    // domain: ".skyparking.online",
+    sameSite: "strict",
+    domain: ".skyparking.online",
   });
 
   const response = {

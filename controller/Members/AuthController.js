@@ -384,6 +384,7 @@ export const register = async (req, res) => {
               </a>
             </div>
             <p style="color: #555;">
+              Untuk pengambilan kartu membership anda bisa ambil di petugas SKY PARKING.
               Jika anda mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
             </p>
             <p style="color: #555;">

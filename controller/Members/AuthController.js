@@ -12,6 +12,7 @@ import VehicleList from "../../model/Members/v02/VehicleList.js";
 import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 import dotenv from "dotenv";
 import CryptoJS from "crypto-js";
+import { id } from "date-fns/locale";
 dotenv.config({ path: ".env" });
 
 const secret_key = process.env.SECRET_KEY;
@@ -526,6 +527,54 @@ export const getUserById = async (req, res) => {
       statusCode: 200,
       message: "Users retrieved successfully",
       data: userById,
+    });
+  } catch (err) {
+    res.status(400).json({
+      statusCode: 400,
+      message: err.message,
+    });
+  }
+};
+
+export const getCardDetail = async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    // Ambil semua kendaraan milik user
+    const cardDetail = await VehicleList.findAll({
+      where: { cust_id: userId },
+    });
+
+    // Ambil semua id dari kendaraan tersebut
+    const vehicleIds = cardDetail.map((card) => card.id);
+
+    // Ambil semua data membership berdasarkan id kendaraan
+    const cardDetailMembership = await MembershipDetail.findAll({
+      where: {
+        Cust_Member: vehicleIds, // Sequelize otomatis mengubah ke IN
+      },
+    });
+
+    // Gabungkan hasilnya
+    const response = cardDetail.map((card) => {
+      const membership = cardDetailMembership.find(
+        (m) => m.Cust_Member === card.id
+      );
+
+      return {
+        id: card.id,
+        plate_number: card.plate_number,
+        vehicle_type: card.vehicle_type,
+        member_customer_no: card.member_customer_no,
+        rfid: card.rfid,
+        is_active: membership?.is_active || false, // fallback jika tidak ditemukan
+      };
+    });
+
+    res.status(200).json({
+      statusCode: 200,
+      message: "Membership Detail retrieved successfully",
+      data: response,
     });
   } catch (err) {
     res.status(400).json({

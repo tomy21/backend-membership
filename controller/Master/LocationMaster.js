@@ -8,6 +8,7 @@ export const getAllLocationAreas = async (req, res) => {
     const offset = (page - 1) * limit;
     const { count, rows } = await LocationArea.findAndCountAll({
       where: {
+        KID: { [Op.not]: null },
         [Op.or]: [
           { location_code: { [Op.like]: `%${search}%` } },
           { location_name: { [Op.like]: `%${search}%` } },

@@ -545,35 +545,57 @@ export const getCardDetail = async (req, res) => {
       where: { cust_id: userId },
     });
 
-    // Ambil semua id dari kendaraan tersebut
-    const vehicleIds = cardDetail.map((card) => card.id);
+    // Ambil semua id kendaraan (member_customer_no)
+    const vehicleIds = cardDetail.map((card) => card.member_customer_no);
 
-    // Ambil semua data membership berdasarkan id kendaraan
+    // Ambil semua data membership terkait
     const cardDetailMembership = await MembershipDetail.findAll({
       where: {
-        Cust_Member: vehicleIds, // Sequelize otomatis mengubah ke IN
+        member_customer_no: vehicleIds,
       },
     });
 
-    // Gabungkan hasilnya
-    const response = cardDetail.map((card) => {
-      const membership = cardDetailMembership.find(
-        (m) => m.Cust_Member === card.id
-      );
+    // Gunakan Map untuk menghindari duplikat berdasarkan RFID
+    const rfidMap = new Map();
 
-      return {
-        id: card.id,
-        plate_number: card.plate_number,
-        vehicle_type: card.vehicle_type,
-        member_customer_no: card.member_customer_no,
-        rfid: card.rfid,
-        is_active: membership?.is_active || false, // fallback jika tidak ditemukan
-      };
+    cardDetail.forEach((card) => {
+      // Cek apakah RFID sudah ada di Map
+      if (!rfidMap.has(card.rfid)) {
+        // Ambil semua membership yang cocok dengan kendaraan ini
+        const memberships = cardDetailMembership.filter(
+          (m) => m.member_customer_no === card.member_customer_no
+        );
+
+        // Hitung lokasi unik dari membership
+        const uniqueLocations = [
+          ...new Set(memberships.map((m) => m.location_code)),
+        ];
+
+        // Cek apakah salah satu membership masih aktif
+        const isActive = memberships.some(
+          (m) => new Date(m.end_date) > new Date()
+        );
+
+        // Tambahkan ke Map
+        rfidMap.set(card.rfid, {
+          vehicle_id: card.id,
+          rfid: card.rfid,
+          plate_number: card.plate_number,
+          vehicle_type: card.vehicle_type,
+          member_customer_no: card.member_customer_no,
+          is_active: isActive,
+          total_locations: uniqueLocations.length,
+          locations: uniqueLocations,
+        });
+      }
     });
+
+    // Ubah Map ke array
+    const response = Array.from(rfidMap.values());
 
     res.status(200).json({
       statusCode: 200,
-      message: "Membership Detail retrieved successfully",
+      message: "RFID detail retrieved successfully",
       data: response,
     });
   } catch (err) {

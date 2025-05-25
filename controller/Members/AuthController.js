@@ -542,60 +542,57 @@ export const getCardDetail = async (req, res) => {
 
     // Ambil semua kendaraan milik user
     const cardDetail = await VehicleList.findAll({
-      where: { cust_id: userId },
+      where: { cust_id: userId, rfid: { [Op.not]: "" } },
+      group: ["rfid"],
+      attributes: ["member_customer_no", "rfid"],
     });
-
-    // Ambil semua id kendaraan (member_customer_no)
-    const vehicleIds = cardDetail.map((card) => card.member_customer_no);
-
-    // Ambil semua data membership terkait
-    const cardDetailMembership = await MembershipDetail.findAll({
-      where: {
-        member_customer_no: vehicleIds,
-      },
-    });
-
-    // Gunakan Map untuk menghindari duplikat berdasarkan RFID
-    const rfidMap = new Map();
-
-    cardDetail.forEach((card) => {
-      // Cek apakah RFID sudah ada di Map
-      if (!rfidMap.has(card.rfid)) {
-        // Ambil semua membership yang cocok dengan kendaraan ini
-        const memberships = cardDetailMembership.filter(
-          (m) => m.member_customer_no === card.member_customer_no
-        );
-
-        // Hitung lokasi unik dari membership
-        const uniqueLocations = [
-          ...new Set(memberships.map((m) => m.location_code)),
-        ];
-
-        // Cek apakah salah satu membership masih aktif
-        const isActive = memberships.some(
-          (m) => new Date(m.end_date) > new Date()
-        );
-
-        // Tambahkan ke Map
-        rfidMap.set(card.rfid, {
-          vehicle_id: card.id,
-          rfid: card.rfid,
-          plate_number: card.plate_number,
-          vehicle_type: card.vehicle_type,
-          member_customer_no: card.member_customer_no,
-          is_active: isActive,
-          total_locations: uniqueLocations.length,
-          locations: uniqueLocations,
-        });
-      }
-    });
-
-    // Ubah Map ke array
-    const response = Array.from(rfidMap.values());
 
     res.status(200).json({
       statusCode: 200,
-      message: "RFID detail retrieved successfully",
+      message: "Membership Detail retrieved successfully",
+      data: cardDetail,
+    });
+  } catch (err) {
+    res.status(400).json({
+      statusCode: 400,
+      message: err.message,
+    });
+  }
+};
+
+export const getListCardDetail = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const rfid = req.params.rfid;
+
+    // Ambil semua kendaraan milik user
+    const cardDetail = await VehicleList.findOne({
+      where: { cust_id: userId, rfid: { [Op.not]: "" }, rfid: rfid },
+      attributes: [
+        "member_customer_no",
+        "rfid",
+        "plate_number",
+        "vehicle_type",
+      ],
+    });
+
+    const locationMember = await MembershipDetail.findAll({
+      where: { member_customer_no: cardDetail.member_customer_no },
+    });
+
+    const response = {
+      detail: {
+        member_customer_no: cardDetail.member_customer_no,
+        rfid: cardDetail.rfid,
+        plateNumber: cardDetail.plate_number,
+        vehicleType: cardDetail.vehicle_type,
+        location: locationMember,
+      },
+    };
+
+    res.status(200).json({
+      statusCode: 200,
+      message: "Membership Detail retrieved successfully",
       data: response,
     });
   } catch (err) {

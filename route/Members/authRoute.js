@@ -14,6 +14,7 @@ router.get("/user", protect, Users.getAllUsers);
 router.patch("/user/:id", protect, Users.getUserById);
 router.get("/activate/:token", Users.activateAccount);
 router.get("/list-card-members", protect, Users.getCardDetail);
+router.get("/list-card-members/:rfid", protect, Users.getListCardDetail);
 
 router.post("/request-email-verification", Users.requestTokenActivation);
 router.post("/request-reset-password", Users.requestResetPassword);

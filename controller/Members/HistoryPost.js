@@ -44,26 +44,28 @@ export const HistoryPostController = async (req, res) => {
     }
 
     // Transformasi data untuk membuat dua baris per entri
-    const transformedHistories = histories.flatMap((history) => [
-      {
-        plate_number: history.plate_number,
-        location_name: history.location_name,
-        time: history.gate_out_time,
-        type: "Keluar Area Parkir",
-        status_member: history.status_member,
-        balance: history.balance_after,
-        tariff:
-          parseInt(history.balance_before) - parseInt(history.balance_after),
-      },
-      {
-        plate_number: history.plate_number,
-        location_name: history.location_name,
-        time: history.gate_in_time,
-        type: "Masuk Area Parkir",
-        status_member: history.status_member,
-        balance: history.balance_before,
-      },
-    ]);
+    const transformedHistories = histories
+      .flatMap((history) => [
+        {
+          plate_number: history.plate_number,
+          location_name: history.location_name,
+          time: history.gate_out_time,
+          type: "Keluar Area Parkir",
+          status_member: history.status_member,
+          balance: history.balance_after,
+          tariff:
+            parseInt(history.balance_before) - parseInt(history.balance_after),
+        },
+        {
+          plate_number: history.plate_number,
+          location_name: history.location_name,
+          time: history.gate_in_time,
+          type: "Masuk Area Parkir",
+          status_member: history.status_member,
+          balance: history.balance_before,
+        },
+      ])
+      .filter((item) => item.time !== null);
 
     // Paginasi data hasil transformasi
     const paginatedData = transformedHistories.slice(offset, offset + limit);

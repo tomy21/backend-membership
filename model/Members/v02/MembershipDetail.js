@@ -45,6 +45,10 @@ const MembershipDetail = db.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    location_name: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,

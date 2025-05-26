@@ -18,7 +18,7 @@ router.get("/list-card-members/:rfid", protect, Users.getListCardDetail);
 
 router.post("/request-email-verification", Users.requestTokenActivation);
 router.post("/request-reset-password", Users.requestResetPassword);
-router.post("/request-reset-pin", Users.requestResetPin);
+router.post("/request-reset-pin", protect, Users.requestResetPin);
 router.post("/request-change-password", Users.changePassword);
 router.post("/request-change-pin", Users.changePin);
 

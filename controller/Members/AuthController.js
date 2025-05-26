@@ -290,13 +290,14 @@ export const requestResetPin = async (req, res) => {
     const randomString = Date.now().toString() + Math.random().toString();
     const token = CryptoJS.SHA256(randomString).toString(CryptoJS.enc.Hex); // Hash unik
     const expired = new Date(Date.now() + 1000 * 60 * 15);
+    const id = req.userId;
+    const { referralUrl } = req.body;
 
-    const { email, referralUrl } = req.body;
     const user = await User.findOne({
-      where: {
-        [Op.or]: [{ email: email }, { username: email }],
-      },
+      where: id,
     });
+
+    console.log(user, id);
 
     if (!user) {
       return res.status(401).json({

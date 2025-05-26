@@ -86,6 +86,14 @@ const User = db.define(
       type: DataTypes.DATE,
       allowNull: true,
     },
+    reset_pin_token: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    reset_pin_expired: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
     is_active: {
       type: DataTypes.INTEGER,
       allowNull: false,

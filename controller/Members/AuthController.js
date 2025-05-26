@@ -285,6 +285,83 @@ export const requestResetPassword = async (req, res) => {
   }
 };
 
+export const requestResetPin = async (req, res) => {
+  try {
+    const randomString = Date.now().toString() + Math.random().toString();
+    const token = CryptoJS.SHA256(randomString).toString(CryptoJS.enc.Hex); // Hash unik
+    const expired = new Date(Date.now() + 1000 * 60 * 15);
+
+    const { email, referralUrl } = req.body;
+    const user = await User.findOne({
+      where: {
+        [Op.or]: [{ email: email }, { username: email }],
+      },
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        status: "fail",
+        message: "User tidak ditemukan.",
+      });
+    }
+
+    await user.update({
+      reset_pin_token: token,
+      reset_pin_expired: expired,
+    });
+
+    const activationURL = `${referralUrl}/change-pin?token=${token}`;
+
+    const to = user.email;
+    const subject = "Welcome to SKY PARKING - Reset Your Pin";
+    const html = `
+          <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+            <div style="text-align: center; padding-bottom: 20px;">
+              <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
+            </div>
+            <h2 style="color: #333;">Hi, ${user.username}</h2>
+            <p style="color: #555;">
+              Terima kasih telah menggunakan layanan membership <strong>SKY PARKING</strong>. Kami sangat senang membantu anda!
+              Silahkan ubah pin anda dengan klik tombol di bawah
+            </p>
+            <div style="text-align: center; margin: 20px 0;">
+              <a href="${activationURL}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
+                Ganti Pin
+              </a>
+            </div>
+            <p style="color: #555;">
+              Jika kamu mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
+            </p>
+            <p style="color: #555;">
+              Best Regards,<br/>
+              <strong>SKY Parking Utama</strong>
+            </p>
+          </div>
+        `;
+
+    const attachments = [
+      {
+        filename: "logo.png",
+        path: "./images/logo.png",
+        cid: "logo",
+      },
+    ];
+
+    await sendEmailRegister({ to, subject, html, attachments });
+
+    res.status(200).json({
+      status: "success",
+      message: "Token reset telah dikirimkan ke email Anda.",
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: "Terjadi kesalahan pada server. Silakan coba lagi nanti.",
+      error: error.message, // Opsional: Hapus di produksi jika terlalu sensitif
+    });
+  }
+};
+
 export const changePassword = async (req, res) => {
   try {
     const { password, confirmPassword, token } = req.body;
@@ -320,6 +397,48 @@ export const changePassword = async (req, res) => {
     res.status(200).json({
       status: "success",
       message: "Password berhasil diubah.",
+    });
+  } catch (error) {
+    res.status(400).json({
+      statusCode: 400,
+      message: error.message,
+    });
+  }
+};
+export const changePin = async (req, res) => {
+  try {
+    const { pin, confirmPin, token } = req.body;
+
+    const user = await User.findOne({
+      where: {
+        reset_pin_token: token,
+        reset_pin_expired: {
+          [Op.gt]: new Date(),
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        status: "fail",
+        message: "Token reset sudah kadaluarsa.",
+      });
+    }
+
+    if (pin !== confirmPin) {
+      return res.status(400).json({
+        status: "fail",
+        message: "PIN dan konfirmasi PIN tidak cocok.",
+      });
+    }
+
+    user.pin = pin;
+
+    await user.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "PIN berhasil diubah.",
     });
   } catch (error) {
     res.status(400).json({

@@ -7,11 +7,19 @@ export const HistoryPostController = async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const page = parseInt(req.query.page) || 1;
   const offset = (page - 1) * limit;
+  const search = req.query.search || "";
 
   try {
     // Ambil semua data history milik user (ORDER BY DESC untuk hasil terurut)
     const histories = await HistoryPost.findAll({
-      where: { user_id: userId },
+      where: {
+        user_id: userId,
+        [Op.or]: [
+          { plate_number: { [Op.like]: `%${search}%` } },
+          { location_name: { [Op.like]: `%${search}%` } },
+          { status_member: { [Op.like]: `%${search}%` } },
+        ],
+      },
       attributes: [
         "plate_number",
         "location_name",
@@ -32,6 +40,8 @@ export const HistoryPostController = async (req, res) => {
           "status",
         ],
       ],
+      limit: limit,
+      offset: offset,
       order: [["createdAt", "DESC"]],
     });
 

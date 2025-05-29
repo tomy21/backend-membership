@@ -1,6 +1,7 @@
 import { DataTypes, Sequelize } from "sequelize";
 import db from "../../../config/dbConfig.js";
 import LocationArea from "./LocationMaster.js";
+import VehicleList from "./VehicleList.js";
 
 const MembershipDetail = db.define(
   "customer_membership_detail",

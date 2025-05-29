@@ -18,6 +18,9 @@ import RolePermission from "./route/CMS/RolePermission.js";
 import Menu from "./route/CMS/MenuRoute.js";
 import Dashboard from "./route/CMS/DashboardRoute.js";
 import ExportData from "./route/CMS/ExportDataRoute.js";
+import NotificationRoute from "./route/Members/NotificationRoute.js";
+
+import scheduleMembershipReminder from "./jobs/MembershipReminder.js";
 
 const app = express();
 
@@ -33,6 +36,8 @@ app.use(
     ],
   })
 );
+
+scheduleMembershipReminder();
 
 const __dirname = path.resolve();
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -56,6 +61,8 @@ app.use("/v01/cms/api/auth", RolePermission);
 app.use("/v01/cms/api/auth", Menu);
 app.use("/v01/cms/api", Dashboard);
 app.use("/v01/cms/api", ExportData);
+
+app.use("/v01/member/api", NotificationRoute);
 
 const PORT = 3008;
 app.listen(PORT, () => {

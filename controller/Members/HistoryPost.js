@@ -40,8 +40,6 @@ export const HistoryPostController = async (req, res) => {
           "status",
         ],
       ],
-      limit: limit,
-      offset: offset,
       order: [["createdAt", "DESC"]],
     });
 

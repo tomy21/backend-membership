@@ -7,22 +7,32 @@ import { Op } from "sequelize";
 import VehicleList from "../model/Members/v02/VehicleList.js";
 
 const scheduleMembershipReminder = () => {
-  cron.schedule("00 24 * * *", async () => {
+  cron.schedule("55 01 * * *", async () => {
     console.log("🔔 Running membership reminder...");
 
     const today = new Date();
     const threeDaysLater = new Date();
+    const threeDaysBefore = new Date();
+    threeDaysBefore.setDate(today.getDate() - 3);
     threeDaysLater.setDate(today.getDate() + 3);
 
     try {
       const memberships = await MembershipDetail.findAll({
         where: {
           end_date: {
-            [Op.between]: [today, threeDaysLater],
+            [Op.or]: [
+              { [Op.between]: [threeDaysBefore, today] }, // sudah lewat 3 hari terakhir
+              { [Op.between]: [today, threeDaysLater] }, // akan habis dalam 3 hari
+            ],
           },
           is_active: 1,
         },
       });
+
+      if (memberships.length === 0) {
+        console.log("ℹ️ Tidak ada membership yang mendekati expired.");
+        return;
+      }
 
       const vehicleList = await VehicleList.findAll({
         where: {
@@ -32,32 +42,56 @@ const scheduleMembershipReminder = () => {
         },
       });
 
-      console.log(vehicleList);
-
       for (const member of memberships) {
         const vehicle = vehicleList.find((v) => v.id === member.Cust_Member);
+
+        if (!vehicle) {
+          console.warn(
+            `⚠️ Kendaraan tidak ditemukan untuk Cust_Member ID: ${member.Cust_Member}`
+          );
+          continue;
+        }
 
         const daysLeft = Math.ceil(
           (new Date(member.end_date) - today) / (1000 * 60 * 60 * 24)
         );
 
-        const message =
-          daysLeft > 0
-            ? `Membership Anda dengan no RFID ${vehicle.rfid} akan habis dalam ${daysLeft} hari. Silakan perpanjang.`
-            : `Membership Anda dengan no RFID ${vehicle.rfid} telah expired. Silakan perpanjang.`;
+        let message;
+        let title;
+        if (daysLeft > 0) {
+          title = "Pemberitahuan Membership";
+          message = `Membership Anda dengan no RFID ${vehicle.rfid} akan habis dalam ${daysLeft} hari. Silakan perpanjang.`;
+        } else if (daysLeft < 0) {
+          title = "Membership Expired";
+          message = `Membership Anda dengan no RFID ${
+            vehicle.rfid
+          } sudah expired ${Math.abs(daysLeft)} hari. Silakan perpanjang.`;
+        } else if (daysLeft === 0) {
+          title = "Membership Expired";
+          message = `Membership Anda dengan no RFID ${vehicle.rfid} akan habis hari ini. Silakan perpanjang.`;
+        } else {
+          title = "Pemberitahuan Membership";
+          message = `Membership Anda dengan no RFID ${
+            vehicle.rfid
+          } telah expired ${Math.abs(
+            daysLeft
+          )} hari yang lalu. Silakan perpanjang.`;
+        }
 
         await MembershipNotification.create({
-          UserId: vehicle ? vehicle.cust_id : null, // gunakan null kalau tidak ditemukan
-          Title: "Pemberitahuan Membership",
+          UserId: vehicle.cust_id,
+          Title: title,
           Message: message,
           IsRead: false,
-          PlateNumber: vehicle ? vehicle.plate_number : "-", // ambil dari data kendaraan
+          PlateNumber: vehicle.plate_number,
           CustomerNo: member.member_customer_no,
-          NoRFID: vehicle ? vehicle.rfid : null,
+          NoRFID: vehicle.rfid,
         });
+
+        console.log(`📬 Notifikasi dikirim ke ${vehicle.plate_number}`);
       }
 
-      console.log(`✅ ${memberships.length} notifikasi dikirim.`);
+      console.log(`✅ ${memberships.length} notifikasi selesai dikirim.`);
     } catch (err) {
       console.error("❌ Gagal menjalankan cron membership:", err);
     }

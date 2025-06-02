@@ -486,7 +486,7 @@ export const register = async (req, res) => {
     const activationURL = `${req.protocol}://${req.get(
       "host"
     )}/v01/member/api/auth/activate/${activationToken}`;
-
+    console.log(activationURL);
     const to = newUser.email;
     const subject = "Welcome to SKY PARKING - Activate Your Account";
     const html = `

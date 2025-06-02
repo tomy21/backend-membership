@@ -461,7 +461,6 @@ export const register = async (req, res) => {
       pin,
       gender,
       dob,
-      referralUrl,
     } = req.body;
 
     // Generate a unique customer number
@@ -479,7 +478,7 @@ export const register = async (req, res) => {
       dob: dob,
       customer_no: customerNo, // Include the generated customer number
     });
-
+    const referralUrl = req.headers.origin || req.headers.referer;
     console.log(referralUrl);
     const activationToken = newUser.createActivationToken(referralUrl);
     await newUser.save({ validate: false });

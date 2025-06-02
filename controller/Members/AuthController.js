@@ -461,6 +461,7 @@ export const register = async (req, res) => {
       pin,
       gender,
       dob,
+      referralUrl,
     } = req.body;
 
     // Generate a unique customer number
@@ -478,7 +479,6 @@ export const register = async (req, res) => {
       dob: dob,
       customer_no: customerNo, // Include the generated customer number
     });
-    const referralUrl = req.headers.origin || req.headers.referer;
 
     const activationToken = newUser.createActivationToken(referralUrl);
     await newUser.save({ validate: false });
@@ -486,6 +486,7 @@ export const register = async (req, res) => {
     const activationURL = `${req.protocol}://${req.get(
       "host"
     )}/v01/member/api/auth/activate/${activationToken}`;
+
     const to = newUser.email;
     const subject = "Welcome to SKY PARKING - Activate Your Account";
     const html = `

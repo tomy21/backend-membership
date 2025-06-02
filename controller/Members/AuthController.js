@@ -479,10 +479,13 @@ export const register = async (req, res) => {
       customer_no: customerNo, // Include the generated customer number
     });
     const referralUrl = req.headers.origin || req.headers.referer;
+
     const activationToken = newUser.createActivationToken(referralUrl);
     await newUser.save({ validate: false });
 
-    const activationURL = `${referralUrl}/v01/member/api/auth/activate/${activationToken}`;
+    const activationURL = `${req.protocol}://${req.get(
+      "host"
+    )}/v01/member/api/auth/activate/${activationToken}`;
     const to = newUser.email;
     const subject = "Welcome to SKY PARKING - Activate Your Account";
     const html = `
@@ -572,7 +575,7 @@ export const activateAccount = async (req, res) => {
     const allowedDomains =
       `${req.protocol}://${req.get("host")}` === "http://localhost:3008"
         ? "http://localhost:3000"
-        : `https://dev-membership.skyparking.online`;
+        : `https://membership.skyparking.online`;
 
     if (user) {
       user.is_active = 1;

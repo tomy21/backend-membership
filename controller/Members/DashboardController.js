@@ -191,10 +191,7 @@ export const totalValue = async (req, res) => {
       where: {
         is_active: 1,
         end_date: {
-          [Op.and]: [
-            { [Op.between]: [startOfMonth, endOfMonth] }, // Dalam bulan ini
-            { [Op.gte]: now }, // Belum lewat hari ini
-          ],
+          [Op.gte]: now, // Filter bulan ini
         },
       },
     });
@@ -202,7 +199,7 @@ export const totalValue = async (req, res) => {
       where: {
         is_active: 0,
         end_date: {
-          [Op.between]: [startOfMonth, endOfMonth], // Filter bulan ini
+          [Op.gte]: now, // Filter bulan ini
         },
       },
     });

@@ -1,9 +1,13 @@
-import { Op, Sequelize } from "sequelize";
+import { Op, fn, literal, Sequelize } from "sequelize";
 import { createSendToken } from "../../config/ConfigToken.js";
 import { sendEmailRegister } from "../../config/EmailService.js";
 import UserCMS from "../../model/Members/v02/UserCMS.js";
 import bcrypt from "bcryptjs/dist/bcrypt.js";
 import { MemberUserRole } from "../../model/Master/RoleModel.js";
+import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
+import VehicleList from "../../model/Members/v02/VehicleList.js";
+import User from "../../model/Members/Users.js";
+import { errorResponse, successResponse } from "../../config/response.js";
 
 export const login = async (req, res) => {
   const { identifier, password, rememberMe } = req.body;
@@ -299,15 +303,19 @@ export const getUserCMS = async (req, res) => {
   const offset = (page - 1) * limit;
 
   try {
+    const whereCondition =
+      search.trim() === ""
+        ? {} // Jika tidak ada search, ambil semua
+        : {
+            [Op.or]: [
+              { fullname: { [Op.like]: `%${search}%` } },
+              { email: { [Op.like]: `%${search}%` } },
+              { username: { [Op.like]: `%${search}%` } },
+              { phone_number: { [Op.like]: `%${search}%` } },
+            ],
+          };
     const users = await UserCMS.findAndCountAll({
-      where: {
-        [Op.or]: [
-          { fullname: { [Op.like]: `%${search}%` } },
-          { email: { [Op.like]: `%${search}%` } },
-          { username: { [Op.like]: `%${search}%` } },
-          { phone_number: { [Op.like]: `%${search}%` } },
-        ],
-      },
+      where: whereCondition,
       attributes: [
         "id",
         "fullname",
@@ -317,6 +325,7 @@ export const getUserCMS = async (req, res) => {
         "role",
         "is_active",
         "last_login",
+        "created_at",
       ],
       include: [
         {
@@ -371,16 +380,181 @@ export const softDeleteUser = async (req, res) => {
   }
 };
 
+export const restoreUser = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Cari user termasuk yang sudah soft deleted
+    const user = await UserCMS.findOne({
+      where: { id },
+      paranoid: false, // WAJIB agar bisa menemukan yang sudah di-soft-delete
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Restore user
+    await user.restore();
+
+    res.status(200).json({
+      statusCode: 200,
+      message: "User restored successfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error restoring user",
+      error: error.message,
+    });
+  }
+};
+
 export const logoutCMS = (req, res) => {
   res.cookie("refreshToken", "loggedout", {
     expires: new Date(Date.now() + 10 * 1000),
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "Lax",
+    sameSite: "strict",
+    domain: ".skyparking.online",
   });
 
   res.status(200).json({
     status: "success",
     message: "Logged out successfully",
   });
+};
+
+export const getAllMembership = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    const locationFilter = req.query.locationFilter || null;
+
+    // Hitung total kendaraan dengan filter lokasi
+    const totalUsers = await VehicleList.count({
+      include: [
+        {
+          model: MembershipDetail,
+          required: locationFilter ? true : false, // INNER JOIN kalau filter digunakan
+          where: locationFilter
+            ? { location_name: { [Op.like]: `%${locationFilter}%` } }
+            : undefined,
+        },
+      ],
+    });
+
+    const rows = await VehicleList.findAll({
+      include: [
+        {
+          model: MembershipDetail,
+          required: locationFilter ? true : false, // penting untuk filter benar-benar diterapkan
+          where: locationFilter
+            ? { location_name: { [Op.like]: `%${locationFilter}%` } }
+            : undefined,
+          attributes: [
+            "id",
+            "location_name",
+            "start_date",
+            "end_date",
+            "is_active",
+          ],
+        },
+        {
+          model: User,
+          attributes: [
+            "fullname",
+            "email",
+            "phone_number",
+            "username",
+            "created_at",
+          ],
+        },
+      ],
+      attributes: [
+        "id",
+        "member_customer_no",
+        "rfid",
+        "vehicle_type",
+        "plate_number",
+      ],
+      limit,
+      offset,
+      order: [["createdAt", "DESC"]],
+    });
+
+    const totalPages = Math.ceil(totalUsers / limit);
+
+    res.status(200).json({
+      total: totalUsers,
+      totalPages,
+      currentPage: page,
+      data: rows,
+    });
+  } catch (error) {
+    console.error("Error in getAllMembership:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getLocationMember = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    // Ambil data grouped by location_name dan count mobil/motor
+    const result = await MembershipDetail.findAll({
+      attributes: [
+        "location_name",
+        [
+          fn("COUNT", literal(`CASE WHEN is_active = '1' THEN 1 END`)),
+          "total_active",
+        ],
+        [
+          fn("COUNT", literal(`CASE WHEN is_active = '0' THEN 1 END`)),
+          "total_unactive",
+        ],
+      ],
+      group: ["location_name"],
+      raw: true,
+    });
+
+    const totalGroupedLocations = result.length;
+    const totalPages = Math.ceil(totalGroupedLocations / limit);
+
+    // Paginate hasilnya secara manual
+    const paginatedData = result.slice(offset, offset + limit);
+
+    res.status(200).json({
+      total: totalGroupedLocations,
+      totalPages,
+      currentPage: page,
+      data: paginatedData,
+    });
+  } catch (error) {
+    console.error("Error in getLocationMember:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const addRole = async (req, res) => {
+  const { name } = req.body;
+  const userId = req.userId;
+  try {
+    const user = await UserCMS.findByPk(userId);
+    if (!user) {
+      return errorResponse(res, 404, "User not found");
+    }
+
+    const role = await MemberUserRole.create({
+      name,
+      created_by: user.username,
+      modified_by: user.username,
+    });
+    return successResponse(res, 200, "Role created successfully", role);
+  } catch (error) {
+    return errorResponse(res, 500, "Error creating role", error.message);
+  }
 };

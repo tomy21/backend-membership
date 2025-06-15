@@ -95,7 +95,6 @@ const UserCMS = db.define(
 );
 
 UserCMS.beforeCreate(async (user) => {
-  console.log(user.password);
   user.password = await bcrypt.hash(user.password, 10);
 });
 

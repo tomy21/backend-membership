@@ -3,8 +3,10 @@ import * as Menu from "../../controller/Master/Menu.js";
 
 const router = express.Router();
 
-router.route("/menu").post(Menu.createMenu).get(Menu.getMenuWithSubmenus);
 router.route("/menu-all").get(Menu.getMenus);
+
+router.route("/get-all-menu").get(Menu.getAllMenus);
+
 router.route("/menu-byId/:id").get(Menu.getMenuById);
 
 // router

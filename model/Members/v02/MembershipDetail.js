@@ -1,6 +1,7 @@
 import { DataTypes, Sequelize } from "sequelize";
 import db from "../../../config/dbConfig.js";
 import LocationArea from "./LocationMaster.js";
+import VehicleList from "./VehicleList.js";
 
 const MembershipDetail = db.define(
   "customer_membership_detail",
@@ -39,9 +40,13 @@ const MembershipDetail = db.define(
     },
     invoice_id: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
     member_customer_no: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    location_name: {
       type: DataTypes.STRING,
       allowNull: false,
     },

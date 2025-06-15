@@ -1,8 +1,3 @@
-<<<<<<< HEAD
-import { Op } from "sequelize";
-import TransactionHistoryPayment from "../../model/Members/v02/TransactionPaymentHistory.js";
-import User from "../../model/Members/Users.js";
-=======
 import { Op, Sequelize } from "sequelize";
 import TransactionHistoryPayment from "../../model/Members/v02/TransactionPaymentHistory.js";
 import User from "../../model/Members/Users.js";
@@ -11,7 +6,7 @@ import moment from "moment/moment.js";
 import ExcelJs from "exceljs";
 import HistoryPost from "../../model/Members/v02/HistoryPost.js";
 import { errorResponse, successResponse } from "../../config/response.js";
->>>>>>> production_v2
+import VehicleList from "../../model/Members/v02/VehicleList.js";
 
 export const createTransaction = async (req, res) => {
   try {
@@ -25,8 +20,6 @@ export const createTransaction = async (req, res) => {
     res.status(400).json({
       statusCode: 400,
       message: err.message,
-<<<<<<< HEAD
-=======
     });
   }
 };
@@ -38,11 +31,21 @@ export const getTransactionByUserId = async (req, res) => {
     // Ambil query limit dan page dari request, gunakan default jika tidak ada
     const limit = parseInt(req.query.limit) || 10; // Default 10 item per halaman
     const page = parseInt(req.query.page) || 1; // Default halaman pertama
+    const search = req.query.search || "";
     const offset = (page - 1) * limit;
 
     const { count, rows: transactions } =
       await TransactionHistoryPayment.findAndCountAll({
-        where: { user_id: id },
+        where: {
+          user_id: id,
+          ...(search && {
+            [Op.or]: [
+              { trxId: { [Op.like]: `%${search}%` } },
+              { virtual_account: { [Op.like]: `%${search}%` } },
+              { product_name: { [Op.like]: `%${search}%` } },
+            ],
+          }),
+        },
         include: [
           {
             model: User,
@@ -69,221 +72,59 @@ export const getTransactionByUserId = async (req, res) => {
       },
     });
   } catch (err) {
-    res.status(400).json({
-      statusCode: 400,
+    res.status(401).json({
+      statusCode: 401,
       message: err.message,
     });
   }
 };
 
-export const getTrxStatusPaymentByVA = async (req, res) => {
+export const getTrxStatusPaymentByTrxid = async (req, res) => {
   try {
-    const noVA = req.params.noVa;
-    console.log(noVA);
-    const transaction = await PaymentTransaction.findOne({
-      where: { virtual_account_number: noVA },
-      // include: [
-      //   {
-      //     model: User,
-      //     attributes: ["fullname", "email"],
-      //   },
-      // ],
-      order: [["created_at", "DESC"]], // Urutkan dari yang terbaru
+    const idTrx = req.params.idTrx;
+
+    const paymentTrx = await PaymentTransaction.findOne({
+      where: { trx_id: idTrx },
+      order: [["created_at", "DESC"]],
     });
 
-    if (!transaction) {
-      return res.status(404).json({
-        statusCode: 404,
-        message: "Transaction not found",
-        data: null,
+    if (paymentTrx) {
+      return res.status(200).json({
+        statusCode: 200,
+        message: "Payment transaction retrieved successfully",
+        data: paymentTrx,
       });
     }
 
-    res.status(200).json({
+    const transaction = await TransactionHistoryPayment.findOne({
+      where: { trxId: idTrx },
+      order: [["createdAt", "DESC"]],
+    });
+
+    return res.status(200).json({
       statusCode: 200,
-      message: "Transaction retrieved successfully",
+      message: "Transaction history retrieved successfully",
       data: transaction,
     });
   } catch (err) {
     res.status(400).json({
       statusCode: 400,
       message: err.message,
->>>>>>> production_v2
     });
   }
 };
 
-<<<<<<< HEAD
-export const getTransactionByUserId = async (req, res) => {
-  try {
-    const id = req.userId;
-
-    // Ambil query limit dan page dari request, gunakan default jika tidak ada
-    const limit = parseInt(req.query.limit) || 10; // Default 10 item per halaman
-    const page = parseInt(req.query.page) || 1; // Default halaman pertama
-    const offset = (page - 1) * limit;
-
-    const { count, rows: transactions } =
-      await TransactionHistoryPayment.findAndCountAll({
-        where: { user_id: id },
-        include: [
-          {
-            model: User,
-            attributes: ["fullname", "email"],
-          },
-        ],
-        limit: limit,
-        offset: offset,
-        order: [["createdAt", "DESC"]], // Urutkan dari yang terbaru
-      });
-
-    if (!transactions.length) {
-      return res.status(404).json({
-        statusCode: 404,
-        message: "Transaction not found",
-      });
-    }
-
-    res.status(200).json({
-      statusCode: 200,
-      message: "Transaction retrieved successfully",
-      data: transactions,
-      meta: {
-        totalItems: count,
-        currentPage: page,
-        totalPages: Math.ceil(count / limit),
-      },
-    });
-  } catch (err) {
-    res.status(400).json({
-      statusCode: 400,
-      message: err.message,
-    });
-  }
-};
-
-export const updateTransaction = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const [updated] = await TransactionHistoryPayment.update(req.body, {
-      where: { id },
-    });
-
-    if (!updated) {
-      return res.status(404).json({
-        statusCode: 404,
-        message: "Transaction not found",
-      });
-    }
-
-    const updatedTransaction = await TransactionHistoryPayment.findOne({
-      where: { id },
-    });
-    res.status(200).json({
-      statusCode: 200,
-      message: "Transaction updated successfully",
-      data: updatedTransaction,
-    });
-  } catch (err) {
-    res.status(400).json({
-      statusCode: 400,
-      message: err.message,
-    });
-  }
-};
-
-export const deleteTransaction = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const deleted = await TransactionHistoryPayment.destroy({
-      where: { id },
-    });
-
-    if (!deleted) {
-      return res.status(404).json({
-        statusCode: 404,
-        message: "Transaction not found",
-      });
-    }
-
-    res.status(200).json({
-      statusCode: 200,
-      message: "Transaction deleted successfully",
-    });
-  } catch (err) {
-    res.status(400).json({
-      statusCode: 400,
-      message: err.message,
-    });
-  }
-};
-
-export const getTransactions = async (req, res) => {
-  try {
-    const { search, page = 1, limit = 10 } = req.query;
-    const offset = (page - 1) * limit;
-
-    const whereClause = search
-      ? {
-          [Op.or]: [
-            { trxId: { [Op.like]: `%${search}%` } },
-            { virtual_account: { [Op.like]: `%${search}%` } },
-            { product_name: { [Op.like]: `%${search}%` } },
-          ],
-        }
-      : {};
-
-    const { count, rows } = await TransactionHistoryPayment.findAndCountAll({
-      where: whereClause,
-      limit: parseInt(limit, 10),
-      offset: parseInt(offset, 10),
-=======
 export const getTrxStatusPayment = async (req, res) => {
   try {
     const trxId = req.query.trxId;
 
     const transaction = await TransactionHistoryPayment.findOne({
       where: { trxId: trxId },
->>>>>>> production_v2
       include: [
         {
           model: User,
           attributes: ["fullname", "email"],
-<<<<<<< HEAD
-        },
-      ],
-      order: [["createdAt", "DESC"]],
-    });
-
-    res.status(200).json({
-      statusCode: 200,
-      message: "Transactions retrieved successfully",
-      data: rows,
-      meta: {
-        total: count,
-        page: parseInt(page, 10),
-        lastPage: Math.ceil(count / limit),
-      },
-    });
-  } catch (err) {
-    res.status(400).json({
-      statusCode: 400,
-      message: err.message,
-    });
-  }
-};
-export const getPaymentByTrxId = async (req, res) => {
-  try {
-    const { trxId } = req.params;
-    const transaction = await TransactionHistoryPayment.findOne({
-      where: { trxId },
-      include: [
-        {
-          model: User,
-          attributes: ["fullname", "email"],
-=======
           as: "trxHistoryUser",
->>>>>>> production_v2
         },
       ],
       order: [["createdAt", "DESC"]], // Urutkan dari yang terbaru
@@ -293,10 +134,7 @@ export const getPaymentByTrxId = async (req, res) => {
       return res.status(404).json({
         statusCode: 404,
         message: "Transaction not found",
-<<<<<<< HEAD
-=======
         data: null,
->>>>>>> production_v2
       });
     }
 
@@ -305,8 +143,6 @@ export const getPaymentByTrxId = async (req, res) => {
       message: "Transaction retrieved successfully",
       data: transaction,
     });
-<<<<<<< HEAD
-=======
   } catch (err) {
     res.status(400).json({
       statusCode: 400,
@@ -384,6 +220,9 @@ export const getTransactions = async (req, res) => {
           { trxId: { [Op.like]: `%${search}%` } },
           { virtual_account: { [Op.like]: `%${search}%` } },
           { product_name: { [Op.like]: `%${search}%` } },
+          { location_name: { [Op.like]: `%${search}%` } },
+          { vehicle_type: { [Op.like]: `%${search}%` } },
+          { invoice_id: { [Op.like]: `%${search}%` } },
         ],
       }),
     };
@@ -493,14 +332,11 @@ export const getPaymentByTrxId = async (req, res) => {
       message: "Transaction retrieved successfully",
       data: transaction,
     });
->>>>>>> production_v2
   } catch (err) {
     res.status(400).json({
       statusCode: 400,
       message: err.message,
     });
-<<<<<<< HEAD
-=======
   }
 };
 
@@ -524,7 +360,7 @@ export const getPayment = async (req, res) => {
     };
 
     const { count, rows } = await PaymentTransaction.findAndCountAll({
-      where: whereClause,
+      where: { ...whereClause, app_module: "APP_MEMBERSHIP" },
       limit: parseInt(limit, 10),
       offset: parseInt(offset, 10),
       order: [["created_at", "DESC"]],
@@ -551,7 +387,11 @@ export const getPayment = async (req, res) => {
 export const historyUsersById = async (req, res) => {
   try {
     const id = req.params.id;
-    const { limit = 10, page = 1, search = "" } = req.query;
+    const { month, year, page = 1, limit = 10, search = "" } = req.query;
+
+    const currentDate = new Date();
+    const selectedMonth = month ? parseInt(month) : currentDate.getMonth() + 1;
+    const selectedYear = year ? parseInt(year) : currentDate.getFullYear();
 
     if (!id) {
       return errorResponse(res, 400, "Missing id parameter");
@@ -563,7 +403,15 @@ export const historyUsersById = async (req, res) => {
     });
 
     const transactions = await TransactionHistoryPayment.findAll({
-      where: { user_id: id },
+      where: {
+        user_id: id,
+        createdAt: {
+          [Op.between]: [
+            new Date(selectedYear, selectedMonth - 1, 1),
+            new Date(selectedYear, selectedMonth, 0, 23, 59, 59),
+          ],
+        },
+      },
       order: [["createdAt", "ASC"]], // Urutkan dari yang paling lama
     });
 
@@ -644,12 +492,14 @@ export const historyUsersById = async (req, res) => {
 
 export const historyTransactionByLocation = async (req, res) => {
   try {
-    const { month, year } = req.query;
+    const { month, year, page = 1, limit = 10, search = "" } = req.query;
 
     // Gunakan bulan & tahun saat ini jika tidak diberikan
     const currentDate = new Date();
     const selectedMonth = month ? parseInt(month) : currentDate.getMonth() + 1;
     const selectedYear = year ? parseInt(year) : currentDate.getFullYear();
+
+    const offset = (parseInt(page) - 1) * parseInt(limit);
 
     // Ambil transaksi dengan filter yang diberikan
     const transactions = await TransactionHistoryPayment.findAll({
@@ -671,6 +521,9 @@ export const historyTransactionByLocation = async (req, res) => {
             new Date(selectedYear, selectedMonth - 1, 1),
             new Date(selectedYear, selectedMonth, 0, 23, 59, 59),
           ],
+        },
+        location_name: {
+          [Op.like]: `%${search}%`, // Untuk search case-insensitive
         },
       },
       group: ["location_name", "vehicle_type"],
@@ -710,7 +563,16 @@ export const historyTransactionByLocation = async (req, res) => {
       return acc;
     }, []);
 
-    res.json({ success: true, message: "Get data successfully", data: result });
+    const paginatedResult = result.slice(offset, offset + parseInt(limit));
+
+    res.json({
+      success: true,
+      message: "Get data successfully",
+      data: paginatedResult,
+      totalData: result.length,
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(result.length / parseInt(limit)),
+    });
   } catch (error) {
     console.error("Error fetching transaction summary:", error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -720,20 +582,64 @@ export const historyTransactionByLocation = async (req, res) => {
 export const transactionByLocation = async (req, res) => {
   try {
     // Ambil query parameter untuk pagination (default: page 1, limit 10)
-    const { page = 1, limit = 10 } = req.query;
+    const { month, year, page = 1, limit = 10, search = "" } = req.query;
     const offset = (page - 1) * limit;
+
+    const currentDate = new Date();
+    const selectedMonth = month ? parseInt(month) : currentDate.getMonth() + 1;
+    const selectedYear = year ? parseInt(year) : currentDate.getFullYear();
 
     // Hitung total data untuk pagination
     const totalItems = await TransactionHistoryPayment.count({
-      where: { location_code: req.params.locationCode },
+      where: {
+        location_code: req.params.locationCode,
+        transactionType: {
+          [Op.not]: "TOPUP", // Tidak termasuk transaksi TOPUP
+        },
+        purchase_type: "MEMBERSHIP", // Hanya membership
+        statusPayment: "PAID", // Hanya transaksi yang sudah dibayar
+        createdAt: {
+          [Op.between]: [
+            new Date(selectedYear, selectedMonth - 1, 1),
+            new Date(selectedYear, selectedMonth, 0, 23, 59, 59),
+          ],
+        },
+        location_name: {
+          [Op.like]: `%${search}%`, // Untuk search case-insensitive
+        },
+      },
     });
 
     // Ambil data dengan pagination
     const response = await TransactionHistoryPayment.findAll({
       where: {
         location_code: req.params.locationCode,
+        transactionType: {
+          [Op.not]: "TOPUP", // Tidak termasuk transaksi TOPUP
+        },
+        purchase_type: "MEMBERSHIP", // Hanya membership
+        statusPayment: "PAID", // Hanya transaksi yang sudah dibayar
+        createdAt: {
+          [Op.between]: [
+            new Date(selectedYear, selectedMonth - 1, 1),
+            new Date(selectedYear, selectedMonth, 0, 23, 59, 59),
+          ],
+        },
+        location_name: {
+          [Op.like]: `%${search}%`, // Untuk search case-insensitive
+        },
       },
-      attributes: ["id", "location_code", "location_name", "vehicle_type"],
+      attributes: [
+        "id",
+        "location_code",
+        "location_name",
+        "vehicle_type",
+        "rfid",
+        "timestamp",
+        "price",
+        "periode",
+        "statusPayment",
+      ],
       include: [
         {
           model: User,
@@ -764,6 +670,49 @@ export const transactionByLocation = async (req, res) => {
       message: "Internal server error",
       error: error.message,
     });
->>>>>>> production_v2
+  }
+};
+
+export const getYearHistory = async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const pageInt = parseInt(page, 10);
+    const limitInt = parseInt(limit, 10);
+
+    const offset = (pageInt - 1) * limitInt;
+
+    // Ambil semua tahun unik
+    const years = await TransactionHistoryPayment.findAll({
+      attributes: [
+        [
+          Sequelize.fn(
+            "DISTINCT",
+            Sequelize.fn("YEAR", Sequelize.col("createdAt"))
+          ),
+          "year",
+        ],
+      ],
+      order: [[Sequelize.fn("YEAR", Sequelize.col("createdAt")), "DESC"]],
+      raw: true,
+    });
+
+    const allYears = years.map((y) => y.year);
+
+    // Total halaman dan data
+    const totalItems = allYears.length;
+    const totalPages = Math.ceil(totalItems / limitInt);
+
+    // Ambil data yang sesuai dengan halaman saat ini
+    const paginatedYears = allYears.slice(offset, offset + limitInt);
+
+    res.json({
+      data: paginatedYears,
+      currentPage: pageInt,
+      totalPages,
+      totalItems,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error fetching years" });
   }
 };

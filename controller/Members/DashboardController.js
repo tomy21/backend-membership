@@ -2,39 +2,74 @@ import { Op, Sequelize } from "sequelize";
 import TransactionHistoryPayment from "../../model/Members/v02/TransactionPaymentHistory.js";
 import User from "../../model/Members/Users.js";
 import MasterCard from "../../model/Members/v02/MasterCard.js";
+import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 
 // Helper untuk menentukan kategori waktu
 const getDateRange = (rangeType) => {
   const now = new Date();
-  let startDate;
-  let format;
-  let categories = [];
+  let startDate,
+    format,
+    categories = [];
 
   switch (rangeType) {
     case "days": {
-      const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
-      startDate = new Date(weekStart);
-      format = "%a"; // Nama hari singkat (Sun, Mon, ...)
-      categories = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      break;
-    }
-    case "week": {
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      startDate = new Date(monthStart);
-      format = Sequelize.literal(
-        "CONCAT('Week ', WEEK(createdAt, 1) - WEEK(DATE_SUB(createdAt, INTERVAL DAYOFMONTH(createdAt)-1 DAY), 1) + 1)"
-      ); // Perbaikan
-      const totalWeeks = Math.ceil((now.getDate() + monthStart.getDay()) / 7);
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      format = "%Y-%m-%d"; // Format tanggal lengkap
+      const today = now.getDate();
       categories = Array.from(
-        { length: totalWeeks },
-        (_, i) => `Week ${i + 1}`
+        { length: today },
+        (_, i) =>
+          new Date(now.getFullYear(), now.getMonth(), i + 1)
+            .toISOString()
+            .split("T")[0]
       );
       break;
     }
+
+    case "week": {
+      const firstDayOfYear = new Date(now.getFullYear(), 0, 1);
+      const firstDayOfLastMonth = new Date(
+        now.getFullYear(),
+        now.getMonth() - 1,
+        1
+      );
+      const firstDayOfThisMonth = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        1
+      );
+
+      startDate = firstDayOfLastMonth; // Mulai dari awal bulan lalu
+      format = Sequelize.literal("WEEK(createdAt, 1)"); // Ambil nomor minggu sejak awal tahun
+
+      // Hitung minggu pertama dari bulan lalu
+      const weekStart = Math.ceil(
+        ((firstDayOfLastMonth - firstDayOfYear) / (1000 * 60 * 60 * 24) +
+          firstDayOfYear.getDay() +
+          1) /
+          7
+      );
+
+      // Hitung minggu terakhir bulan ini
+      const currentWeek = Math.ceil(
+        ((now - firstDayOfYear) / (1000 * 60 * 60 * 24) +
+          firstDayOfYear.getDay() +
+          1) /
+          7
+      );
+
+      // Buat array kategori yang benar (mulai dari minggu bulan lalu hingga minggu sekarang)
+      categories = Array.from(
+        { length: currentWeek - weekStart + 1 },
+        (_, i) => `Week ${weekStart + i}`
+      );
+
+      break;
+    }
+
     case "month": {
-      const yearStart = new Date(now.getFullYear(), 0, 1);
-      startDate = new Date(yearStart);
-      format = "%b"; // Nama bulan (Jan, Feb, ...)
+      startDate = new Date(now.getFullYear(), 0, 1);
+      format = "%b"; // Format bulan singkat (Jan, Feb, Mar, ...)
       categories = [
         "Jan",
         "Feb",
@@ -51,14 +86,16 @@ const getDateRange = (rangeType) => {
       ];
       break;
     }
+
     case "year": {
-      startDate = new Date(now.getFullYear() - 6, 0, 1);
-      format = "%Y"; // Tahun
-      categories = Array.from({ length: 7 }, (_, i) =>
-        (now.getFullYear() - 6 + i).toString()
+      startDate = new Date(now.getFullYear() - 2, 0, 1);
+      format = "%Y"; // Format tahun
+      categories = Array.from({ length: 3 }, (_, i) =>
+        (now.getFullYear() - 2 + i).toString()
       );
       break;
     }
+
     default:
       startDate = new Date(now.getFullYear(), 0, 1);
       format = "%b";
@@ -96,6 +133,7 @@ export const getMembershipStatistics = async (req, res) => {
           "date",
         ],
         [Sequelize.fn("COUNT", Sequelize.col("id")), "count"],
+        [Sequelize.fn("SUM", Sequelize.col("price")), "totalPrice"],
       ],
       where: {
         purchase_type: "MEMBERSHIP",
@@ -103,21 +141,40 @@ export const getMembershipStatistics = async (req, res) => {
       },
       group: ["date"],
       order: [["date", "ASC"]],
+      raw: true,
     });
 
-    // Ubah hasil query ke dalam bentuk dictionary
+    // 🔁 Map data menjadi bentuk objek: { date: { count: ..., totalPrice: ... } }
     const dataMap = transactions.reduce((acc, trx) => {
-      acc[trx.dataValues.date] = trx.dataValues.count;
+      let key = range === "week" ? `Week ${trx.date}` : trx.date;
+      acc[key] = {
+        count: parseInt(trx.count),
+        totalPrice: parseFloat(trx.totalPrice || 0),
+      };
       return acc;
     }, {});
 
-    // Susun ulang agar sesuai dengan urutan kategori
-    const seriesData = categories.map((label) => dataMap[label] || 0);
+    // 📊 Buat array untuk masing-masing series
+    const countSeries = categories.map((label) =>
+      dataMap[label] ? dataMap[label].count : 0
+    );
+    const revenueSeries = categories.map((label) =>
+      dataMap[label] ? dataMap[label].totalPrice : 0
+    );
 
-    // Hitung total semua transaksi dalam rentang waktu yang dipilih
-    const totalMemberships = seriesData.reduce((a, b) => a + b, 0);
+    const totalMemberships = countSeries.reduce((a, b) => a + b, 0);
+    const totalRevenue = revenueSeries.reduce((a, b) => a + b, 0);
 
-    res.json({ categories, series: seriesData, total: totalMemberships });
+    // ✅ Kirim response
+    res.json({
+      categories,
+      series: [
+        { name: "Memberships", data: countSeries },
+        { name: "Revenue", data: revenueSeries },
+      ],
+      totalMemberships,
+      totalRevenue,
+    });
   } catch (error) {
     console.error("Error fetching membership statistics:", error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -130,22 +187,24 @@ export const totalValue = async (req, res) => {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1); // Tanggal 1 bulan ini
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
-    const totalMembershipActive = await User.count({
+    const totalMembershipActive = await MembershipDetail.count({
       where: {
         is_active: 1,
-        created_at: {
+        end_date: {
           [Op.between]: [startOfMonth, endOfMonth], // Filter bulan ini
         },
       },
     });
-    const totalMembershipNonActive = await User.count({
+    const totalMembershipNonActive = await MembershipDetail.count({
       where: {
         is_active: 0,
-        created_at: {
+        end_date: {
           [Op.between]: [startOfMonth, endOfMonth], // Filter bulan ini
         },
       },
     });
+
+    const totalBalancePoint = await User.sum("Points");
 
     const totalPrice = await TransactionHistoryPayment.findOne({
       attributes: [[Sequelize.fn("SUM", Sequelize.col("price")), "totalPrice"]],
@@ -182,11 +241,119 @@ export const totalValue = async (req, res) => {
       totalMembershipActive,
       totalMembershipNonActive,
       totalPrice,
+      totalBalancePoint,
       CardUsed,
       CardNotUsed,
     });
   } catch (error) {
     console.error("Error fetching membership statistics:", error);
     res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+export const listSummaryLocation = async (req, res) => {
+  try {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    // 1. Ambil total member aktif
+    const activeMembers = await MembershipDetail.findAll({
+      attributes: [
+        "location_name",
+        [Sequelize.fn("COUNT", Sequelize.col("id")), "totalActive"],
+      ],
+      where: {
+        is_active: 1,
+        end_date: {
+          [Op.between]: [startOfMonth, endOfMonth],
+        },
+      },
+      group: ["location_name"],
+      raw: true,
+    });
+
+    // 2. Ambil total member non-aktif
+    const inactiveMembers = await MembershipDetail.findAll({
+      attributes: [
+        "location_name",
+        [Sequelize.fn("COUNT", Sequelize.col("id")), "totalInactive"],
+      ],
+      where: {
+        is_active: 0,
+        end_date: {
+          [Op.between]: [startOfMonth, endOfMonth],
+        },
+      },
+      group: ["location_name"],
+      raw: true,
+    });
+
+    // 3. Ambil total revenue per lokasi
+    const revenue = await TransactionHistoryPayment.findAll({
+      attributes: [
+        "location_name",
+        [Sequelize.fn("SUM", Sequelize.col("price")), "totalRevenue"],
+      ],
+      where: {
+        statusPayment: "PAID",
+        purchase_type: "MEMBERSHIP",
+        createdAt: {
+          [Op.between]: [startOfMonth, endOfMonth],
+        },
+      },
+      group: ["location_name"],
+      raw: true,
+    });
+
+    // 4. Gabungkan semua ke dalam satu array
+    const locationMap = new Map();
+
+    // Masukkan data aktif
+    activeMembers.forEach((item) => {
+      locationMap.set(item.location_name, {
+        location_name: item.location_name,
+        totalActive: Number(item.totalActive),
+        totalInactive: 0,
+        totalRevenue: 0,
+      });
+    });
+
+    // Masukkan data non-aktif
+    inactiveMembers.forEach((item) => {
+      const entry = locationMap.get(item.location_name) || {
+        location_name: item.location_name,
+        totalActive: 0,
+        totalInactive: 0,
+        totalRevenue: 0,
+      };
+      entry.totalInactive = Number(item.totalInactive);
+      locationMap.set(item.location_name, entry);
+    });
+
+    // Masukkan data revenue
+    revenue.forEach((item) => {
+      const entry = locationMap.get(item.location_name) || {
+        location_name: item.location_name,
+        totalActive: 0,
+        totalInactive: 0,
+        totalRevenue: 0,
+      };
+      entry.totalRevenue = Number(item.totalRevenue);
+      locationMap.set(item.location_name, entry);
+    });
+
+    const result = Array.from(locationMap.values());
+
+    return res.status(200).json({
+      status: "success",
+      message: "Summary per location",
+      data: result,
+    });
+  } catch (error) {
+    console.error("Error fetching location summary:", error);
+    return res.status(500).json({
+      status: "error",
+      message: "Internal server error",
+    });
   }
 };

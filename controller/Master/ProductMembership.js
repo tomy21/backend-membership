@@ -83,6 +83,95 @@ export const getByLocationCode = async (req, res) => {
   }
 };
 
+export const getByVehicle = async (req, res) => {
+  const { type, code } = req.params;
+  const { page = 1, limit = 10, search = "" } = req.query;
+
+  console.log(type);
+  try {
+    const offset = (page - 1) * limit;
+    const { count, rows } = await ProductMembership.findAndCountAll({
+      where: {
+        vehicle_type: type,
+        location_code: code,
+        [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
+      },
+      attributes: [
+        [Sequelize.fn("DISTINCT", Sequelize.col("periode")), "periode"],
+      ],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [["created_at", "DESC"]],
+    });
+
+    res.json({
+      status: "success",
+      message: "Data fetched successfully",
+      total: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: parseInt(page),
+      data: rows,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getByLocationByPeriode = async (req, res) => {
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    periode = "",
+    locationCode = "",
+    type = "",
+  } = req.query;
+
+  const currentDate = moment().startOf("month");
+
+  try {
+    const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+
+    // Membuat whereClause dinamis
+    const whereClause = {
+      location_code: locationCode || undefined,
+      vehicle_type: type || undefined,
+      // end_date: { [Op.gte]: currentDate.toDate() }, // Tetap dipakai
+    };
+
+    // Jika periode tidak kosong, tambahkan ke whereClause
+    if (periode) {
+      whereClause.periode = periode;
+    }
+
+    // Jika search tidak kosong, gunakan LIKE
+    if (search) {
+      whereClause.product_name = { [Op.like]: `%${search}%` };
+    }
+
+    // Eksekusi query dengan whereClause yang sudah diperbaiki
+    const { count, rows } = await ProductMembership.findAndCountAll({
+      where: whereClause,
+      attributes: ["id", "product_name", "start_date", "end_date", "price"],
+      limit: parseInt(limit, 10),
+      offset: offset,
+      order: [["created_at", "DESC"]],
+      logging: console.log, // Debugging SQL
+    });
+
+    res.json({
+      status: "success",
+      message: "Data fetched successfully",
+      totalPages: Math.ceil(count / limit),
+      currentPage: parseInt(page, 10),
+      data: rows,
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // Create a new Location Area
 export const createProductMember = async (req, res) => {
   const { id, location_code, location_name, KID, Create_by, Update_by } =

@@ -97,7 +97,13 @@ export const exportDataTransaksiPost = async (req, res) => {
           status: value.is_close === 1 ? "Out Area Parking" : "In Area Parking",
         });
 
-        row.eachCell((cell) => {
+        worksheet.getRow(1).eachCell((cell) => {
+          cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; // Bold & warna putih
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "0070C0" }, // Background biru
+          };
           cell.alignment = { vertical: "middle", horizontal: "center" };
         });
       }
@@ -160,6 +166,7 @@ export const exportHistoryTransaction = async (req, res) => {
       where: {
         ...whereClause,
         ...(dateCondition ? dateCondition : {}),
+        statusPayment: "PAID",
       },
       include: [
         {
@@ -181,6 +188,8 @@ export const exportHistoryTransaction = async (req, res) => {
         { header: "Invoice No", width: 40, key: "invoice_id" },
         { header: "Name", width: 35, key: "fullname" },
         { header: "Email", width: 35, key: "email" },
+        { header: "No Card", width: 35, key: "rfid" },
+        { header: "Vehicle Type", width: 35, key: "vehicle_type" },
         { header: "Virtual Account Number", width: 35, key: "virtual_account" },
         { header: "Transaction Code", width: 30, key: "trxId" },
         { header: "Product Name", width: 35, key: "product_name" },
@@ -208,13 +217,14 @@ export const exportHistoryTransaction = async (req, res) => {
           invoice_id: value.invoice_id || "-",
           fullname: value.trxHistoryUser ? value.trxHistoryUser?.fullname : "-",
           email: value.trxHistoryUser ? value.trxHistoryUser?.email : "-",
+          rfid: value.rfid ? value.rfid : "-",
+          vehicle_type: value.vehicle_type ? value.vehicle_type : "-",
           virtual_account: value.virtual_account || "-",
           trxId: value.trxId || "-",
           product_name: value.product_name || "-",
           purchase_type: value.purchase_type || "-",
           transactionType: value.transactionType || "-",
-
-          price: value.price || "-",
+          price: value.price ? Number(value.price) : "",
           statusPayment: value.statusPayment || "-",
         });
 
@@ -279,6 +289,7 @@ export const exportHistoryPayment = async (req, res) => {
         ...whereClause,
         ...dateCondition,
         status_transaction: "COMPLETED",
+        payment_using: "VIRTUAL_ACCOUNT",
       },
     });
 
@@ -290,9 +301,7 @@ export const exportHistoryPayment = async (req, res) => {
         { header: "No", key: "No", width: 5 },
         { header: "Transaction Date", width: 20, key: "dateTransaction" },
         { header: "Transaction Time", width: 20, key: "timeTransaction" },
-        { header: "Ticket Number", width: 35, key: "no_tiket" },
-        { header: "Product Name", width: 20, key: "product_name" },
-        { header: "Location", width: 35, key: "location_name" },
+
         { header: "Transaction Code", width: 30, key: "trx_id" },
         { header: "Invoice Number", width: 30, key: "invoice_number" },
         {
@@ -312,7 +321,6 @@ export const exportHistoryPayment = async (req, res) => {
         },
         { header: "Payment Method", width: 30, key: "payment_using" },
         { header: "Product", width: 35, key: "app_module" },
-        { header: "RRN", width: 20, key: "RRN" },
         { header: "Amount", width: 30, key: "paid_amount" },
         { header: "Status", width: 20, key: "status_transaction" },
       ];
@@ -336,9 +344,7 @@ export const exportHistoryPayment = async (req, res) => {
           timeTransaction: value.created_at
             ? moment(value.created_at).tz("Asia/Jakarta").format("HH:mm:ss")
             : "-",
-          no_tiket: value.no_tiket || "-",
-          product_name: value.product_name || "-",
-          location_name: value.location_name || "-",
+
           trx_id: value.trx_id || "-",
           invoice_number: value.invoice_number || "-",
           virtual_account_name: value.virtual_account_name || "-",
@@ -346,7 +352,7 @@ export const exportHistoryPayment = async (req, res) => {
           virtual_account_email: value.virtual_account_email || "-",
           payment_using: value.payment_using || "-",
           app_module: value.app_module || "-",
-          RRN: value.RRN || "-",
+
           purchase_type: value.transactionType || "-",
           paid_amount: value.paid_amount || "-",
           status_transaction: value.status_transaction || "-",
@@ -525,5 +531,236 @@ export const exportDataHistoryPointByUser = async (req, res) => {
     }
   } catch (e) {
     return errorResponse(res, 500, e.message);
+  }
+};
+
+export const exportHistoryPaymentByUser = async (req, res) => {
+  const id = req.userId;
+  const locationCode = req.query.locationCode
+    ? JSON.parse(req.query.locationCode)
+    : [];
+  const startDate = req.query.startDate;
+  const endDate = req.query.endDate;
+
+  try {
+    const whereClause = {};
+
+    if (locationCode.length > 0) {
+      whereClause.location_code = { [Op.in]: locationCode };
+    }
+
+    if (id) {
+      whereClause.user_id = id;
+    }
+
+    const dateCondition =
+      startDate && endDate
+        ? {
+            createdAt: {
+              [Sequelize.Op.gte]: `${startDate} 00:00:00`,
+              [Sequelize.Op.lt]: `${endDate} 23:59:59`,
+            },
+          }
+        : {};
+
+    const result = await TransactionHistoryPayment.findAndCountAll({
+      where: {
+        ...whereClause,
+        ...dateCondition,
+      },
+    });
+
+    if (result.count > 0) {
+      const workbook = new ExcelJs.Workbook();
+      const worksheet = workbook.addWorksheet("Transaction Membership");
+
+      worksheet.columns = [
+        { header: "No", key: "No", width: 5 },
+        { header: "Transaction Date", width: 20, key: "dateTransaction" },
+        { header: "Transaction Time", width: 20, key: "timeTransaction" },
+        { header: "Transaction Code", width: 20, key: "trxId" },
+        { header: "Location", width: 35, key: "location_name" },
+        { header: "Type Transaction", width: 35, key: "purchase_type" },
+        { header: "Periode", width: 35, key: "periode" },
+
+        {
+          header: "Virtual Account",
+          width: 35,
+          key: "virtual_account",
+        },
+      ];
+
+      worksheet.getRow(1).eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; // Bold & warna putih
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "0070C0" }, // Background biru
+        };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+      });
+
+      for (const [index, value] of result.rows.entries()) {
+        const row = worksheet.addRow({
+          No: index + 1,
+          dateTransaction: value.createdAt
+            ? moment(value.createdAt).tz("Asia/Jakarta").format("YYYY-MM-DD")
+            : "-",
+          timeTransaction: value.createdAt
+            ? moment(value.createdAt).tz("Asia/Jakarta").format("HH:mm:ss")
+            : "-",
+          trxId: value.trxId || "-",
+          virtual_account: value.virtual_account || "-",
+          location_name: value.location_name || "-",
+          purchase_type: value.purchase_type || "-",
+          periode: value.periode || "-",
+        });
+
+        row.eachCell((cell) => {
+          cell.alignment = { vertical: "middle", horizontal: "center" };
+        });
+      }
+
+      const fileName = startDate
+        ? `History_Payment_${startDate}_to_${endDate}.xlsx`
+        : `History_Payment_alldate.xlsx`;
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
+
+      await workbook.xlsx.write(res);
+      res.end();
+    } else if (result.count === 0) {
+      res.status(402).json({ success: false, message: "No Data Found" });
+    } else {
+      res.status(402).json({ success: false, message: "Get data failed" });
+    }
+  } catch (error) {
+    console.log("Error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const exportDataTransaksiPostById = async (req, res) => {
+  const id = req.userId;
+  const locationCode = req.query.locationCode
+    ? JSON.parse(req.query.locationCode)
+    : [];
+  const startDate = req.query.startDate;
+  const endDate = req.query.endDate;
+  const statusMember = req.query.statusMember;
+
+  try {
+    const whereClause = {};
+
+    if (locationCode.length > 0) {
+      whereClause.location_code = { [Op.in]: locationCode };
+    }
+
+    if (id) {
+      whereClause.user_id = id;
+    }
+
+    const dateCondition =
+      startDate && endDate
+        ? {
+            createdAt: {
+              [Sequelize.Op.gte]: `${startDate} 00:00:00`,
+              [Sequelize.Op.lt]: `${endDate} 23:59:59`,
+            },
+          }
+        : null;
+
+    if (statusMember) {
+      whereClause.status_member = statusMember;
+    }
+
+    const result = await HistoryPost.findAndCountAll({
+      where: {
+        ...whereClause,
+        ...(dateCondition ? dateCondition : {}),
+      },
+      include: [
+        {
+          model: User,
+          as: "userHistoryPost",
+          attributes: ["fullname", "email"],
+        },
+      ],
+    });
+
+    if (result.count > 0) {
+      const workbook = new ExcelJs.Workbook();
+      const worksheet = workbook.addWorksheet("Transaction Membership");
+
+      worksheet.columns = [
+        { header: "No", key: "No", width: 5 },
+        { header: "Location Code", width: 20, key: "location_code" },
+        { header: "Location Name", width: 35, key: "location_name" },
+        { header: "Customer Name", width: 35, key: "username" },
+        { header: "Plate Number", width: 20, key: "plate_number" },
+        { header: "Status Membership", width: 20, key: "status_membership" },
+        { header: "In Time", width: 30, key: "in_time" },
+        { header: "Out TIme", width: 30, key: "out_time" },
+        { header: "Tariff", width: 20, key: "tariff" },
+        { header: "Status", width: 20, key: "status" },
+      ];
+
+      worksheet.eachRow((row) => {
+        row.eachCell((cell) => {
+          cell.alignment = { vertical: "middle", horizontal: "center" };
+        });
+      });
+
+      for (const [index, value] of result.rows.entries()) {
+        const row = worksheet.addRow({
+          No: index + 1,
+          location_code: value.location_code || "-",
+          location_name: value.location_name || "-",
+          username: value.userHistoryPost
+            ? value.userHistoryPost?.fullname
+            : "-",
+          plate_number: value.plate_number || "-",
+          status_membership: value.status_member || "-",
+          in_time: value.gate_in_time
+            ? moment(value.gate_in_time)
+                .tz("Asia/Jakarta")
+                .format("YYYY-MM-DD HH:mm:ss")
+            : "-",
+          out_time: value.gate_out_time
+            ? moment(value.gate_out_time)
+                .tz("Asia/Jakarta")
+                .format("YYYY-MM-DD HH:mm:ss")
+            : "-",
+          tariff: value.tariff || "-",
+          status: value.is_close === 1 ? "Out Area Parking" : "In Area Parking",
+        });
+
+        row.eachCell((cell) => {
+          cell.alignment = { vertical: "middle", horizontal: "center" };
+        });
+      }
+
+      const fileName = startDate
+        ? `History_post_${startDate}_to_${endDate}.xlsx`
+        : `history_post_alldate.xlsx`;
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
+
+      await workbook.xlsx.write(res);
+      res.end();
+    } else {
+      res.status(400).json({ success: false, message: "Get data failed" });
+    }
+  } catch (error) {
+    console.log("Error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };

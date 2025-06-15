@@ -6,7 +6,8 @@ const VehicleList = db.define(
   "customer_membership",
   {
     id: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
       primaryKey: true,
     },
     vehicle_type: {

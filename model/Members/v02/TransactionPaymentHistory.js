@@ -81,6 +81,10 @@ const TransactionHistoryPayment = db.define(
       values: ["MOBIL", "MOTOR"],
       allowNull: false,
     },
+    rfid: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
     createdAt: {
       type: DataTypes.DATE,
       allowNull: false,

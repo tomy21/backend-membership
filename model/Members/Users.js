@@ -152,13 +152,19 @@ User.prototype.correctPin = async function (candidatePin, pin) {
 };
 
 User.hasMany(VehicleList, {
-  foreignKey: "member_customer_no", // Sesuaikan dengan kolom di tabel MembershipCard
-  sourceKey: "customer_no", // Kolom yang cocok di tabel User
+  foreignKey: "cust_id", // Sesuaikan dengan kolom di tabel MembershipCard
+  sourceKey: "id", // Kolom yang cocok di tabel User
+});
+
+VehicleList.belongsTo(User, {
+  foreignKey: "cust_id", // Sesuaikan dengan kolom di tabel MembershipCard
+  targetKey: "id", // Kolom yang cocok di tabel User
 });
 
 VehicleList.belongsTo(User, {
   foreignKey: "member_customer_no", // Sesuaikan dengan kolom di tabel MembershipCard
   targetKey: "customer_no", // Kolom yang cocok di tabel User
+  as: "customer_memberships",
 });
 
 // User.hasMany(UserDetails, {

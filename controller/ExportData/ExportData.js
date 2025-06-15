@@ -97,7 +97,13 @@ export const exportDataTransaksiPost = async (req, res) => {
           status: value.is_close === 1 ? "Out Area Parking" : "In Area Parking",
         });
 
-        row.eachCell((cell) => {
+        worksheet.getRow(1).eachCell((cell) => {
+          cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; // Bold & warna putih
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "0070C0" }, // Background biru
+          };
           cell.alignment = { vertical: "middle", horizontal: "center" };
         });
       }
@@ -160,6 +166,7 @@ export const exportHistoryTransaction = async (req, res) => {
       where: {
         ...whereClause,
         ...(dateCondition ? dateCondition : {}),
+        statusPayment: "PAID",
       },
       include: [
         {
@@ -181,6 +188,8 @@ export const exportHistoryTransaction = async (req, res) => {
         { header: "Invoice No", width: 40, key: "invoice_id" },
         { header: "Name", width: 35, key: "fullname" },
         { header: "Email", width: 35, key: "email" },
+        { header: "No Card", width: 35, key: "rfid" },
+        { header: "Vehicle Type", width: 35, key: "vehicle_type" },
         { header: "Virtual Account Number", width: 35, key: "virtual_account" },
         { header: "Transaction Code", width: 30, key: "trxId" },
         { header: "Product Name", width: 35, key: "product_name" },
@@ -208,13 +217,14 @@ export const exportHistoryTransaction = async (req, res) => {
           invoice_id: value.invoice_id || "-",
           fullname: value.trxHistoryUser ? value.trxHistoryUser?.fullname : "-",
           email: value.trxHistoryUser ? value.trxHistoryUser?.email : "-",
+          rfid: value.rfid ? value.rfid : "-",
+          vehicle_type: value.vehicle_type ? value.vehicle_type : "-",
           virtual_account: value.virtual_account || "-",
           trxId: value.trxId || "-",
           product_name: value.product_name || "-",
           purchase_type: value.purchase_type || "-",
           transactionType: value.transactionType || "-",
-
-          price: value.price || "-",
+          price: value.price ? Number(value.price) : "",
           statusPayment: value.statusPayment || "-",
         });
 
@@ -279,6 +289,7 @@ export const exportHistoryPayment = async (req, res) => {
         ...whereClause,
         ...dateCondition,
         status_transaction: "COMPLETED",
+        payment_using: "VIRTUAL_ACCOUNT",
       },
     });
 
@@ -290,9 +301,7 @@ export const exportHistoryPayment = async (req, res) => {
         { header: "No", key: "No", width: 5 },
         { header: "Transaction Date", width: 20, key: "dateTransaction" },
         { header: "Transaction Time", width: 20, key: "timeTransaction" },
-        { header: "Ticket Number", width: 35, key: "no_tiket" },
-        { header: "Product Name", width: 20, key: "product_name" },
-        { header: "Location", width: 35, key: "location_name" },
+
         { header: "Transaction Code", width: 30, key: "trx_id" },
         { header: "Invoice Number", width: 30, key: "invoice_number" },
         {
@@ -312,7 +321,6 @@ export const exportHistoryPayment = async (req, res) => {
         },
         { header: "Payment Method", width: 30, key: "payment_using" },
         { header: "Product", width: 35, key: "app_module" },
-        { header: "RRN", width: 20, key: "RRN" },
         { header: "Amount", width: 30, key: "paid_amount" },
         { header: "Status", width: 20, key: "status_transaction" },
       ];
@@ -336,9 +344,7 @@ export const exportHistoryPayment = async (req, res) => {
           timeTransaction: value.created_at
             ? moment(value.created_at).tz("Asia/Jakarta").format("HH:mm:ss")
             : "-",
-          no_tiket: value.no_tiket || "-",
-          product_name: value.product_name || "-",
-          location_name: value.location_name || "-",
+
           trx_id: value.trx_id || "-",
           invoice_number: value.invoice_number || "-",
           virtual_account_name: value.virtual_account_name || "-",
@@ -346,7 +352,7 @@ export const exportHistoryPayment = async (req, res) => {
           virtual_account_email: value.virtual_account_email || "-",
           payment_using: value.payment_using || "-",
           app_module: value.app_module || "-",
-          RRN: value.RRN || "-",
+
           purchase_type: value.transactionType || "-",
           paid_amount: value.paid_amount || "-",
           status_transaction: value.status_transaction || "-",

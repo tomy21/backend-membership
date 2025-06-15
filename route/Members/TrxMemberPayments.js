@@ -53,4 +53,6 @@ router
   .route("/history/get-history-location")
   .get(trxHistoryPayment.historyTransactionByLocation);
 
+router.route("/history/get-year").get(trxHistoryPayment.getYearHistory);
+
 export default router;

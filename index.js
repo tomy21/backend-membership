@@ -19,6 +19,7 @@ import Menu from "./route/CMS/MenuRoute.js";
 import Dashboard from "./route/CMS/DashboardRoute.js";
 import ExportData from "./route/CMS/ExportDataRoute.js";
 import NotificationRoute from "./route/Members/NotificationRoute.js";
+import UploadMember from "./route/CMS/UploadMember.js";
 
 import scheduleMembershipReminder from "./jobs/MembershipReminder.js";
 
@@ -61,6 +62,7 @@ app.use("/v01/cms/api/auth", RolePermission);
 app.use("/v01/cms/api/auth", Menu);
 app.use("/v01/cms/api", Dashboard);
 app.use("/v01/cms/api", ExportData);
+app.use("/v01/cms/api", UploadMember);
 
 app.use("/v01/member/api", NotificationRoute);
 

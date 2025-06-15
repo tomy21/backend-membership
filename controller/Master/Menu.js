@@ -22,40 +22,43 @@ export const createMenu = async (req, res) => {
   }
 };
 
-export const getMenuWithSubmenus = async (req, res) => {
+export const getAllMenus = async (req, res) => {
+  const { page = 1, limit = 10, search = "" } = req.query;
+  const offset = (page - 1) * limit;
+
   try {
-    const menus = await MenuModels.findAll({
-      where: { parent_slug: null }, // Hanya menu utama
+    const { count, rows: parents } = await MenuModels.findAndCountAll({
+      where: {
+        parent_slug: null,
+        [Op.or]: [
+          { name: { [Op.like]: `%${search}%` } },
+          { slug: { [Op.like]: `%${search}%` } },
+          { link: { [Op.like]: `%${search}%` } },
+        ],
+      },
       include: [
         {
           model: MenuModels,
-          as: "subMenus", // Ambil sub-menu
-          include: [
-            {
-              model: RolePermission,
-              as: "permission", // Ambil permission untuk sub-menu
-            },
-          ],
-          group: ["role_id"],
-        },
-        {
-          model: RolePermission,
-          as: "permission", // Ambil permission untuk menu utama
+          as: "subMenus", // sesuai relasi kamu sebelumnya
         },
       ],
       order: [["position", "ASC"]],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
     });
 
     return res.status(200).json({
-      success: true,
-      message: "Menus retrieved successfully!",
-      data: menus,
+      status: "success",
+      totalItems: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: parseInt(page),
+      data: parents,
     });
-  } catch (error) {
+  } catch (err) {
+    console.error("Error getAllMenus:", err);
     return res.status(500).json({
-      success: false,
-      message: "Error retrieving menus!",
-      error: error.message,
+      status: "error",
+      message: err.message,
     });
   }
 };
@@ -65,39 +68,48 @@ export const getMenus = async (req, res) => {
   const offset = (page - 1) * limit;
 
   try {
-    const menus = await MenuModels.findAndCountAll({
-      where: {
-        parent_slug: null,
-        [Op.or]: [
-          { name: { [Op.like]: `%${search}%` } },
-          { slug: { [Op.like]: `%${search}%` } },
-          { link: { [Op.like]: `%${search}%` } },
-        ],
-      }, // Hanya menu utama
+    // Ambil semua menu dan relasi submenu-nya
+    const menus = await MenuModels.findAll({
+      where: { parent_slug: null },
       include: [
         {
           model: MenuModels,
-          as: "subMenus", // Ambil sub-menu
+          as: "subMenus",
         },
       ],
-      limit: parseInt(limit),
-      offset: offset,
       order: [["position", "ASC"]],
     });
 
-    return res.status(200).json({
-      success: true,
-      message: "Menus retrieved successfully!",
-      totalItems: menus.count,
-      totalPages: Math.ceil(menus.count / limit),
-      currentPage: parseInt(page),
-      data: menus.rows,
+    // Format data sesuai kebutuhan frontend
+    const formatted = menus.map((menu) => {
+      if (menu.subMenus && menu.subMenus.length > 0) {
+        return {
+          icon: menu.icon,
+          name: menu.name,
+          subItems: menu.subMenus.map((sub) => ({
+            name: sub.name,
+            path: sub.link,
+            pro: false,
+          })),
+        };
+      } else {
+        return {
+          icon: menu.icon,
+          name: menu.name,
+          path: menu.link,
+        };
+      }
     });
-  } catch (error) {
+
+    return res.status(200).json({
+      status: "success",
+      data: formatted,
+    });
+  } catch (err) {
+    console.error("Error fetching menus:", err);
     return res.status(500).json({
-      success: false,
-      message: "Error retrieving menus!",
-      error: error.message,
+      status: "error",
+      message: err.message,
     });
   }
 };

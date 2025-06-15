@@ -40,7 +40,7 @@ const MembershipDetail = db.define(
     },
     invoice_id: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
     member_customer_no: {
       type: DataTypes.STRING,

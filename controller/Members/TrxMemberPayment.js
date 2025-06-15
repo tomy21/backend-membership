@@ -6,6 +6,7 @@ import moment from "moment/moment.js";
 import ExcelJs from "exceljs";
 import HistoryPost from "../../model/Members/v02/HistoryPost.js";
 import { errorResponse, successResponse } from "../../config/response.js";
+import VehicleList from "../../model/Members/v02/VehicleList.js";
 
 export const createTransaction = async (req, res) => {
   try {
@@ -219,6 +220,9 @@ export const getTransactions = async (req, res) => {
           { trxId: { [Op.like]: `%${search}%` } },
           { virtual_account: { [Op.like]: `%${search}%` } },
           { product_name: { [Op.like]: `%${search}%` } },
+          { location_name: { [Op.like]: `%${search}%` } },
+          { vehicle_type: { [Op.like]: `%${search}%` } },
+          { invoice_id: { [Op.like]: `%${search}%` } },
         ],
       }),
     };
@@ -356,7 +360,7 @@ export const getPayment = async (req, res) => {
     };
 
     const { count, rows } = await PaymentTransaction.findAndCountAll({
-      where: whereClause,
+      where: { ...whereClause, app_module: "APP_MEMBERSHIP" },
       limit: parseInt(limit, 10),
       offset: parseInt(offset, 10),
       order: [["created_at", "DESC"]],
@@ -383,7 +387,11 @@ export const getPayment = async (req, res) => {
 export const historyUsersById = async (req, res) => {
   try {
     const id = req.params.id;
-    const { limit = 10, page = 1, search = "" } = req.query;
+    const { month, year, page = 1, limit = 10, search = "" } = req.query;
+
+    const currentDate = new Date();
+    const selectedMonth = month ? parseInt(month) : currentDate.getMonth() + 1;
+    const selectedYear = year ? parseInt(year) : currentDate.getFullYear();
 
     if (!id) {
       return errorResponse(res, 400, "Missing id parameter");
@@ -395,7 +403,15 @@ export const historyUsersById = async (req, res) => {
     });
 
     const transactions = await TransactionHistoryPayment.findAll({
-      where: { user_id: id },
+      where: {
+        user_id: id,
+        createdAt: {
+          [Op.between]: [
+            new Date(selectedYear, selectedMonth - 1, 1),
+            new Date(selectedYear, selectedMonth, 0, 23, 59, 59),
+          ],
+        },
+      },
       order: [["createdAt", "ASC"]], // Urutkan dari yang paling lama
     });
 
@@ -476,12 +492,14 @@ export const historyUsersById = async (req, res) => {
 
 export const historyTransactionByLocation = async (req, res) => {
   try {
-    const { month, year } = req.query;
+    const { month, year, page = 1, limit = 10, search = "" } = req.query;
 
     // Gunakan bulan & tahun saat ini jika tidak diberikan
     const currentDate = new Date();
     const selectedMonth = month ? parseInt(month) : currentDate.getMonth() + 1;
     const selectedYear = year ? parseInt(year) : currentDate.getFullYear();
+
+    const offset = (parseInt(page) - 1) * parseInt(limit);
 
     // Ambil transaksi dengan filter yang diberikan
     const transactions = await TransactionHistoryPayment.findAll({
@@ -503,6 +521,9 @@ export const historyTransactionByLocation = async (req, res) => {
             new Date(selectedYear, selectedMonth - 1, 1),
             new Date(selectedYear, selectedMonth, 0, 23, 59, 59),
           ],
+        },
+        location_name: {
+          [Op.like]: `%${search}%`, // Untuk search case-insensitive
         },
       },
       group: ["location_name", "vehicle_type"],
@@ -542,7 +563,16 @@ export const historyTransactionByLocation = async (req, res) => {
       return acc;
     }, []);
 
-    res.json({ success: true, message: "Get data successfully", data: result });
+    const paginatedResult = result.slice(offset, offset + parseInt(limit));
+
+    res.json({
+      success: true,
+      message: "Get data successfully",
+      data: paginatedResult,
+      totalData: result.length,
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(result.length / parseInt(limit)),
+    });
   } catch (error) {
     console.error("Error fetching transaction summary:", error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -552,20 +582,64 @@ export const historyTransactionByLocation = async (req, res) => {
 export const transactionByLocation = async (req, res) => {
   try {
     // Ambil query parameter untuk pagination (default: page 1, limit 10)
-    const { page = 1, limit = 10 } = req.query;
+    const { month, year, page = 1, limit = 10, search = "" } = req.query;
     const offset = (page - 1) * limit;
+
+    const currentDate = new Date();
+    const selectedMonth = month ? parseInt(month) : currentDate.getMonth() + 1;
+    const selectedYear = year ? parseInt(year) : currentDate.getFullYear();
 
     // Hitung total data untuk pagination
     const totalItems = await TransactionHistoryPayment.count({
-      where: { location_code: req.params.locationCode },
+      where: {
+        location_code: req.params.locationCode,
+        transactionType: {
+          [Op.not]: "TOPUP", // Tidak termasuk transaksi TOPUP
+        },
+        purchase_type: "MEMBERSHIP", // Hanya membership
+        statusPayment: "PAID", // Hanya transaksi yang sudah dibayar
+        createdAt: {
+          [Op.between]: [
+            new Date(selectedYear, selectedMonth - 1, 1),
+            new Date(selectedYear, selectedMonth, 0, 23, 59, 59),
+          ],
+        },
+        location_name: {
+          [Op.like]: `%${search}%`, // Untuk search case-insensitive
+        },
+      },
     });
 
     // Ambil data dengan pagination
     const response = await TransactionHistoryPayment.findAll({
       where: {
         location_code: req.params.locationCode,
+        transactionType: {
+          [Op.not]: "TOPUP", // Tidak termasuk transaksi TOPUP
+        },
+        purchase_type: "MEMBERSHIP", // Hanya membership
+        statusPayment: "PAID", // Hanya transaksi yang sudah dibayar
+        createdAt: {
+          [Op.between]: [
+            new Date(selectedYear, selectedMonth - 1, 1),
+            new Date(selectedYear, selectedMonth, 0, 23, 59, 59),
+          ],
+        },
+        location_name: {
+          [Op.like]: `%${search}%`, // Untuk search case-insensitive
+        },
       },
-      attributes: ["id", "location_code", "location_name", "vehicle_type"],
+      attributes: [
+        "id",
+        "location_code",
+        "location_name",
+        "vehicle_type",
+        "rfid",
+        "timestamp",
+        "price",
+        "periode",
+        "statusPayment",
+      ],
       include: [
         {
           model: User,
@@ -596,5 +670,49 @@ export const transactionByLocation = async (req, res) => {
       message: "Internal server error",
       error: error.message,
     });
+  }
+};
+
+export const getYearHistory = async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const pageInt = parseInt(page, 10);
+    const limitInt = parseInt(limit, 10);
+
+    const offset = (pageInt - 1) * limitInt;
+
+    // Ambil semua tahun unik
+    const years = await TransactionHistoryPayment.findAll({
+      attributes: [
+        [
+          Sequelize.fn(
+            "DISTINCT",
+            Sequelize.fn("YEAR", Sequelize.col("createdAt"))
+          ),
+          "year",
+        ],
+      ],
+      order: [[Sequelize.fn("YEAR", Sequelize.col("createdAt")), "DESC"]],
+      raw: true,
+    });
+
+    const allYears = years.map((y) => y.year);
+
+    // Total halaman dan data
+    const totalItems = allYears.length;
+    const totalPages = Math.ceil(totalItems / limitInt);
+
+    // Ambil data yang sesuai dengan halaman saat ini
+    const paginatedYears = allYears.slice(offset, offset + limitInt);
+
+    res.json({
+      data: paginatedYears,
+      currentPage: pageInt,
+      totalPages,
+      totalItems,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error fetching years" });
   }
 };

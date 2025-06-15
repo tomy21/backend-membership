@@ -20,8 +20,6 @@ const LocationArea = db.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
-<<<<<<< HEAD
-=======
     address: {
       type: DataTypes.TEXT,
       allowNull: false,
@@ -30,7 +28,6 @@ const LocationArea = db.define(
       type: DataTypes.TEXT,
       allowNull: false,
     },
->>>>>>> production_v2
     Create_by: {
       type: DataTypes.INTEGER,
       allowNull: false,

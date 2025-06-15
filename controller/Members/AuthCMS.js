@@ -267,7 +267,7 @@ export const registerCMS = async (req, res) => {
 export const getUserByIdCMS = async (req, res) => {
   try {
     const userId = req.userId;
-
+    console.log(userId);
     const userById = await UserCMS.findOne({
       where: { id: userId },
       attributes: ["id", "fullname", "email"],

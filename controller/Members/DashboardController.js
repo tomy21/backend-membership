@@ -265,7 +265,7 @@ export const listSummaryLocation = async (req, res) => {
       where: {
         is_active: 1,
         end_date: {
-          [Op.between]: [startOfMonth, endOfMonth],
+          [Op.gte]: now,
         },
       },
       group: ["location_name"],
@@ -281,7 +281,7 @@ export const listSummaryLocation = async (req, res) => {
       where: {
         is_active: 0,
         end_date: {
-          [Op.between]: [startOfMonth, endOfMonth],
+          [Op.gte]: now,
         },
       },
       group: ["location_name"],

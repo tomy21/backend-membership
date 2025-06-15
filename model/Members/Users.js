@@ -162,7 +162,7 @@ VehicleList.belongsTo(User, {
 });
 
 VehicleList.belongsTo(User, {
-  foreignKey: "member_customer_no", // Sesuaikan dengan kolom di tabel MembershipCard
+  foreignKey: "member_customer_no", 
   targetKey: "customer_no", // Kolom yang cocok di tabel User
   as: "customer_memberships",
 });

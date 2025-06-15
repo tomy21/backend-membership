@@ -10,6 +10,7 @@ import { sendEmailRegister } from "../../config/EmailService.js";
 import { createSendToken } from "../../config/ConfigToken.js";
 import VehicleList from "../../model/Members/v02/VehicleList.js";
 import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
+
 import dotenv from "dotenv";
 import CryptoJS from "crypto-js";
 import { id } from "date-fns/locale";
@@ -485,7 +486,7 @@ export const register = async (req, res) => {
 
     const activationURL = `https://${req.get(
       "host"
-    )}/v01/member/api/auth/activate/${activationToken}`;
+    )}/v01/member/api/auth/activate/${activationToken}?referralUrl=${referralUrl}`;
 
     const to = newUser.email;
     const subject = "Welcome to SKY PARKING - Activate Your Account";
@@ -573,10 +574,12 @@ export const activateAccount = async (req, res) => {
       });
     }
 
+
     const allowedDomains =
       `${req.protocol}://${req.get("host")}` === "http://localhost:3008"
         ? "http://localhost:3000"
         : `https://membership.skyparking.online`;
+
 
     if (user) {
       user.is_active = 1;
@@ -591,7 +594,7 @@ export const activateAccount = async (req, res) => {
       });
     }
 
-    res.redirect(`${allowedDomains}/register-success`);
+    res.redirect(`${referralUrl}/registerSuccess`);
   } catch (err) {
     res.status(400).json({
       status: "fail",
@@ -603,7 +606,6 @@ export const activateAccount = async (req, res) => {
 export const getUserById = async (req, res) => {
   try {
     const userId = req.userId;
-
     const userById = await User.findOne({
       where: { id: userId },
       attributes: [
@@ -796,3 +798,4 @@ export const getAllUsers = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+

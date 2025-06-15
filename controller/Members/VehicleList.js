@@ -1,4 +1,8 @@
+<<<<<<< HEAD
+import { Op } from "sequelize";
+=======
 import { Op, Sequelize } from "sequelize";
+>>>>>>> production_v2
 import VehicleList from "../../model/Members/v02/VehicleList.js";
 import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 import LocationArea from "../../model/Members/v02/LocationMaster.js";
@@ -67,6 +71,9 @@ export const getVehiclesByUSerId = async (req, res) => {
   }
 };
 
+<<<<<<< HEAD
+export const getVehiclesByType = async (req, res) => {
+=======
 export const getVehiclesByUserIdUnActive = async (req, res) => {
   const userId = req.userId;
   const { page = 1, limit = 10, search = "", locationCode, type } = req.query;
@@ -140,6 +147,7 @@ export const getVehiclesByUserIdUnActive = async (req, res) => {
 
 export const getVehiclesByType = async (req, res) => {
   const userId = req.userId;
+>>>>>>> production_v2
   const { type } = req.params;
   const { page = 1, limit = 10, search = "" } = req.query;
   const offset = (page - 1) * limit;
@@ -147,7 +155,10 @@ export const getVehiclesByType = async (req, res) => {
   try {
     const { count, rows } = await VehicleList.findAndCountAll({
       where: {
+<<<<<<< HEAD
+=======
         cust_id: userId,
+>>>>>>> production_v2
         vehicle_type: type,
         [Op.or]: [
           { vehicle_type: { [Op.like]: `%${search}%` } },
@@ -184,6 +195,8 @@ export const createVehicle = async (req, res) => {
 };
 
 // Update a vehicle
+<<<<<<< HEAD
+=======
 export const getById = async (req, res) => {
   const { id } = req.params;
 
@@ -197,6 +210,7 @@ export const getById = async (req, res) => {
   }
 };
 
+>>>>>>> production_v2
 export const updateVehicle = async (req, res) => {
   const { id } = req.params;
 
@@ -205,9 +219,13 @@ export const updateVehicle = async (req, res) => {
     if (!vehicle) return res.status(404).json({ message: "Vehicle not found" });
 
     await vehicle.update(req.body);
+<<<<<<< HEAD
+    res.json(vehicle);
+=======
     res
       .status(200)
       .json({ status: true, message: "Vehicle updated successfully", vehicle });
+>>>>>>> production_v2
   } catch (error) {
     res.status(400).json({ message: error.message });
   }

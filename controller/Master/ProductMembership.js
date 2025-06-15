@@ -1,24 +1,15 @@
-import { Op, Sequelize } from "sequelize";
+import { Op } from "sequelize";
 import ProductMembership from "../../model/Members/v02/ProductMembership.js";
-import LocationArea from "../../model/Members/v02/LocationMaster.js";
-import moment from "moment";
 
 export const getAllProductMembers = async (req, res) => {
-  const { page = 1, limit = 10, search = "", vehicleType = "" } = req.query;
+  const { page = 1, limit = 10, search = "" } = req.query;
 
   try {
     const offset = (page - 1) * limit;
-    const whereCondition = {
-      [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
-    };
-
-    // Jika vehicleType tidak kosong, tambahkan ke kondisi where
-    if (vehicleType && vehicleType !== "All") {
-      whereCondition.vehicle_type = vehicleType;
-    }
-
     const { count, rows } = await ProductMembership.findAndCountAll({
-      where: whereCondition,
+      where: {
+        [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
+      },
       attributes: [
         "id",
         "product_code",
@@ -30,13 +21,6 @@ export const getAllProductMembers = async (req, res) => {
         "start_date",
         "end_date",
         "Fee",
-        "periode",
-      ],
-      include: [
-        {
-          model: LocationArea,
-          attributes: ["location_code", "location_name"],
-        },
       ],
       limit: parseInt(limit),
       offset: parseInt(offset),
@@ -74,7 +58,6 @@ export const getByLocationCode = async (req, res) => {
   const { code } = req.params;
   const { page = 1, limit = 10, search = "" } = req.query;
 
-  console.log(code);
   try {
     const offset = (page - 1) * limit;
     const { count, rows } = await ProductMembership.findAndCountAll({
@@ -82,12 +65,6 @@ export const getByLocationCode = async (req, res) => {
         location_code: code,
         [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
       },
-      attributes: [
-        [
-          Sequelize.fn("DISTINCT", Sequelize.col("vehicle_type")),
-          "vehicle_type",
-        ],
-      ],
       limit: parseInt(limit),
       offset: parseInt(offset),
       order: [["created_at", "DESC"]],
@@ -105,6 +82,7 @@ export const getByLocationCode = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
 export const getByVehicle = async (req, res) => {
   const { type, code } = req.params;
   const { page = 1, limit = 10, search = "" } = req.query;

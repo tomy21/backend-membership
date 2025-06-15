@@ -6,3 +6,4 @@
 /backendMembership_backup
 /backend-membership.git.bfg-report
 *.jar
+.env.membershipV2

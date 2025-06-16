@@ -592,7 +592,7 @@ export const activateAccount = async (req, res) => {
       });
     }
 
-    res.redirect(`${allowedDomains}/registerSuccess`);
+    res.redirect(`${allowedDomains}/register-success`);
   } catch (err) {
     res.status(400).json({
       status: "fail",

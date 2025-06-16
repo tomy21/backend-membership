@@ -574,12 +574,10 @@ export const activateAccount = async (req, res) => {
       });
     }
 
-
     const allowedDomains =
       `${req.protocol}://${req.get("host")}` === "http://localhost:3008"
         ? "http://localhost:3000"
         : `https://membership.skyparking.online`;
-
 
     if (user) {
       user.is_active = 1;
@@ -594,7 +592,7 @@ export const activateAccount = async (req, res) => {
       });
     }
 
-    res.redirect(`${referralUrl}/registerSuccess`);
+    res.redirect(`${allowedDomains}/registerSuccess`);
   } catch (err) {
     res.status(400).json({
       status: "fail",
@@ -798,4 +796,3 @@ export const getAllUsers = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-

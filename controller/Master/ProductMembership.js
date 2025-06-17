@@ -1,5 +1,6 @@
-import { Op } from "sequelize";
+import { Op, Sequelize } from "sequelize";
 import ProductMembership from "../../model/Members/v02/ProductMembership.js";
+import moment from "moment";
 
 export const getAllProductMembers = async (req, res) => {
   const { page = 1, limit = 10, search = "" } = req.query;

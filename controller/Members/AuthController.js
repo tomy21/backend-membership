@@ -566,10 +566,12 @@ export const activateAccount = async (req, res) => {
     });
 
     if (!user && !userCMS) {
-      return res.status(400).json({
-        status: "fail",
-        message: "Token is invalid or has expired",
-      });
+      const allowedDomains =
+        `${req.protocol}://${req.get("host")}` === "http://localhost:3008"
+          ? "http://localhost:3000"
+          : "https://membership.skyparking.online";
+
+      return res.redirect(`${allowedDomains}/request-token`);
     }
 
     const allowedDomains =

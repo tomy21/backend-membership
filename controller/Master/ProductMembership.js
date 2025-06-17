@@ -68,6 +68,7 @@ export const getByLocationCode = async (req, res) => {
       },
       limit: parseInt(limit),
       offset: parseInt(offset),
+      group: ["vehicle_type"],
       order: [["created_at", "DESC"]],
     });
 

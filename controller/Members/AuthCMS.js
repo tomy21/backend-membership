@@ -430,7 +430,7 @@ export const getAllMembership = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
 
-    const locationFilter = req.query.locationFilter || null;
+    const locationFilter = req.query.search || null;
 
     // Hitung total kendaraan dengan filter lokasi
     const totalUsers = await VehicleList.count({

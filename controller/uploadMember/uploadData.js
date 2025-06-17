@@ -172,7 +172,7 @@ export const uploadMemberExcel = [
           { transaction }
         );
 
-        await sendEmailRegister({ to, subject, html, attachments });
+        // await sendEmailRegister({ to, subject, html, attachments });
         createdUsers.push({ username, email, password });
       }
 

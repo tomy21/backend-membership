@@ -463,6 +463,12 @@ export const getAllMembership = async (req, res) => {
         },
         {
           model: User,
+          where: locationFilter
+            ? {
+                fullname: { [Op.like]: `%${locationFilter}%` },
+                email: { [Op.like]: `%${locationFilter}%` },
+              }
+            : undefined,
           attributes: [
             "fullname",
             "email",

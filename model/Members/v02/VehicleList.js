@@ -27,6 +27,10 @@ const VehicleList = db.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    tennant_code: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
     plate_number: {
       type: DataTypes.STRING,
       allowNull: false,

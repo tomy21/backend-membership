@@ -60,7 +60,12 @@ const PaymentTransaction = db.define(
     },
     app_module: {
       type: DataTypes.ENUM,
-      values: ["APP_MEMBERSHIP", "APP_VOUCHER", "APP_OTHERS"],
+      values: [
+        "APP_MEMBERSHIP",
+        "APP_MEMBERSHIP_B2B",
+        "APP_VOUCHER",
+        "APP_OTHERS",
+      ],
       allowNull: false,
     },
     RRN: {

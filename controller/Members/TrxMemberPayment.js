@@ -637,7 +637,7 @@ export const transactionByLocation = async (req, res) => {
         "rfid",
         "timestamp",
         "price",
-        "periode",
+        "product_name",
         "statusPayment",
       ],
       include: [

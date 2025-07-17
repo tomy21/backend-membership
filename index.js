@@ -21,6 +21,8 @@ import ExportData from "./route/CMS/ExportDataRoute.js";
 import NotificationRoute from "./route/Members/NotificationRoute.js";
 import UploadMember from "./route/CMS/UploadMember.js";
 
+import MemberTenantRoute from "./route/Members/MemberTenants.js";
+
 import scheduleMembershipReminder from "./jobs/MembershipReminder.js";
 
 const app = express();
@@ -65,6 +67,8 @@ app.use("/v01/cms/api", ExportData);
 app.use("/v01/cms/api", UploadMember);
 
 app.use("/v01/member/api", NotificationRoute);
+
+app.use("/v01/member/api", MemberTenantRoute);
 
 const PORT = 3008;
 app.listen(PORT, () => {

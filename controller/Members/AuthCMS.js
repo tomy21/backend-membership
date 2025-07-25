@@ -11,7 +11,7 @@ import { errorResponse, successResponse } from "../../config/response.js";
 import crypto from "crypto";
 import CryptoJS from "crypto-js";
 import dotenv from "dotenv";
-dotenv.config({ path: ".env.production" });
+dotenv.config({ path: ".env" });
 
 const secret_key = process.env.SECRET_KEY;
 

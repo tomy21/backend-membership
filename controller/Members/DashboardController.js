@@ -125,20 +125,23 @@ export const getMembershipStatistics = async (req, res) => {
     const { range } = req.query;
     const { startDate, endDate, format, categories } = getDateRange(range);
 
-    const transactions = await TransactionHistoryPayment.findAll({
+    const transactions = await PaymentTransaction.findAll({
       attributes: [
         [
           typeof format === "string"
-            ? Sequelize.fn("DATE_FORMAT", Sequelize.col("createdAt"), format)
+            ? Sequelize.fn("DATE_FORMAT", Sequelize.col("created_at"), format)
             : format,
           "date",
         ],
         [Sequelize.fn("COUNT", Sequelize.col("id")), "count"],
-        [Sequelize.fn("SUM", Sequelize.col("price")), "totalPrice"],
+        [Sequelize.fn("SUM", Sequelize.col("paid_amount")), "totalPrice"],
       ],
       where: {
-        purchase_type: "MEMBERSHIP",
-        createdAt: { [Op.between]: [startDate, endDate] },
+        status_transaction: "COMPLETED",
+        app_module: {
+          [Op.in]: ["APP_MEMBERSHIP"],
+        },
+        created_at: { [Op.between]: [startDate, endDate] },
       },
       group: ["date"],
       order: [["date", "ASC"]],
@@ -210,18 +213,18 @@ export const totalValue = async (req, res) => {
     const totalMembershipActive = await MembershipDetail.count({
       where: {
         is_active: 1,
-        // end_date: {
-        //   [Op.gt]: new Date(), // hanya ambil data dengan end_date lebih besar dari sekarang
-        // },
+        end_date: {
+          [Op.gt]: new Date(), // hanya ambil data dengan end_date lebih besar dari sekarang
+        },
       },
     });
 
     const totalMembershipNonActive = await MembershipDetail.count({
       where: {
         is_active: 0,
-        // end_date: {
-        //   [Op.gt]: new Date(), // hanya ambil data dengan end_date lebih besar dari sekarang
-        // },
+        end_date: {
+          [Op.gt]: new Date(), // hanya ambil data dengan end_date lebih besar dari sekarang
+        },
       },
     });
 
@@ -234,7 +237,7 @@ export const totalValue = async (req, res) => {
       where: {
         status_transaction: "COMPLETED",
         app_module: {
-          [Op.in]: ["APP_MEMBERSHIP", "APP_MEMBERSHIP_B2B"],
+          [Op.in]: ["APP_MEMBERSHIP"],
         },
         created_at: {
           [Op.between]: [startOfMonth, endOfMonth],
@@ -251,7 +254,7 @@ export const totalValue = async (req, res) => {
       where: {
         status_transaction: "COMPLETED",
         app_module: {
-          [Op.in]: ["APP_MEMBERSHIP", "APP_MEMBERSHIP_B2B"],
+          [Op.in]: ["APP_MEMBERSHIP"],
         },
         created_at: {
           [Op.between]: [startOfMonth, endOfMonth], // Gunakan filter bulan yang sama
@@ -397,14 +400,14 @@ export const listSummaryLocation = async (req, res) => {
     const revenue = await TransactionHistoryPayment.findAll({
       attributes: [
         "location_name",
-        [Sequelize.fn("SUM", Sequelize.col("price")), "totalRevenue"],
+        [Sequelize.fn("SUM", Sequelize.col("paid_amount")), "totalRevenue"],
       ],
       where: {
-        statusPayment: "PAID",
-        purchase_type: "MEMBERSHIP",
-        createdAt: {
-          [Op.between]: [startOfMonth, endOfMonth],
+        status_transaction: "COMPLETED",
+        app_module: {
+          [Op.in]: ["APP_MEMBERSHIP"],
         },
+        created_at: { [Op.between]: [startDate, endDate] },
       },
       group: ["location_name"],
       raw: true,

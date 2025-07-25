@@ -6,6 +6,7 @@ import PaymentTransaction from "../../model/Members/v02/PaymentHistory.js";
 import TransactionHistoryPayment from "../../model/Members/v02/TransactionPaymentHistory.js";
 import { Op, Sequelize } from "sequelize";
 import { errorResponse } from "../../config/response.js";
+import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 
 export const exportDataTransaksiPost = async (req, res) => {
   const locationCode = req.query.locationCode
@@ -174,6 +175,15 @@ export const exportHistoryTransaction = async (req, res) => {
           as: "trxHistoryUser",
           attributes: ["fullname", "email"],
         },
+        {
+          model: MembershipDetail,
+          required: false,
+          as: "membershipDetail",
+          attributes: ["start_date", "end_date"],
+          where: {
+            is_active: 1,
+          },
+        },
       ],
     });
 
@@ -185,14 +195,16 @@ export const exportHistoryTransaction = async (req, res) => {
         { header: "No", key: "No", width: 5 },
         { header: "Transaction Date", width: 20, key: "dateTransaction" },
         { header: "Transaction Time", width: 20, key: "timeTransaction" },
+        { header: "Transaction Code", width: 30, key: "trxId" },
         { header: "Invoice No", width: 40, key: "invoice_id" },
         { header: "Name", width: 35, key: "fullname" },
         { header: "Email", width: 35, key: "email" },
         { header: "No Card", width: 35, key: "rfid" },
         { header: "Vehicle Type", width: 35, key: "vehicle_type" },
         { header: "Virtual Account Number", width: 35, key: "virtual_account" },
-        { header: "Transaction Code", width: 30, key: "trxId" },
         { header: "Product Name", width: 35, key: "product_name" },
+        { header: "Start Date", width: 20, key: "start_date" },
+        { header: "End Date", width: 20, key: "end_date" },
         { header: "Product Type", width: 20, key: "purchase_type" },
         { header: "Payment Method", width: 30, key: "transactionType" },
         { header: "Amount", width: 30, key: "price" },
@@ -214,14 +226,20 @@ export const exportHistoryTransaction = async (req, res) => {
           timeTransaction: value.createdAt
             ? moment(value.createdAt).tz("Asia/Jakarta").format("HH:mm:ss")
             : "-",
+          trxId: value.trxId || "-",
           invoice_id: value.invoice_id || "-",
           fullname: value.trxHistoryUser ? value.trxHistoryUser?.fullname : "-",
           email: value.trxHistoryUser ? value.trxHistoryUser?.email : "-",
           rfid: value.rfid ? value.rfid : "-",
           vehicle_type: value.vehicle_type ? value.vehicle_type : "-",
           virtual_account: value.virtual_account || "-",
-          trxId: value.trxId || "-",
           product_name: value.product_name || "-",
+          start_date: value.membershipDetail?.start_date
+            ? moment(value.membershipDetail.start_date).format("YYYY-MM-DD")
+            : "-",
+          end_date: value.membershipDetail?.end_date
+            ? moment(value.membershipDetail.end_date).format("YYYY-MM-DD")
+            : "-",
           purchase_type: value.purchase_type || "-",
           transactionType: value.transactionType || "-",
           price: value.price ? Number(value.price) : "",
@@ -747,6 +765,190 @@ export const exportDataTransaksiPostById = async (req, res) => {
       const fileName = startDate
         ? `History_post_${startDate}_to_${endDate}.xlsx`
         : `history_post_alldate.xlsx`;
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
+
+      await workbook.xlsx.write(res);
+      res.end();
+    } else {
+      res.status(400).json({ success: false, message: "Get data failed" });
+    }
+  } catch (error) {
+    console.log("Error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const exportHistoryPoint = async (req, res) => {
+  // const locationCode = req.query.locationCode
+  //   ? JSON.parse(req.query.locationCode)
+  //   : [];
+  // const startDate = req.query.startDate;
+  // const endDate = req.query.endDate;
+  // const type = req.query.type;
+
+  try {
+    const allMembershipDetails = await MembershipDetail.findAll({
+      attributes: ["Cust_Member", "start_date", "end_date"],
+      raw: true,
+    });
+    const membershipMap = {};
+    allMembershipDetails.forEach((md) => {
+      membershipMap[md.Cust_Member] = {
+        start_date: md.start_date,
+        end_date: md.end_date,
+      };
+    });
+
+    // 1. Ambil semua transaksi PAID dengan relasi user
+    const allTransactions = await TransactionHistoryPayment.findAll({
+      where: {
+        statusPayment: "PAID",
+      },
+      include: [
+        {
+          model: User,
+          as: "trxHistoryUser",
+          attributes: ["id", "username", "email"],
+        },
+      ],
+
+      raw: true,
+    });
+
+    // 2. Kelompokkan berdasarkan user_id
+    const groupedByUser = {};
+    for (const trx of allTransactions) {
+      const userId = trx["trxHistoryUser.id"];
+      const username = trx["trxHistoryUser.username"];
+      const email = trx["trxHistoryUser.email"];
+      const price = parseInt(trx.price);
+
+      if (!groupedByUser[userId]) {
+        const memberDetail = membershipMap[userId] || {};
+        groupedByUser[userId] = {
+          user_id: userId,
+          user_name: username,
+          email,
+          total_point: 0,
+          purchase_member: 0,
+          start: memberDetail.start_date || null,
+          end: memberDetail.end_date || null,
+          sisa_point: 0,
+          last_topup_date: null,
+          last_purchase_date: null,
+        };
+      }
+
+      if (trx.purchase_type === "TOPUP") {
+        groupedByUser[userId].total_point += price;
+        const topupDate = new Date(trx.timestamp);
+        if (
+          !groupedByUser[userId].last_topup_date ||
+          topupDate > new Date(groupedByUser[userId].last_topup_date)
+        ) {
+          groupedByUser[userId].last_topup_date = topupDate;
+        }
+      }
+
+      if (
+        trx.purchase_type === "MEMBERSHIP" &&
+        trx.transactionType === "POINT"
+      ) {
+        groupedByUser[userId].purchase_member += price;
+        const purchaseDate = new Date(trx.timestamp);
+        if (
+          !groupedByUser[userId].last_purchase_date ||
+          purchaseDate > new Date(groupedByUser[userId].last_purchase_date)
+        ) {
+          groupedByUser[userId].last_purchase_date = purchaseDate;
+        }
+      }
+    }
+
+    // 3. Hitung sisa poin dan filter user yang punya topup
+    const fullResult = Object.values(groupedByUser)
+      .map((item) => {
+        item.sisa_point = item.total_point - item.purchase_member;
+        return item;
+      })
+      .filter((item) => item.total_point > 0); // hanya user yang pernah topup
+
+    // Urutkan berdasarkan last_purchase_date (terbaru di atas)
+    fullResult.sort((a, b) => {
+      const dateA = new Date(a.last_purchase_date || 0);
+      const dateB = new Date(b.last_purchase_date || 0);
+      return dateB - dateA;
+    });
+
+    if (fullResult.length > 0) {
+      const workbook = new ExcelJs.Workbook();
+      const worksheet = workbook.addWorksheet("Transaction Membership");
+
+      worksheet.columns = [
+        { header: "No", key: "No", width: 5 },
+        { header: "User Name", width: 20, key: "userName" },
+        { header: "Email", width: 40, key: "email" },
+        { header: "Total Point", width: 15, key: "total_point" },
+        { header: "Price Member", width: 15, key: "price_member" },
+        { header: "Remaining Point", width: 15, key: "remaining" },
+        { header: "Start Date", width: 20, key: "startDate" },
+        { header: "End Date", width: 20, key: "endDate" },
+        { header: "Last Topup", width: 20, key: "last_topup" },
+        { header: "Purchase Date", width: 20, key: "purchase_date" },
+      ];
+
+      worksheet.eachRow((row) => {
+        row.eachCell((cell) => {
+          cell.alignment = { vertical: "middle", horizontal: "center" };
+        });
+      });
+
+      for (const [index, value] of fullResult.entries()) {
+        const row = worksheet.addRow({
+          No: index + 1,
+          userName: value.user_name || "-",
+          email: value.email || "-",
+          total_point: value.total_point,
+          price_member: value.purchase_member,
+          remaining: value.sisa_point,
+          startDate: value.start
+            ? moment(value.start).tz("Asia/Jakarta").format("YYYY-MM-DD")
+            : "-",
+          endDate: value.end
+            ? moment(value.end).tz("Asia/Jakarta").format("YYYY-MM-DD")
+            : "-",
+          last_topup: value.last_topup_date
+            ? moment(value.last_topup_date)
+                .tz("Asia/Jakarta")
+                .format("YYYY-MM-DD HH:mm:ss")
+            : "-",
+          purchase_date: value.last_purchase_date
+            ? moment(value.last_purchase_date)
+                .tz("Asia/Jakarta")
+                .format("YYYY-MM-DD HH:mm:ss")
+            : "-",
+        });
+
+        worksheet.getRow(1).eachCell((cell) => {
+          cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; // Bold & warna putih
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "0070C0" }, // Background biru
+          };
+          cell.alignment = { vertical: "middle", horizontal: "center" };
+        });
+      }
+
+      const fileName = `History_point_alldate.xlsx`;
+      // const fileName = startDate
+      //   ? `History_transaction_${startDate}_to_${endDate}.xlsx`
+      //   : `History_transaction_alldate.xlsx`;
 
       res.setHeader(
         "Content-Type",

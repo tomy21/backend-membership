@@ -29,7 +29,7 @@ const VehicleList = db.define(
     },
     tennant_code: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
     plate_number: {
       type: DataTypes.STRING,

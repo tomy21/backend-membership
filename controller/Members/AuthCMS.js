@@ -8,9 +8,29 @@ import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 import VehicleList from "../../model/Members/v02/VehicleList.js";
 import User from "../../model/Members/Users.js";
 import { errorResponse, successResponse } from "../../config/response.js";
+import crypto from "crypto";
+import CryptoJS from "crypto-js";
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.production" });
+
+const secret_key = process.env.SECRET_KEY;
 
 export const login = async (req, res) => {
-  const { identifier, password, rememberMe } = req.body;
+  const { data } = req.body;
+
+  if (!data) {
+    return res.status(400).json({
+      status: "fail",
+      message: "Data tidak boleh kosong.",
+    });
+  }
+
+  const bytes = CryptoJS.AES.decrypt(data, secret_key);
+  const decryptedData = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+
+  const { identifier, password, rememberMe } = decryptedData;
+
+  console.log(identifier, password, rememberMe);
 
   if (!identifier || !password) {
     return res.status(400).json({

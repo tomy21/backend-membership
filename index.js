@@ -8,6 +8,7 @@ import ProductMemberRoute from "./route/Members/Master/ProductMasterRoute.js";
 import TrxMemberPayment from "./route/Members/TrxMemberPayments.js";
 
 import MemberHistoryPost from "./route/Members/MemberHistoryPost.js";
+import MemberHistoryTrx from "./route/Members/MemberHistoryTransaction.js";
 import LocationMembers from "./route/Members/LocationMaster.js";
 import vehicleList from "./route/Members/VehicleListRoute.js";
 import Provider from "./route/Members/Master/Provider.js";
@@ -53,6 +54,7 @@ app.use("/v01/member/api", ProductMemberRoute);
 app.use("/v01/member/api", TrxMemberPayment);
 
 app.use("/v01/member/api", MemberHistoryPost);
+app.use("/v01/member/api", MemberHistoryTrx);
 app.use("/v01/member/api", LocationMembers);
 app.use("/v01/member/api", vehicleList);
 app.use("/v01/member/api", Provider);

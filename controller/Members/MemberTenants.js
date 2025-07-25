@@ -1,6 +1,8 @@
 import MemberTenant from "../../model/Members/MemberTenants.js";
 import { LocationMembers } from "../../model/Master/RefLocationMembers.js";
 import VehicleList from "../../model/Members/v02/VehicleList.js";
+import TennantPurchaseHistory from "../../model/Members/v02/TenantPurchaseHistory.js";
+import { Op } from "sequelize";
 
 // Get all member tenants with pagination
 export const getAllMemberTenants = async (req, res) => {
@@ -72,5 +74,67 @@ export const getMemberTenant = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+export const getTennantPurchaseHistoryByUser = async (req, res) => {
+  const userId = req.userId;
+  const { page = 1, limit = 10, search = "" } = req.query;
+
+  const offset = (page - 1) * limit;
+
+  try {
+    const whereClause = {
+      user_id: userId,
+      [Op.or]: [
+        { virtual_account_number: { [Op.like]: `%${search}%` } },
+        { virtual_account_name: { [Op.like]: `%${search}%` } },
+        { trx_id: { [Op.like]: `%${search}%` } },
+        { status_payment: { [Op.like]: `%${search}%` } },
+        { status_progress: { [Op.like]: `%${search}%` } },
+        { type_payment: { [Op.like]: `%${search}%` } },
+      ],
+    };
+
+    const { rows, count } = await TennantPurchaseHistory.findAndCountAll({
+      where: whereClause,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [["created_at", "DESC"]],
+    });
+
+    res.status(200).json({
+      data: rows,
+      pagination: {
+        total: count,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(count / limit),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching history by user:", error);
+    res.status(500).json({ error: "Failed to fetch purchase history" });
+  }
+};
+
+export const getValueByUser = async (req, res) => {
+  const userId = req.userId;
+
+  try {
+    const cekTenantCode = await MemberTenant.findByPk(userId);
+
+    const totalMembership = await res.status(200).json({
+      data: rows,
+      pagination: {
+        total: count,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(count / limit),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching history by user:", error);
+    res.status(500).json({ error: "Failed to fetch purchase history" });
   }
 };

@@ -24,7 +24,7 @@ import UploadMember from "./route/CMS/UploadMember.js";
 
 import MemberTenantRoute from "./route/Members/MemberTenants.js";
 
-import scheduleMembershipReminder from "./jobs/MembershipReminder.js";
+// import scheduleMembershipReminder from "./jobs/MembershipReminder.js";`
 
 const app = express();
 
@@ -41,7 +41,7 @@ app.use(
   })
 );
 
-scheduleMembershipReminder();
+// scheduleMembershipReminder();
 
 const __dirname = path.resolve();
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));

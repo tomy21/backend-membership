@@ -2,6 +2,7 @@ import { DataTypes, Sequelize } from "sequelize";
 import db from "../../../config/dbConfig.js";
 import User from "../Users.js";
 import MembershipDetail from "./MembershipDetail.js";
+import PaymentTransaction from "./PaymentHistory.js";
 
 const TransactionHistoryPayment = db.define(
   "transaction_customer_history",
@@ -117,6 +118,16 @@ TransactionHistoryPayment.hasOne(MembershipDetail, {
 MembershipDetail.belongsTo(TransactionHistoryPayment, {
   foreignKey: "invoice_id",
   targetKey: "invoice_id",
+});
+
+TransactionHistoryPayment.hasOne(PaymentTransaction, {
+  foreignKey: "trx_id",
+  sourceKey: "trxId",
+  as: "payment_trx",
+});
+PaymentTransaction.belongsTo(TransactionHistoryPayment, {
+  foreignKey: "trx_id",
+  sourceKey: "trxId",
 });
 
 export default TransactionHistoryPayment;

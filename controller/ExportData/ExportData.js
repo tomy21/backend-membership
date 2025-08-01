@@ -184,6 +184,12 @@ export const exportHistoryTransaction = async (req, res) => {
             is_active: 1,
           },
         },
+        {
+          model: PaymentTransaction,
+          required: false,
+          as: "payment_trx",
+          attributes: ["module_name", "app_module"],
+        },
       ],
     });
 
@@ -202,11 +208,13 @@ export const exportHistoryTransaction = async (req, res) => {
         { header: "No Card", width: 35, key: "rfid" },
         { header: "Vehicle Type", width: 35, key: "vehicle_type" },
         { header: "Virtual Account Number", width: 35, key: "virtual_account" },
+        { header: "Bank Name", width: 35, key: "bank_name" },
         { header: "Product Name", width: 35, key: "product_name" },
         { header: "Start Date", width: 20, key: "start_date" },
         { header: "End Date", width: 20, key: "end_date" },
         { header: "Product Type", width: 20, key: "purchase_type" },
         { header: "Payment Method", width: 30, key: "transactionType" },
+        { header: "Type Transaksi", width: 30, key: "type" },
         { header: "Amount", width: 30, key: "price" },
         { header: "Status", width: 20, key: "statusPayment" },
       ];
@@ -218,6 +226,7 @@ export const exportHistoryTransaction = async (req, res) => {
       });
 
       for (const [index, value] of result.rows.entries()) {
+        console.log(value.payment_trx);
         const row = worksheet.addRow({
           No: index + 1,
           dateTransaction: value.createdAt
@@ -233,15 +242,24 @@ export const exportHistoryTransaction = async (req, res) => {
           rfid: value.rfid ? value.rfid : "-",
           vehicle_type: value.vehicle_type ? value.vehicle_type : "-",
           virtual_account: value.virtual_account || "-",
+          virtual_account: value.virtual_account || "-",
+          bank_name:
+            value.payment_trx?.module_name === "BAYARIND_BCA_VIRTUAL_ACCOUNT"
+              ? "BCA_BAYARIND"
+              : "NOBU",
           product_name: value.product_name || "-",
-          start_date: value.membershipDetail?.start_date
-            ? moment(value.membershipDetail.start_date).format("YYYY-MM-DD")
+          start_date: value.createdAt
+            ? moment(value.createdAt).format("YYYY-MM-DD")
             : "-",
           end_date: value.membershipDetail?.end_date
             ? moment(value.membershipDetail.end_date).format("YYYY-MM-DD")
             : "-",
           purchase_type: value.purchase_type || "-",
           transactionType: value.transactionType || "-",
+          type:
+            value.payment_trx.app_module === "APP_MEMBERSHIP_B2B"
+              ? "B2B"
+              : "Personal" || "-",
           price: value.price ? Number(value.price) : "",
           statusPayment: value.statusPayment || "-",
         });

@@ -664,7 +664,7 @@ export const getCardDetail = async (req, res) => {
     const cardDetail = await VehicleList.findAll({
       where: { cust_id: userId, rfid: { [Op.not]: "" } },
       group: ["rfid"],
-      attributes: ["member_customer_no", "rfid"],
+      attributes: ["member_customer_no", "rfid", "vehicle_type"],
     });
 
     res.status(200).json({

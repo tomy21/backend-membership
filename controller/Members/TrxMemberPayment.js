@@ -1,4 +1,4 @@
-import { Op, Sequelize } from "sequelize";
+import { col, fn, literal, Op, Sequelize } from "sequelize";
 import TransactionHistoryPayment from "../../model/Members/v02/TransactionPaymentHistory.js";
 import User from "../../model/Members/Users.js";
 import PaymentTransaction from "../../model/Members/v02/PaymentHistory.js";
@@ -209,7 +209,7 @@ export const deleteTransaction = async (req, res) => {
 
 export const getTransactions = async (req, res) => {
   try {
-    const { search, page = 1, limit = 10, status } = req.query;
+    const { search, page = 1, limit = 10, status = "PAID" } = req.query;
     const offset = (page - 1) * limit;
 
     const whereClause = {
@@ -258,20 +258,26 @@ export const getTransactions = async (req, res) => {
     });
   }
 };
-export const getTransactionsTopup = async (req, res) => {
+export const getDetailTransactionsTopup = async (req, res) => {
   try {
-    const { search, page = 1, limit = 10, status } = req.query;
+    const { search, page = 1, limit = 10, status, date } = req.query;
     const offset = (page - 1) * limit;
 
     const whereClause = {
       purchase_type: "TOPUP",
-      ...(status && { statusPayment: status, purchase_type: "TOPUP" }),
+      ...(status && { statusPayment: status }),
       ...(search && {
         [Op.or]: [
           { trxId: { [Op.like]: `%${search}%` } },
           { virtual_account: { [Op.like]: `%${search}%` } },
           { product_name: { [Op.like]: `%${search}%` } },
         ],
+      }),
+      ...(date && {
+        updatedAt: {
+          [Op.gte]: new Date(`${date}T00:00:00.000Z`),
+          [Op.lt]: new Date(`${date}T23:59:59.999Z`),
+        },
       }),
     };
 
@@ -282,11 +288,11 @@ export const getTransactionsTopup = async (req, res) => {
       include: [
         {
           model: User,
-          attributes: ["fullname", "email"],
+          attributes: ["fullname", "email", "points"],
           as: "trxHistoryUser",
         },
       ],
-      order: [["createdAt", "DESC"]],
+      order: [["updatedAt", "DESC"]],
     });
 
     res.status(200).json({
@@ -303,6 +309,178 @@ export const getTransactionsTopup = async (req, res) => {
     res.status(400).json({
       statusCode: 400,
       message: err.message,
+    });
+  }
+};
+
+export const getTransactionsTopup = async (req, res) => {
+  try {
+    const { month, year, page = 1, limit = 10 } = req.query;
+
+    if (!month || !year) {
+      return res.status(400).json({
+        statusCode: 400,
+        message: "Parameter 'month' dan 'year' harus disediakan.",
+      });
+    }
+
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59, 999); // akhir bulan
+
+    const dateFilter = {
+      createdAt: {
+        [Op.between]: [startDate, endDate],
+      },
+    };
+
+    // --- Ambil transaksi TOPUP ---
+    const transaksiTopup = await TransactionHistoryPayment.findAll({
+      attributes: [
+        [fn("DATE", col("createdAt")), "tanggal"],
+        [
+          fn(
+            "SUM",
+            literal(
+              `CASE WHEN statusPayment = 'PAID' THEN CAST(price AS UNSIGNED) ELSE 0 END`
+            )
+          ),
+          "total_topup",
+        ],
+        [
+          fn(
+            "COUNT",
+            literal(`CASE WHEN statusPayment = 'PAID' THEN 1 ELSE NULL END`)
+          ),
+          "jumlah_topup",
+        ],
+      ],
+      where: {
+        product_name: "TOP UP",
+        ...dateFilter,
+      },
+      group: [fn("DATE", col("createdAt"))],
+      order: [[fn("DATE", col("createdAt")), "ASC"]],
+      raw: true,
+    });
+
+    // --- Ambil transaksi Membership (POINT) ---
+    const transaksiMembership = await TransactionHistoryPayment.findAll({
+      attributes: [
+        [fn("DATE", col("createdAt")), "tanggal"],
+        [fn("SUM", literal(`CAST(price AS UNSIGNED)`)), "membership"],
+      ],
+      where: {
+        product_name: {
+          [Op.ne]: "TOP UP",
+        },
+        transactionType: "POINT",
+        ...dateFilter,
+      },
+      group: [fn("DATE", col("createdAt"))],
+      raw: true,
+    });
+
+    // --- Ambil parkir casual ---
+    const transaksiCasual = await HistoryPost.findAll({
+      attributes: [
+        [fn("DATE", col("createdAt")), "tanggal"],
+        [fn("SUM", col("tariff")), "casual"],
+      ],
+      where: {
+        status_member: "NON-MEMBER",
+        ...dateFilter,
+      },
+      group: [fn("DATE", col("createdAt"))],
+      raw: true,
+    });
+
+    // Gabungkan semua data berdasarkan tanggal
+    const resultMap = {};
+
+    transaksiTopup.forEach((trx) => {
+      const tgl = trx.tanggal;
+      resultMap[tgl] = {
+        tanggal: tgl,
+        paid: Number(trx.total_topup) || 0,
+        total_topup: Number(trx.jumlah_topup) || 0,
+        total_fee: Number(trx.jumlah_topup) * 5000,
+        membership: 0,
+        casual: 0,
+      };
+    });
+
+    transaksiMembership.forEach((mem) => {
+      const tgl = mem.tanggal;
+      if (!resultMap[tgl])
+        resultMap[tgl] = {
+          tanggal: tgl,
+          paid: 0,
+          total_topup: 0,
+          total_fee: 0,
+          membership: 0,
+          casual: 0,
+        };
+      resultMap[tgl].membership = Number(mem.membership) || 0;
+    });
+
+    transaksiCasual.forEach((cas) => {
+      const tgl = cas.tanggal;
+      if (!resultMap[tgl])
+        resultMap[tgl] = {
+          tanggal: tgl,
+          paid: 0,
+          total_topup: 0,
+          total_fee: 0,
+          membership: 0,
+          casual: 0,
+        };
+      resultMap[tgl].casual = Number(cas.casual) || 0;
+    });
+
+    // Finalisasi hasil + hitung titipan
+    const allData = Object.values(resultMap)
+      .map((item) => {
+        const total = item.paid;
+        const titipan = total - (item.membership + item.casual);
+        return {
+          ...item,
+          total,
+          titipan: titipan < 0 ? 0 : titipan,
+        };
+      })
+      .sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal));
+
+    // Total keseluruhan (summary)
+    const totalSummary = allData.reduce(
+      (acc, curr) => {
+        acc.total_topup += curr.total;
+        acc.membership += curr.membership;
+        acc.casual += curr.casual;
+        acc.titipan += curr.titipan;
+        return acc;
+      },
+      { total_topup: 0, membership: 0, casual: 0, titipan: 0 }
+    );
+
+    // Pagination
+    const startIdx = (page - 1) * limit;
+    const paginatedData = allData.slice(startIdx, startIdx + Number(limit));
+
+    res.status(200).json({
+      statusCode: 200,
+      message: "Summary transaksi berhasil diambil",
+      data: paginatedData,
+      totalData: allData.length,
+      currentPage: Number(page),
+      totalPage: Math.ceil(allData.length / limit),
+      summary: totalSummary,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      statusCode: 500,
+      message: "Gagal mengambil data summary transaksi",
+      error: err.message,
     });
   }
 };

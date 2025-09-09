@@ -11,6 +11,7 @@ export const signToken = (user, rememberMe) => {
   const payload = {
     id: user.id,
     username: user.username,
+    roleId: user.role,
     iat: Math.floor(Date.now() / 1000),
   };
 
@@ -24,7 +25,7 @@ export const signToken = (user, rememberMe) => {
 
 export const createSendToken = (user, statusCode, res, rememberMe) => {
   const token = signToken(user, rememberMe);
-
+  console.log("token", token);
   res.cookie("refreshToken", token, {
     httpOnly: false,
     secure: process.env.NODE_ENV === "production",

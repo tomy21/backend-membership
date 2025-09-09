@@ -13,7 +13,6 @@ import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 
 import dotenv from "dotenv";
 import CryptoJS from "crypto-js";
-import { id } from "date-fns/locale";
 dotenv.config({ path: ".env" });
 
 const secret_key = process.env.SECRET_KEY;
@@ -297,8 +296,6 @@ export const requestResetPin = async (req, res) => {
     const user = await User.findOne({
       where: id,
     });
-
-    console.log(user, id);
 
     if (!user) {
       return res.status(401).json({
@@ -630,7 +627,7 @@ export const getUserById = async (req, res) => {
             {
               model: MembershipDetail,
               where: { is_active: 1 },
-              attributes: ["is_active"],
+              attributes: ["is_active", "location_id"],
             },
           ],
         },
@@ -665,6 +662,13 @@ export const getCardDetail = async (req, res) => {
       where: { cust_id: userId, rfid: { [Op.not]: "" } },
       group: ["rfid"],
       attributes: ["member_customer_no", "rfid", "vehicle_type"],
+      include: [
+        {
+          model: MembershipDetail,
+          where: { is_active: 1 },
+          attributes: ["is_active", "location_id"],
+        },
+      ],
     });
 
     res.status(200).json({

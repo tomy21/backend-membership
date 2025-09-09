@@ -4,73 +4,52 @@ import User from "../../model/Members/Users.js";
 import MasterCard from "../../model/Members/v02/MasterCard.js";
 import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 import PaymentTransaction from "../../model/Members/v02/PaymentHistory.js";
+import LocationArea from "../../model/Members/v02/LocationMaster.js";
+import moment from "moment-timezone";
 
 // Helper untuk menentukan kategori waktu
 const getDateRange = (rangeType) => {
-  const now = new Date();
+  const now = moment.tz("Asia/Jakarta");
   let startDate,
+    endDate,
     format,
     categories = [];
 
   switch (rangeType) {
-    case "days": {
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      format = "%Y-%m-%d"; // Format tanggal lengkap
-      const today = now.getDate();
-      categories = Array.from(
-        { length: today },
-        (_, i) =>
-          new Date(now.getFullYear(), now.getMonth(), i + 1)
-            .toISOString()
-            .split("T")[0]
-      );
-      break;
-    }
-
     case "week": {
-      const firstDayOfYear = new Date(now.getFullYear(), 0, 1);
-      const firstDayOfLastMonth = new Date(
-        now.getFullYear(),
-        now.getMonth() - 1,
-        1
-      );
-      const firstDayOfThisMonth = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        1
-      );
-
-      startDate = firstDayOfLastMonth; // Mulai dari awal bulan lalu
-      format = Sequelize.literal("WEEK(createdAt, 1)"); // Ambil nomor minggu sejak awal tahun
-
-      // Hitung minggu pertama dari bulan lalu
-      const weekStart = Math.ceil(
-        ((firstDayOfLastMonth - firstDayOfYear) / (1000 * 60 * 60 * 24) +
-          firstDayOfYear.getDay() +
-          1) /
-          7
-      );
-
-      // Hitung minggu terakhir bulan ini
-      const currentWeek = Math.ceil(
-        ((now - firstDayOfYear) / (1000 * 60 * 60 * 24) +
-          firstDayOfYear.getDay() +
-          1) /
-          7
-      );
-
-      // Buat array kategori yang benar (mulai dari minggu bulan lalu hingga minggu sekarang)
+      // Week biasa (senin–minggu, ikut DB fungsi WEEK)
+      startDate = now.clone().startOf("week").toDate();
+      endDate = now.clone().endOf("week").toDate();
+      format = Sequelize.literal("WEEK(updatedAt, 1)");
+      const startWeek = now.clone().startOf("week").week();
+      const currentWeek = now.week();
       categories = Array.from(
-        { length: currentWeek - weekStart + 1 },
-        (_, i) => `Week ${weekStart + i}`
+        { length: currentWeek - startWeek + 1 },
+        (_, i) => `Week ${startWeek + i}`
       );
-
       break;
     }
 
     case "month": {
-      startDate = new Date(now.getFullYear(), 0, 1);
-      format = "%b"; // Format bulan singkat (Jan, Feb, Mar, ...)
+      // revenue Agustus = 26 Juli – 25 Agustus
+      if (now.date() >= 26) {
+        // mulai tanggal 26 bulan ini
+        startDate = now.clone().date(26).startOf("day").toDate();
+        // sampai 25 bulan depan
+        endDate = now.clone().add(1, "month").date(25).endOf("day").toDate();
+      } else {
+        // mulai 26 bulan lalu
+        startDate = now
+          .clone()
+          .subtract(1, "month")
+          .date(26)
+          .startOf("day")
+          .toDate();
+        // sampai 25 bulan ini
+        endDate = now.clone().date(25).endOf("day").toDate();
+      }
+
+      format = "%b"; // tampil bulan singkat
       categories = [
         "Jan",
         "Feb",
@@ -89,16 +68,51 @@ const getDateRange = (rangeType) => {
     }
 
     case "year": {
-      startDate = new Date(now.getFullYear() - 2, 0, 1);
-      format = "%Y"; // Format tahun
-      categories = Array.from({ length: 3 }, (_, i) =>
-        (now.getFullYear() - 2 + i).toString()
-      );
+      // revenue tahun = 26 Des tahun lalu – 25 Des tahun ini
+      if (now.month() === 11 && now.date() >= 26) {
+        // Kalau sudah lewat 26 Des → tahun ini mulai 26 Des
+        startDate = now.clone().date(26).month(11).startOf("day").toDate();
+        endDate = now
+          .clone()
+          .add(1, "year")
+          .month(11)
+          .date(25)
+          .endOf("day")
+          .toDate();
+      } else {
+        // Kalau belum 26 Des → pakai 26 Des tahun lalu
+        startDate = now
+          .clone()
+          .subtract(1, "year")
+          .month(11)
+          .date(26)
+          .startOf("day")
+          .toDate();
+        endDate = now.clone().month(11).date(25).endOf("day").toDate();
+      }
+
+      format = "%b"; // tampil per bulan
+      categories = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+      ];
       break;
     }
 
-    default:
-      startDate = new Date(now.getFullYear(), 0, 1);
+    default: {
+      // fallback: Jan 1 – today
+      startDate = now.clone().startOf("year").toDate();
+      endDate = now.toDate();
       format = "%b";
       categories = [
         "Jan",
@@ -114,9 +128,10 @@ const getDateRange = (rangeType) => {
         "Nov",
         "Dec",
       ];
+    }
   }
 
-  return { startDate, endDate: new Date(), format, categories };
+  return { startDate, endDate, format, categories };
 };
 
 // Handler API untuk statistik Membership
@@ -125,23 +140,23 @@ export const getMembershipStatistics = async (req, res) => {
     const { range } = req.query;
     const { startDate, endDate, format, categories } = getDateRange(range);
 
-    const transactions = await PaymentTransaction.findAll({
+    const transactions = await TransactionHistoryPayment.findAll({
       attributes: [
         [
           typeof format === "string"
-            ? Sequelize.fn("DATE_FORMAT", Sequelize.col("created_at"), format)
+            ? Sequelize.fn("DATE_FORMAT", Sequelize.col("updatedAt"), format)
             : format,
           "date",
         ],
-        [Sequelize.fn("COUNT", Sequelize.col("id")), "count"],
-        [Sequelize.fn("SUM", Sequelize.col("paid_amount")), "totalPrice"],
+        [Sequelize.fn("COUNT", Sequelize.col("Id")), "count"],
+        [Sequelize.fn("SUM", Sequelize.col("price")), "totalPrice"],
       ],
       where: {
-        status_transaction: "COMPLETED",
-        app_module: {
-          [Op.in]: ["APP_MEMBERSHIP"],
-        },
-        created_at: { [Op.between]: [startDate, endDate] },
+        statusPayment: "PAID",
+        // app_module: {
+        //   [Op.in]: ["APP_MEMBERSHIP"],
+        // },
+        updatedAt: { [Op.between]: [startDate, endDate] },
       },
       group: ["date"],
       order: [["date", "ASC"]],
@@ -192,29 +207,30 @@ export const totalValue = async (req, res) => {
     let startOfMonth, endOfMonth;
 
     if (month) {
-      // Parse dari "2025-07"
+      // Parse dari "2025-09"
       const [year, monthNumber] = month.split("-").map(Number);
-      startOfMonth = new Date(year, monthNumber - 1, 1);
-      endOfMonth = new Date(year, monthNumber, 0, 23, 59, 59);
+
+      // start: 26 bulan sebelumnya
+      startOfMonth = new Date(year, monthNumber - 2, 26, 0, 0, 0);
+      // -2 karena JS month dimulai dari 0, dan kita ambil bulan sebelumnya
+
+      // end: 25 bulan ini
+      endOfMonth = new Date(year, monthNumber - 1, 25, 23, 59, 59);
     } else {
-      // Gunakan bulan sekarang jika tidak ada query
+      // Kalau tidak ada query → pakai bulan sekarang
       const now = new Date();
-      startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      endOfMonth = new Date(
-        now.getFullYear(),
-        now.getMonth() + 1,
-        0,
-        23,
-        59,
-        59
-      );
+      const year = now.getFullYear();
+      const monthNumber = now.getMonth() + 1; // bulan sekarang (1–12)
+
+      startOfMonth = new Date(year, monthNumber - 2, 26, 0, 0, 0);
+      endOfMonth = new Date(year, monthNumber - 1, 25, 23, 59, 59);
     }
 
     const totalMembershipActive = await MembershipDetail.count({
       where: {
         is_active: 1,
         end_date: {
-          [Op.gt]: new Date(), // hanya ambil data dengan end_date lebih besar dari sekarang
+          [Op.gt]: new Date(), // membership masih berlaku
         },
       },
     });
@@ -223,44 +239,56 @@ export const totalValue = async (req, res) => {
       where: {
         is_active: 0,
         end_date: {
-          [Op.gt]: new Date(), // hanya ambil data dengan end_date lebih besar dari sekarang
+          [Op.lt]: new Date(), // membership sudah lewat
         },
       },
     });
 
     const totalBalancePoint = await User.sum("Points");
 
-    const totalPrice = await PaymentTransaction.findOne({
-      attributes: [
-        [Sequelize.fn("SUM", Sequelize.col("paid_amount")), "totalPrice"],
-      ],
+    const totalPrice = await TransactionHistoryPayment.findOne({
+      attributes: [[Sequelize.fn("SUM", Sequelize.col("price")), "totalPrice"]],
       where: {
-        status_transaction: "COMPLETED",
-        app_module: {
-          [Op.in]: ["APP_MEMBERSHIP"],
+        statusPayment: "PAID",
+        purchase_type: {
+          [Op.in]: ["MEMBERSHIP"],
         },
-        created_at: {
-          [Op.between]: [startOfMonth, endOfMonth],
+        updatedAt: {
+          [Op.between]: [startOfMonth, endOfMonth], // Gunakan filter bulan yang sama
         },
       },
       raw: true,
     });
 
-    const totalByModule = await PaymentTransaction.findAll({
-      attributes: [
-        "app_module",
-        [Sequelize.fn("SUM", Sequelize.col("paid_amount")), "totalPaid"],
-      ],
+    const totalTopup = await TransactionHistoryPayment.findOne({
+      attributes: [[Sequelize.fn("SUM", Sequelize.col("price")), "totalPrice"]],
       where: {
-        status_transaction: "COMPLETED",
-        app_module: {
-          [Op.in]: ["APP_MEMBERSHIP"],
+        statusPayment: "PAID",
+        purchase_type: {
+          [Op.in]: ["TOPUP"],
         },
-        created_at: {
+        updatedAt: {
           [Op.between]: [startOfMonth, endOfMonth], // Gunakan filter bulan yang sama
         },
       },
-      group: ["app_module"],
+      raw: true,
+    });
+
+    const totalByModule = await TransactionHistoryPayment.findAll({
+      attributes: [
+        "purchase_type",
+        [Sequelize.fn("SUM", Sequelize.col("price")), "totalPaid"],
+      ],
+      where: {
+        statusPayment: "PAID",
+        purchase_type: {
+          [Op.in]: ["MEMBERSHIP"],
+        },
+        updatedAt: {
+          [Op.between]: [startOfMonth, endOfMonth], // Gunakan filter bulan yang sama
+        },
+      },
+      group: ["purchase_type"],
       raw: true,
     });
 
@@ -278,17 +306,6 @@ export const totalValue = async (req, res) => {
         totalPaid,
         percentage: parseFloat(percentage.toFixed(2)),
       };
-    });
-
-    const totalPriceByProduct = await TransactionHistoryPayment.findOne({
-      attributes: [[Sequelize.fn("SUM", Sequelize.col("price")), "totalPrice"]],
-      where: {
-        statusPayment: "PAID",
-        createdAt: {
-          [Op.between]: [startOfMonth, endOfMonth],
-        },
-      },
-      raw: true,
     });
 
     const totalByProduct = await TransactionHistoryPayment.findAll({
@@ -322,36 +339,16 @@ export const totalValue = async (req, res) => {
       };
     });
 
-    const CardUsed = await MasterCard.count({
-      where: {
-        is_used: 1,
-        created_at: {
-          [Op.between]: [startOfMonth, endOfMonth],
-        },
-      },
-    });
-
-    const CardNotUsed = await MasterCard.count({
-      where: {
-        is_used: 0,
-        created_at: {
-          [Op.between]: [startOfMonth, endOfMonth],
-        },
-      },
-    });
-
     return res.status(200).json({
       status: "success",
       message: "Success",
       totalMembershipActive,
       totalMembershipNonActive,
       totalPrice,
-      totalPriceByProduct,
+      totalTopup,
       totalBalancePoint,
       valueByModule,
       valueByProduct,
-      CardUsed,
-      CardNotUsed,
     });
   } catch (error) {
     console.error("Error fetching membership statistics:", error);
@@ -361,55 +358,70 @@ export const totalValue = async (req, res) => {
 export const listSummaryLocation = async (req, res) => {
   try {
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    // start dari tanggal 26 bulan sebelumnya
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth() - 1, 26);
+
+    // end di tanggal 25 bulan ini
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth(), 25);
 
     // 1. Ambil total member aktif
     const activeMembers = await MembershipDetail.findAll({
       attributes: [
-        "location_name",
-        [Sequelize.fn("COUNT", Sequelize.col("id")), "totalActive"],
+        "location_id",
+        [Sequelize.col("locationArea.location_name"), "location_name"],
+        [
+          Sequelize.fn("COUNT", Sequelize.col("customer_membership_detail.id")),
+          "totalActive",
+        ],
       ],
+      include: [{ model: LocationArea, as: "locationArea", attributes: [] }],
       where: {
         is_active: 1,
-        end_date: {
-          [Op.gte]: now,
-        },
+        end_date: { [Op.gte]: now },
       },
-      group: ["location_name"],
+      group: [
+        "customer_membership_detail.location_id",
+        "locationArea.location_name",
+      ],
       raw: true,
     });
 
     // 2. Ambil total member non-aktif
     const inactiveMembers = await MembershipDetail.findAll({
       attributes: [
-        "location_name",
-        [Sequelize.fn("COUNT", Sequelize.col("id")), "totalInactive"],
+        "location_id",
+        [Sequelize.col("locationArea.location_name"), "location_name"],
+        [
+          Sequelize.fn("COUNT", Sequelize.col("customer_membership_detail.id")),
+          "totalInactive",
+        ],
       ],
+      include: [{ model: LocationArea, as: "locationArea", attributes: [] }],
       where: {
         is_active: 0,
-        end_date: {
-          [Op.gte]: now,
-        },
+        end_date: { [Op.lt]: now },
       },
-      group: ["location_name"],
+      group: [
+        "customer_membership_detail.location_id",
+        "locationArea.location_name",
+      ],
       raw: true,
     });
 
-    // 3. Ambil total revenue per lokasi
+    // 3. Ambil total revenue per lokasi (JOIN ke LocationArea biar dapat nama lokasi)
     const revenue = await TransactionHistoryPayment.findAll({
       attributes: [
-        "location_name",
-        [Sequelize.fn("SUM", Sequelize.col("paid_amount")), "totalRevenue"],
+        "location_code",
+        [Sequelize.col("locationArea.location_name"), "location_name"],
+        [Sequelize.fn("SUM", Sequelize.col("price")), "totalRevenue"],
       ],
+      include: [{ model: LocationArea, as: "locationArea", attributes: [] }],
       where: {
-        status_transaction: "COMPLETED",
-        app_module: {
-          [Op.in]: ["APP_MEMBERSHIP"],
-        },
-        created_at: { [Op.between]: [startDate, endDate] },
+        statusPayment: "PAID",
+        purchase_type: { [Op.in]: ["MEMBERSHIP"] },
+        createdAt: { [Op.between]: [startOfMonth, endOfMonth] },
       },
-      group: ["location_name"],
+      group: ["location_code", "locationArea.location_name"],
       raw: true,
     });
 
@@ -420,7 +432,7 @@ export const listSummaryLocation = async (req, res) => {
     activeMembers.forEach((item) => {
       locationMap.set(item.location_name, {
         location_name: item.location_name,
-        totalActive: Number(item.totalActive),
+        totalActive: Number(item.totalActive) || 0,
         totalInactive: 0,
         totalRevenue: 0,
       });
@@ -434,7 +446,7 @@ export const listSummaryLocation = async (req, res) => {
         totalInactive: 0,
         totalRevenue: 0,
       };
-      entry.totalInactive = Number(item.totalInactive);
+      entry.totalInactive = Number(item.totalInactive) || 0;
       locationMap.set(item.location_name, entry);
     });
 
@@ -446,7 +458,7 @@ export const listSummaryLocation = async (req, res) => {
         totalInactive: 0,
         totalRevenue: 0,
       };
-      entry.totalRevenue = Number(item.totalRevenue);
+      entry.totalRevenue = Number(item.totalRevenue) || 0;
       locationMap.set(item.location_name, entry);
     });
 
@@ -475,21 +487,27 @@ export const summaryByProduct = async (req, res) => {
     if (month) {
       // Parse dari "2025-07"
       const [year, monthNumber] = month.split("-").map(Number);
-      startOfMonth = new Date(year, monthNumber - 1, 1);
-      endOfMonth = new Date(year, monthNumber, 0, 23, 59, 59);
+
+      // start = 26 bulan sebelumnya
+      startOfMonth = new Date(year, monthNumber - 2, 26, 0, 0, 0);
+
+      // end = 25 bulan ini
+      endOfMonth = new Date(year, monthNumber - 1, 25, 23, 59, 59);
     } else {
-      // Gunakan bulan sekarang jika tidak ada query
+      // Default: bulan berjalan (26 bulan lalu → 25 bulan ini)
       const now = new Date();
-      startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      endOfMonth = new Date(
+
+      startOfMonth = new Date(
         now.getFullYear(),
-        now.getMonth() + 1,
+        now.getMonth() - 1,
+        26,
         0,
-        23,
-        59,
-        59
+        0,
+        0
       );
+      endOfMonth = new Date(now.getFullYear(), now.getMonth(), 25, 23, 59, 59);
     }
+
     const result = await TransactionHistoryPayment.findAll({
       attributes: [
         "product_name",
@@ -497,7 +515,7 @@ export const summaryByProduct = async (req, res) => {
       ],
       where: {
         statusPayment: "PAID",
-        createdAt: {
+        updatedAt: {
           [Op.between]: [startOfMonth, endOfMonth],
         },
       },
@@ -506,9 +524,17 @@ export const summaryByProduct = async (req, res) => {
       raw: true,
     });
 
+    // Hitung total revenue keseluruhan
+    const totalRevenue = result.reduce(
+      (sum, item) => sum + Number(item.totalRevenue || 0),
+      0
+    );
+
     return res.status(200).json({
       status: "success",
       message: "Success",
+      range: { start: startOfMonth, end: endOfMonth },
+      totalRevenue, // 👈 tambahan total keseluruhan
       data: result,
     });
   } catch (error) {

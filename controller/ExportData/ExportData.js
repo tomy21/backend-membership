@@ -7,6 +7,7 @@ import TransactionHistoryPayment from "../../model/Members/v02/TransactionPaymen
 import { Op, Sequelize } from "sequelize";
 import { errorResponse } from "../../config/response.js";
 import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
+import MutasiBank from "../../model/Members/v02/MutasiBank.js";
 
 export const exportDataTransaksiPost = async (req, res) => {
   const locationCode = req.query.locationCode
@@ -257,9 +258,11 @@ export const exportHistoryTransaction = async (req, res) => {
           purchase_type: value.purchase_type || "-",
           transactionType: value.transactionType || "-",
           type:
-            value.payment_trx.app_module === "APP_MEMBERSHIP_B2B"
+            value.payment_trx?.app_module === "APP_MEMBERSHIP_B2B"
               ? "B2B"
-              : "Personal" || "-",
+              : value.payment_trx
+              ? "Personal"
+              : "-",
           price: value.price ? Number(value.price) : "",
           statusPayment: value.statusPayment || "-",
         });
@@ -982,5 +985,277 @@ export const exportHistoryPoint = async (req, res) => {
   } catch (error) {
     console.log("Error:", error);
     res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const exportDetailMutationBank = async (req, res) => {
+  try {
+    const { date, bankName } = req.query;
+    console.log(date, bankName);
+    if (!date) {
+      return res.status(400).json({ message: "month (YYYY-MM-dd) required" });
+    }
+
+    const whereClause = {
+      [Op.and]: [
+        Sequelize.where(
+          Sequelize.fn(
+            "DATE",
+            Sequelize.fn(
+              "CONVERT_TZ",
+              Sequelize.col("trxDate"),
+              "+00:00",
+              "+07:00"
+            ) // UTC -> WIB
+          ),
+          date
+        ),
+      ],
+    };
+
+    // kalau ada filter bankName
+    if (bankName) {
+      whereClause[Op.and].push({ bankName });
+    }
+
+    const result = await MutasiBank.findAndCountAll({ where: whereClause });
+
+    const bank_name =
+      bankName === "BAYARIND_BCA_VIRTUAL_ACCOUNT" ? "Bayarind BCA" : "NOBU";
+
+    if (result.count > 0) {
+      const workbook = new ExcelJs.Workbook();
+      const worksheet = workbook.addWorksheet(`Transaction ${bank_name}`);
+
+      worksheet.columns = [
+        { header: "No", key: "No", width: 5 },
+        { header: "Transaction Date", width: 20, key: "dateTransaction" },
+        { header: "Transaction No", width: 20, key: "transactionNo" },
+        { header: "Virtual Account", width: 20, key: "noVirtualAccount" },
+        { header: "Location", width: 35, key: "locationName" },
+        { header: "Product Name", width: 20, key: "typePurchase" },
+        { header: "Price", width: 15, key: "amount" },
+        { header: "Fee Admin", width: 15, key: "feeAdmin" },
+        { header: "No RFID", width: 15, key: "rfid" },
+        { header: "Vehicle License", width: 15, key: "platNumber" },
+        { header: "Start Date", width: 20, key: "startDate" },
+        { header: "End Date", width: 20, key: "endDate" },
+        { header: "Status", width: 20, key: "status" },
+      ];
+
+      worksheet.getRow(1).eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; // Bold & warna putih
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "0070C0" }, // Background biru
+        };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+      });
+
+      for (const [index, value] of result.rows.entries()) {
+        const row = worksheet.addRow({
+          No: index + 1,
+          dateTransaction: value.trxDate
+            ? moment(value.trxDate).tz("Asia/Jakarta").format("YYYY-MM-DD")
+            : "-",
+          transactionNo: value.transactionNo || "-",
+          noVirtualAccount: value.noVirtualAcount || "-",
+          locationName: value.locationName || "-",
+          typePurchase: value.typePurchase || "-",
+          amount: value.amount - 5000 || "-",
+          feeAdmin: 5000 || "-",
+          rfid: value.rfid || "-",
+          platNumber: value.platNumber || "-",
+          startDate: value.startDate
+            ? moment(value.startDate).tz("Asia/Jakarta").format("YYYY-MM-DD")
+            : "-",
+          endDate: value.endDate
+            ? moment(value.endDate).tz("Asia/Jakarta").format("YYYY-MM-DD")
+            : "-",
+          status: value.status || "-",
+        });
+
+        row.eachCell((cell) => {
+          cell.alignment = { vertical: "middle", horizontal: "center" };
+        });
+      }
+
+      const fileName = date
+        ? `mutasi_${bank_name}_${date}.xlsx`
+        : `mutasi_${bank_name}_alldate.xlsx`;
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
+
+      await workbook.xlsx.write(res);
+      res.end();
+    } else if (result.count === 0) {
+      res.status(402).json({ success: false, message: "No Data Found" });
+    } else {
+      res.status(402).json({ success: false, message: "Get data failed" });
+    }
+  } catch (error) {
+    console.log("Error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const exportDetailTransaksiLocation = async (req, res) => {
+  try {
+    const { month, year, search } = req.query;
+    const currentDate = new Date();
+    const selectedMonth = month ? parseInt(month) : currentDate.getMonth() + 1;
+    const selectedYear = year ? parseInt(year) : currentDate.getFullYear();
+
+    const startDate = new Date(selectedYear, selectedMonth - 2, 26, 0, 0, 0);
+    const endDate = new Date(selectedYear, selectedMonth - 1, 25, 23, 59, 59);
+
+    // bikin filter dasar
+    const whereCondition = {
+      location_code: req.params.locationCode,
+      purchase_type: "MEMBERSHIP",
+      statusPayment: "PAID",
+      updatedAt: { [Op.between]: [startDate, endDate] },
+    };
+
+    // filter search
+    if (search) {
+      whereCondition[Op.or] = [
+        { location_name: { [Op.like]: `%${search}%` } },
+        { "$trxHistoryUser.fullname$": { [Op.like]: `%${search}%` } },
+      ];
+    }
+
+    const response = await TransactionHistoryPayment.findAll({
+      where: whereCondition,
+      attributes: [
+        "id",
+        "location_code",
+        "location_name",
+        "vehicle_type",
+        "rfid",
+        "updatedAt",
+        "price",
+        "product_name",
+        "statusPayment",
+        "trxId",
+        "virtual_account",
+        "purchase_type",
+      ],
+      include: [
+        {
+          model: User,
+          as: "trxHistoryUser",
+          attributes: ["id", "fullname", "email", "points"],
+        },
+      ],
+      order: [["updatedAt", "DESC"]],
+    });
+
+    if (response.length > 0) {
+      const workbook = new ExcelJs.Workbook();
+      const worksheet = workbook.addWorksheet(
+        `Transaction ${moment(startDate).format("YYYY-MM-DD")} - ${moment(
+          endDate
+        ).format("YYYY-MM-DD")}`
+      );
+
+      worksheet.columns = [
+        { header: "No", key: "No", width: 5 },
+        { header: "Transaction Date", width: 20, key: "dateTransaction" },
+        { header: "Transaction Time", width: 20, key: "timeTransaction" },
+        { header: "Transaction Code", width: 30, key: "trxId" },
+        { header: "Virtual Account", width: 20, key: "noVirtualAccount" },
+        { header: "Location", width: 35, key: "locationName" },
+        { header: "Product Name", width: 20, key: "typePurchase" },
+        { header: "Price", width: 15, key: "amount" },
+        { header: "Fee Admin", width: 15, key: "feeAdmin" },
+        { header: "Vehicle Type", width: 15, key: "vehicle_type" },
+        { header: "No RFID", width: 15, key: "rfid" },
+      ];
+
+      worksheet.getRow(1).eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "0070C0" },
+        };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+      });
+
+      let totalPrice = 0;
+      let locationName = "";
+
+      response.forEach((value, index) => {
+        worksheet.addRow({
+          No: index + 1,
+          dateTransaction: value.updatedAt
+            ? moment(value.updatedAt).tz("Asia/Jakarta").format("YYYY-MM-DD")
+            : "-",
+          timeTransaction: value.updatedAt
+            ? moment(value.updatedAt).tz("Asia/Jakarta").format("HH:mm:ss")
+            : "-",
+          trxId: value.trxId || "-",
+          noVirtualAccount: value.virtual_account || "-",
+          locationName: value.location_name || "-",
+          typePurchase: value.purchase_type || "-",
+          amount: Number(value.price) || 0,
+          feeAdmin: 5000,
+          vehicle_type: value.vehicle_type || "-",
+          rfid: value.rfid || "-",
+        });
+        locationName = value.location_name || "-";
+        totalPrice += value.price || 0;
+      });
+
+      // Tambahin row total
+      const totalRow = worksheet.addRow({
+        No: "",
+        dateTransaction: "",
+        timeTransaction: "",
+        trxId: "",
+        noVirtualAccount: "",
+        locationName: "",
+        typePurchase: "TOTAL",
+        amount: totalPrice,
+        feeAdmin: "",
+        vehicle_type: "",
+        rfid: "",
+        startDate: "",
+        endDate: "",
+      });
+
+      totalRow.font = { bold: true };
+      totalRow.eachCell((cell) => {
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+      });
+
+      const fileName = `Transaction_${locationName}_${moment(startDate).format(
+        "YYYYMMDD"
+      )}_${moment(endDate).format("YYYYMMDD")}.xlsx`;
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
+
+      await workbook.xlsx.write(res);
+      res.end();
+    } else {
+      res.status(404).json({ success: false, message: "No Data Found" });
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
   }
 };

@@ -4,6 +4,7 @@ import { protect } from "../../middleware/member/authMiddleware.js";
 const router = express.Router();
 
 router.post("/register-cms", Users.registerCMS);
+router.put("/update-users-cms/:id", Users.updateCMSUser);
 router.post("/login-cms", Users.login);
 router.get("/cms-userById", protect, Users.getUserByIdCMS);
 router.get("/all-data-users", Users.getUserCMS);

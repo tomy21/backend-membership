@@ -8,7 +8,6 @@ import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 import VehicleList from "../../model/Members/v02/VehicleList.js";
 import User from "../../model/Members/Users.js";
 import { errorResponse, successResponse } from "../../config/response.js";
-import crypto from "crypto";
 import CryptoJS from "crypto-js";
 import dotenv from "dotenv";
 dotenv.config({ path: ".env" });
@@ -29,8 +28,6 @@ export const login = async (req, res) => {
   const decryptedData = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
 
   const { identifier, password, rememberMe } = decryptedData;
-
-  console.log(identifier, password, rememberMe);
 
   if (!identifier || !password) {
     return res.status(400).json({
@@ -276,6 +273,85 @@ export const registerCMS = async (req, res) => {
         message: errorMessage,
       });
     }
+    console.error(err);
+    res.status(500).json({
+      status: "fail",
+      message: "Terjadi kesalahan pada server.",
+    });
+  }
+};
+
+export const updateCMSUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { fullname, email, username, phone_number, role } = req.body;
+
+    if (!id) {
+      return res.status(400).json({
+        status: "fail",
+        message: "User ID diperlukan untuk update",
+      });
+    }
+
+    // Validasi input
+    const invalidField =
+      validateInput("fullname", fullname) ||
+      validateInput("email", email) ||
+      validateInput("username", username) ||
+      validateInput("phone_number", phone_number) ||
+      validateInput("role", role.toString());
+
+    if (invalidField) {
+      return res.status(400).json({
+        status: "fail",
+        message: `Input pada field "${invalidField}" mengandung karakter tidak valid.`,
+      });
+    }
+
+    // Cari user yang mau diupdate
+    const user = await UserCMS.findByPk(id);
+    if (!user) {
+      return res.status(404).json({
+        status: "fail",
+        message: "User tidak ditemukan",
+      });
+    }
+
+    // Cek konflik username/email/phone_number (exclude user saat ini)
+    const existingUser = await UserCMS.findOne({
+      where: {
+        [Sequelize.Op.or]: [{ username }, { email }, { phone_number }],
+        id: { [Sequelize.Op.ne]: id }, // exclude self
+      },
+    });
+
+    if (existingUser) {
+      let conflictField = "";
+      if (existingUser.username === username) conflictField = "Username";
+      if (existingUser.email === email) conflictField = "Email";
+      if (existingUser.phone_number === phone_number)
+        conflictField = "Nomor Telepon";
+      return res.status(400).json({
+        status: "fail",
+        message: `${conflictField} sudah digunakan. Mohon gunakan yang lain.`,
+      });
+    }
+
+    // Update user
+    user.fullname = fullname;
+    user.email = email;
+    user.username = username;
+    user.phone_number = phone_number;
+    user.role = role;
+    user.updated_by = "admin"; // atau user login
+    await user.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "User berhasil diperbarui",
+      data: user,
+    });
+  } catch (err) {
     console.error(err);
     res.status(500).json({
       status: "fail",

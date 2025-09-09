@@ -7,7 +7,7 @@ import MasterCard from "../../model/Members/v02/MasterCard.js";
 import { v4 as UUIDV4 } from "uuid";
 import VehicleList from "../../model/Members/v02/VehicleList.js";
 import LocationArea from "../../model/Members/v02/LocationMaster.js";
-import db from "../../config/dbConfig.js";
+import { db } from "../../config/dbConfig.js";
 import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 
 export const uploadMemberExcel = [

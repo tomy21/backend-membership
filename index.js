@@ -22,6 +22,8 @@ import ExportData from "./route/CMS/ExportDataRoute.js";
 import NotificationRoute from "./route/Members/NotificationRoute.js";
 import UploadMember from "./route/CMS/UploadMember.js";
 
+import Reconsiliasi from "./route/CMS/reconsiliasi.js";
+
 import MemberTenantRoute from "./route/Members/MemberTenants.js";
 
 // import scheduleMembershipReminder from "./jobs/MembershipReminder.js";`
@@ -33,6 +35,8 @@ app.use(
     credentials: true,
     origin: [
       "http://localhost:3000",
+      "http://localhost:3001",
+      "http://localhost:3003",
       "https://dev-membership.skyparking.online",
       "https://dev-injectmember.skyparking.online",
       "https://inject.skyparking.online",
@@ -67,6 +71,7 @@ app.use("/v01/cms/api/auth", Menu);
 app.use("/v01/cms/api", Dashboard);
 app.use("/v01/cms/api", ExportData);
 app.use("/v01/cms/api", UploadMember);
+app.use("/v01/member/api", Reconsiliasi);
 
 app.use("/v01/member/api", NotificationRoute);
 

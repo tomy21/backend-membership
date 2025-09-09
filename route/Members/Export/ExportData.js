@@ -3,6 +3,7 @@ import express from "express";
 import { protect } from "../../../middleware/member/authMiddleware.js";
 import {
   exportDataTransaksiPostById,
+  exportDetailTransaksiLocation,
   exportHistoryPaymentByUser,
   exportHistoryPoint,
 } from "../../../controller/ExportData/ExportData.js";

@@ -1,5 +1,5 @@
 import { DataTypes, Sequelize } from "sequelize";
-import db from "../../../config/dbConfig.js";
+import { db } from "../../../config/dbConfig.js";
 import LocationArea from "./LocationMaster.js";
 import VehicleList from "./VehicleList.js";
 
@@ -69,6 +69,7 @@ const MembershipDetail = db.define(
 
 MembershipDetail.belongsTo(LocationArea, {
   foreignKey: "location_id",
+  as: "locationArea",
   targetKey: "location_code",
 });
 

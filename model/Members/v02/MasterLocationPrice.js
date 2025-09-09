@@ -1,5 +1,5 @@
 import { DataTypes, Sequelize } from "sequelize";
-import db from "../../../config/dbConfig.js";
+import { db } from "../../../config/dbConfig.js";
 
 const MasterLocationPrice = db.define(
   "MasterLocationPrices",

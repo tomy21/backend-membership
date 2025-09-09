@@ -1,5 +1,5 @@
 import { DataTypes, Sequelize } from "sequelize";
-import db from "../../config/dbConfig.js";
+import { db } from "../../config/dbConfig.js";
 import { MemberUserRole } from "./RoleModel.js";
 import { MenuModels } from "./MenuModels.js";
 
@@ -18,27 +18,32 @@ export const RolePermission = db.define(
     can_view: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
+      defaultValue: false,
     },
     can_create: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
+      defaultValue: false,
     },
     can_update: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
+      defaultValue: false,
     },
     can_delete: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
+      defaultValue: false,
     },
     can_report: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
+      defaultValue: false,
     },
     menu_slug: {
-      type: DataTypes.DATE,
+      type: DataTypes.STRING,
       allowNull: false,
-      defaultValue: DataTypes.NOW,
+      defaultValue: false,
     },
   },
   {

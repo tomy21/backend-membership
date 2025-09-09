@@ -672,14 +672,23 @@ export const historyTransactionByLocation = async (req, res) => {
   try {
     const { month, year, page = 1, limit = 10, search = "" } = req.query;
 
-    // Gunakan bulan & tahun saat ini jika tidak diberikan
+    // Tanggal sekarang
     const currentDate = new Date();
-    const selectedMonth = month ? parseInt(month) : currentDate.getMonth() + 1;
+    const selectedMonth = month ? parseInt(month) : currentDate.getMonth() + 1; // 1–12
     const selectedYear = year ? parseInt(year) : currentDate.getFullYear();
+
+    // Hitung startDate & endDate (periode 26 → 25)
+    const startDate = new Date(selectedYear, selectedMonth - 2, 26, 0, 0, 0);
+    const endDate = new Date(selectedYear, selectedMonth - 1, 25, 23, 59, 59);
+
+    // Catatan:
+    // - new Date(y, m, d) pakai 0-index untuk bulan.
+    //   contoh: selectedMonth=9 (September), maka:
+    //   startDate → (9-2=7 → Agustus) tanggal 26
+    //   endDate   → (9-1=8 → September) tanggal 25
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    // Ambil transaksi dengan filter yang diberikan
     const transactions = await TransactionHistoryPayment.findAll({
       attributes: [
         "location_code",
@@ -689,19 +698,13 @@ export const historyTransactionByLocation = async (req, res) => {
         [Sequelize.fn("SUM", Sequelize.col("price")), "totalAmount"],
       ],
       where: {
-        transactionType: {
-          [Op.not]: "TOPUP", // Tidak termasuk transaksi TOPUP
-        },
-        purchase_type: "MEMBERSHIP", // Hanya membership
-        statusPayment: "PAID", // Hanya transaksi yang sudah dibayar
+        purchase_type: "MEMBERSHIP",
+        statusPayment: "PAID",
         createdAt: {
-          [Op.between]: [
-            new Date(selectedYear, selectedMonth - 1, 1),
-            new Date(selectedYear, selectedMonth, 0, 23, 59, 59),
-          ],
+          [Op.between]: [startDate, endDate],
         },
         location_name: {
-          [Op.like]: `%${search}%`, // Untuk search case-insensitive
+          [Op.like]: `%${search}%`,
         },
       },
       group: ["location_name", "vehicle_type"],
@@ -750,6 +753,10 @@ export const historyTransactionByLocation = async (req, res) => {
       totalData: result.length,
       currentPage: parseInt(page),
       totalPages: Math.ceil(result.length / parseInt(limit)),
+      period: {
+        startDate,
+        endDate,
+      },
     });
   } catch (error) {
     console.error("Error fetching transaction summary:", error);
@@ -759,7 +766,6 @@ export const historyTransactionByLocation = async (req, res) => {
 
 export const transactionByLocation = async (req, res) => {
   try {
-    // Ambil query parameter untuk pagination (default: page 1, limit 10)
     const { month, year, page = 1, limit = 10, search = "" } = req.query;
     const offset = (page - 1) * limit;
 
@@ -767,53 +773,51 @@ export const transactionByLocation = async (req, res) => {
     const selectedMonth = month ? parseInt(month) : currentDate.getMonth() + 1;
     const selectedYear = year ? parseInt(year) : currentDate.getFullYear();
 
-    // Hitung total data untuk pagination
+    const startDate = new Date(selectedYear, selectedMonth - 2, 26, 0, 0, 0);
+    const endDate = new Date(selectedYear, selectedMonth - 1, 25, 23, 59, 59);
+
+    // bikin filter dasar
+    const whereCondition = {
+      location_code: req.params.locationCode,
+      purchase_type: "MEMBERSHIP",
+      statusPayment: "PAID",
+      updatedAt: { [Op.between]: [startDate, endDate] },
+    };
+
+    // tambahin filter search (di location_name ATAU user.fullname)
+    if (search) {
+      whereCondition[Op.or] = [
+        { location_name: { [Op.like]: `%${search}%` } },
+        { "$trxHistoryUser.fullname$": { [Op.like]: `%${search}%` } },
+      ];
+    }
+
     const totalItems = await TransactionHistoryPayment.count({
-      where: {
-        location_code: req.params.locationCode,
-        transactionType: {
-          [Op.not]: "TOPUP", // Tidak termasuk transaksi TOPUP
+      where: whereCondition,
+      include: [
+        {
+          model: User,
+          as: "trxHistoryUser",
+          attributes: [], // kosong biar count ga duplikat
         },
-        purchase_type: "MEMBERSHIP", // Hanya membership
-        statusPayment: "PAID", // Hanya transaksi yang sudah dibayar
-        createdAt: {
-          [Op.between]: [
-            new Date(selectedYear, selectedMonth - 1, 1),
-            new Date(selectedYear, selectedMonth, 0, 23, 59, 59),
-          ],
-        },
-        location_name: {
-          [Op.like]: `%${search}%`, // Untuk search case-insensitive
-        },
-      },
+      ],
     });
 
-    // Ambil data dengan pagination
+    const totalPrice = await TransactionHistoryPayment.findOne({
+      attributes: [[Sequelize.fn("SUM", Sequelize.col("price")), "totalPrice"]],
+      where: whereCondition,
+      raw: true,
+    });
+
     const response = await TransactionHistoryPayment.findAll({
-      where: {
-        location_code: req.params.locationCode,
-        transactionType: {
-          [Op.not]: "TOPUP", // Tidak termasuk transaksi TOPUP
-        },
-        purchase_type: "MEMBERSHIP", // Hanya membership
-        statusPayment: "PAID", // Hanya transaksi yang sudah dibayar
-        createdAt: {
-          [Op.between]: [
-            new Date(selectedYear, selectedMonth - 1, 1),
-            new Date(selectedYear, selectedMonth, 0, 23, 59, 59),
-          ],
-        },
-        location_name: {
-          [Op.like]: `%${search}%`, // Untuk search case-insensitive
-        },
-      },
+      where: whereCondition,
       attributes: [
         "id",
         "location_code",
         "location_name",
         "vehicle_type",
         "rfid",
-        "timestamp",
+        "updatedAt",
         "price",
         "product_name",
         "statusPayment",
@@ -825,20 +829,19 @@ export const transactionByLocation = async (req, res) => {
           attributes: ["id", "fullname", "email", "points"],
         },
       ],
-      limit: parseInt(limit), // Batasi jumlah data per halaman
-      offset: parseInt(offset), // Mulai dari index tertentu
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [["updatedAt", "DESC"]],
     });
-
-    // Hitung total halaman
-    const totalPages = Math.ceil(totalItems / limit);
 
     return res.json({
       success: true,
       message: "Data retrieved successfully",
       totalItems,
-      totalPages,
+      totalPages: Math.ceil(totalItems / limit),
       currentPage: parseInt(page),
       limit: parseInt(limit),
+      totalPrice: totalPrice.totalPrice,
       data: response,
     });
   } catch (error) {

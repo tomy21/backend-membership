@@ -1,5 +1,5 @@
 import { DataTypes, Sequelize } from "sequelize";
-import db from "../../../config/dbConfig.js";
+import { db } from "../../../config/dbConfig.js";
 import { v4 as uuidv4 } from "uuid";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";

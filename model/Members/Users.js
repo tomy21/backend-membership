@@ -1,7 +1,7 @@
 import { Sequelize, DataTypes } from "sequelize";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import db from "../../config/dbConfig.js";
+import { db } from "../../config/dbConfig.js";
 import MembershipCard from "./v02/MembershipCard.js";
 import VehicleList from "./v02/VehicleList.js";
 
@@ -162,7 +162,7 @@ VehicleList.belongsTo(User, {
 });
 
 VehicleList.belongsTo(User, {
-  foreignKey: "member_customer_no", 
+  foreignKey: "member_customer_no",
   targetKey: "customer_no", // Kolom yang cocok di tabel User
   as: "customer_memberships",
 });

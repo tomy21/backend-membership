@@ -363,7 +363,7 @@ export const updateCMSUser = async (req, res) => {
 export const getUserByIdCMS = async (req, res) => {
   try {
     const userId = req.userId;
-    console.log(userId);
+
     const userById = await UserCMS.findOne({
       where: { id: userId },
       attributes: ["id", "fullname", "email"],
@@ -658,5 +658,55 @@ export const addRole = async (req, res) => {
     return successResponse(res, 200, "Role created successfully", role);
   } catch (error) {
     return errorResponse(res, 500, "Error creating role", error.message);
+  }
+};
+
+export const changePassword = async (req, res) => {
+  try {
+    const { oldPassword, newPassword, confirmPassword } = req.body;
+    const userId = req.userId;
+
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ message: "All fields are required." });
+    }
+
+    // ambil user
+    const user = await UserCMS.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    // cek password lama
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Old password is incorrect." });
+    }
+
+    // validasi new password
+    if (newPassword.length < 8) {
+      return res
+        .status(400)
+        .json({ message: "New password must be at least 8 characters." });
+    }
+    if (oldPassword === newPassword) {
+      return res
+        .status(400)
+        .json({ message: "New password cannot be the same as old password." });
+    }
+    if (newPassword !== confirmPassword) {
+      return res
+        .status(400)
+        .json({ message: "Confirm password does not match." });
+    }
+
+    // hash password baru
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    await user.save();
+
+    return res.status(200).json({ message: "Password updated successfully." });
+  } catch (error) {
+    console.error("Error changing password:", error);
+    return res.status(500).json({ message: "Internal server error." });
   }
 };

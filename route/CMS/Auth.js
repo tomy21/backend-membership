@@ -14,6 +14,7 @@ router.get("/logout-cms", Users.logoutCMS);
 router.get("/get-all-membership", Users.getAllMembership);
 router.get("/get-location-membership", Users.getLocationMember);
 router.post("/create-role", protect, Users.addRole);
+router.post("/change-password", protect, Users.changePassword);
 
 router.get("/protected", protect, (req, res) => {
   const token = req.cookies.refreshToken;

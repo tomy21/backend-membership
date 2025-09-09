@@ -227,7 +227,6 @@ export const exportHistoryTransaction = async (req, res) => {
       });
 
       for (const [index, value] of result.rows.entries()) {
-        console.log(value.payment_trx);
         const row = worksheet.addRow({
           No: index + 1,
           dateTransaction: value.createdAt

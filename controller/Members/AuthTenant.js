@@ -22,8 +22,6 @@ export const loginTennant = async (req, res) => {
 
   const { identifier, password, rememberMe } = decryptedData;
 
-  console.log(identifier, password, rememberMe);
-
   if (!identifier || !password) {
     return res.status(400).json({
       status: "fail",

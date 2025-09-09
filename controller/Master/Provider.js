@@ -83,7 +83,7 @@ export const deleteProviderPayment = async (req, res) => {
 // Get payment providers by type_payment
 export const getByTypePayment = async (req, res) => {
   const { type, locationCode } = req.query;
-  console.log(type, locationCode);
+
   try {
     let payments;
 

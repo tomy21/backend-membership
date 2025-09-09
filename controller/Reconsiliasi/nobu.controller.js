@@ -62,7 +62,6 @@ export const processTxtContentNobu = async (req, res) => {
           formattedDate = format(jsDate, "yyyy-MM-dd");
         }
 
-        // console.log(formattedDate, debet, noVirtual, amount);
         vaData.push({ date: formattedDate, noVirtual, amount, description });
       }
     }
@@ -113,8 +112,6 @@ export const processTxtContentNobu = async (req, res) => {
           },
         });
 
-        console.log("data", trxHistory);
-
         if (trxHistory) {
           let memberStatus = null;
           let vehicleData = null;
@@ -146,7 +143,6 @@ export const processTxtContentNobu = async (req, res) => {
       results.push(data);
     }
 
-    console.log("inserted:", results);
     let inserted = 0;
     let skipped = 0;
 

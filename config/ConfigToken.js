@@ -25,7 +25,7 @@ export const signToken = (user, rememberMe) => {
 
 export const createSendToken = (user, statusCode, res, rememberMe) => {
   const token = signToken(user, rememberMe);
-  console.log("token", token);
+
   res.cookie("refreshToken", token, {
     httpOnly: false,
     secure: process.env.NODE_ENV === "production",

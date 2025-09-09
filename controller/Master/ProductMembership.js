@@ -89,7 +89,6 @@ export const getByVehicle = async (req, res) => {
   const { type, code } = req.params;
   const { page = 1, limit = 10, search = "" } = req.query;
 
-  console.log(type);
   try {
     const offset = (page - 1) * limit;
     const { count, rows } = await ProductMembership.findAndCountAll({

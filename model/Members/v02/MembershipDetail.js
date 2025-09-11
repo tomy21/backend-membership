@@ -60,10 +60,10 @@ const MembershipDetail = db.define(
       allowNull: false,
       defaultValue: Sequelize.NOW,
     },
-    updated_expired: {
-      type: DataTypes.DATE,
-      allowNull: true,
-    },
+    // updated_expired: {
+    //   type: DataTypes.DATE,
+    //   allowNull: true,
+    // },
   },
   {
     tableName: "customer_membership_detail",

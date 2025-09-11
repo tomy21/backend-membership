@@ -674,12 +674,12 @@ export const historyTransactionByLocation = async (req, res) => {
 
     // Tanggal sekarang
     const currentDate = new Date();
-    const selectedMonth = month ? parseInt(month) : currentDate.getMonth() + 1; // 1–12
+    const selectedMonth = month ? parseInt(month) : currentDate.getMonth(); // 1–12
     const selectedYear = year ? parseInt(year) : currentDate.getFullYear();
 
     // Hitung startDate & endDate (periode 26 → 25)
-    const startDate = new Date(selectedYear, selectedMonth - 2, 26, 0, 0, 0);
-    const endDate = new Date(selectedYear, selectedMonth - 1, 25, 23, 59, 59);
+    const startDate = new Date(selectedYear, selectedMonth - 1, 1, 0, 0, 0);
+    const endDate = new Date(selectedYear, selectedMonth, 0, 23, 59, 59);
 
     // Catatan:
     // - new Date(y, m, d) pakai 0-index untuk bulan.

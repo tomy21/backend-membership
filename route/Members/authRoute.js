@@ -13,6 +13,7 @@ router.get("/userById", protect, Users.getUserById);
 router.get("/user", protect, Users.getAllUsers);
 router.patch("/user/:id", protect, Users.getUserById);
 router.get("/activate/:token", Users.activateAccount);
+router.get("/activate-account-cms/:token", Users.activateAccountCMS);
 router.get("/list-card-members", protect, Users.getCardDetail);
 router.get("/list-card-members/:rfid", protect, Users.getListCardDetail);
 

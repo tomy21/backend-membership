@@ -6,6 +6,16 @@ import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 import PaymentTransaction from "../../model/Members/v02/PaymentHistory.js";
 import LocationArea from "../../model/Members/v02/LocationMaster.js";
 import moment from "moment-timezone";
+import {
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  startOfYear,
+  endOfYear,
+  eachDayOfInterval,
+  formatDate,
+} from "date-fns";
 
 // Helper untuk menentukan kategori waktu
 const getDateRange = (rangeType) => {
@@ -17,39 +27,19 @@ const getDateRange = (rangeType) => {
 
   switch (rangeType) {
     case "week": {
-      // Week biasa (senin–minggu, ikut DB fungsi WEEK)
       startDate = now.clone().startOf("week").toDate();
       endDate = now.clone().endOf("week").toDate();
       format = Sequelize.literal("WEEK(updatedAt, 1)");
-      const startWeek = now.clone().startOf("week").week();
       const currentWeek = now.week();
-      categories = Array.from(
-        { length: currentWeek - startWeek + 1 },
-        (_, i) => `Week ${startWeek + i}`
-      );
+      categories = Array.from({ length: 1 }, () => `Week ${currentWeek}`);
       break;
     }
 
     case "month": {
-      // revenue Agustus = 26 Juli – 25 Agustus
-      if (now.date() >= 26) {
-        // mulai tanggal 26 bulan ini
-        startDate = now.clone().date(26).startOf("day").toDate();
-        // sampai 25 bulan depan
-        endDate = now.clone().add(1, "month").date(25).endOf("day").toDate();
-      } else {
-        // mulai 26 bulan lalu
-        startDate = now
-          .clone()
-          .subtract(1, "month")
-          .date(26)
-          .startOf("day")
-          .toDate();
-        // sampai 25 bulan ini
-        endDate = now.clone().date(25).endOf("day").toDate();
-      }
-
-      format = "%b"; // tampil bulan singkat
+      // ambil Januari – Desember tahun berjalan
+      startDate = now.clone().startOf("year").toDate();
+      endDate = now.clone().endOf("year").toDate();
+      format = "%b"; // Jan, Feb, dst
       categories = [
         "Jan",
         "Feb",
@@ -68,51 +58,19 @@ const getDateRange = (rangeType) => {
     }
 
     case "year": {
-      // revenue tahun = 26 Des tahun lalu – 25 Des tahun ini
-      if (now.month() === 11 && now.date() >= 26) {
-        // Kalau sudah lewat 26 Des → tahun ini mulai 26 Des
-        startDate = now.clone().date(26).month(11).startOf("day").toDate();
-        endDate = now
-          .clone()
-          .add(1, "year")
-          .month(11)
-          .date(25)
-          .endOf("day")
-          .toDate();
-      } else {
-        // Kalau belum 26 Des → pakai 26 Des tahun lalu
-        startDate = now
-          .clone()
-          .subtract(1, "year")
-          .month(11)
-          .date(26)
-          .startOf("day")
-          .toDate();
-        endDate = now.clone().month(11).date(25).endOf("day").toDate();
-      }
-
-      format = "%b"; // tampil per bulan
-      categories = [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec",
-      ];
+      // ambil 5 tahun terakhir
+      startDate = now.clone().subtract(4, "year").startOf("year").toDate();
+      endDate = now.clone().endOf("year").toDate();
+      format = "%Y"; // 2021, 2022, dst
+      categories = Array.from({ length: 5 }, (_, i) =>
+        (now.year() - 4 + i).toString()
+      );
       break;
     }
 
     default: {
-      // fallback: Jan 1 – today
       startDate = now.clone().startOf("year").toDate();
-      endDate = now.toDate();
+      endDate = now.clone().endOf("year").toDate();
       format = "%b";
       categories = [
         "Jan",
@@ -134,69 +92,131 @@ const getDateRange = (rangeType) => {
   return { startDate, endDate, format, categories };
 };
 
-// Handler API untuk statistik Membership
 export const getMembershipStatistics = async (req, res) => {
   try {
     const { range } = req.query;
-    const { startDate, endDate, format, categories } = getDateRange(range);
 
+    let startDate, endDate, format, categories;
+
+    // 📌 RANGE: MONTH (Jan–Dec dalam setahun)
+    if (range === "month") {
+      startDate = startOfYear(new Date());
+      endDate = endOfYear(new Date());
+
+      format = Sequelize.fn("DATE_FORMAT", Sequelize.col("updatedAt"), "%b");
+      categories = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+      ];
+    }
+
+    // 📌 RANGE: YEAR (satu tahun ini)
+    else if (range === "year") {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+
+      // mulai dari 2020
+      startDate = new Date(2020, 0, 1, 0, 0, 0);
+      endDate = new Date(currentYear, 11, 31, 23, 59, 59);
+
+      // Grouping by YEAR
+      format = Sequelize.fn("YEAR", Sequelize.col("updatedAt"));
+
+      // generate kategori tahun dari 2020 sampai tahun sekarang
+      categories = Array.from({ length: currentYear - 2020 + 1 }, (_, i) =>
+        (2020 + i).toString()
+      );
+    }
+
+    // 📌 RANGE: DAY (harian dalam bulan berjalan)
+    else if (range === "day") {
+      startDate = startOfMonth(new Date());
+      endDate = endOfMonth(new Date());
+
+      format = Sequelize.fn("DAY", Sequelize.col("updatedAt"));
+
+      // Generate array [1, 2, ..., 30/31]
+      categories = eachDayOfInterval({ start: startDate, end: endDate }).map(
+        (d) => formatDate(d, "d")
+      );
+    }
+
+    // 📌 DEFAULT: fallback ke month
+    else {
+      startDate = startOfYear(new Date());
+      endDate = endOfYear(new Date());
+
+      format = Sequelize.fn("DATE_FORMAT", Sequelize.col("updatedAt"), "%b");
+      categories = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+      ];
+    }
+
+    // 🔎 Query
     const transactions = await TransactionHistoryPayment.findAll({
       attributes: [
-        [
-          typeof format === "string"
-            ? Sequelize.fn("DATE_FORMAT", Sequelize.col("updatedAt"), format)
-            : format,
-          "date",
-        ],
-        [Sequelize.fn("COUNT", Sequelize.col("Id")), "count"],
+        [format, "date"],
+        [Sequelize.fn("COUNT", Sequelize.col("id")), "count"],
         [Sequelize.fn("SUM", Sequelize.col("price")), "totalPrice"],
       ],
       where: {
         statusPayment: "PAID",
-        // app_module: {
-        //   [Op.in]: ["APP_MEMBERSHIP"],
-        // },
         updatedAt: { [Op.between]: [startDate, endDate] },
       },
       group: ["date"],
-      order: [["date", "ASC"]],
+      order: [[Sequelize.literal("date"), "ASC"]],
       raw: true,
     });
 
-    // 🔁 Map data menjadi bentuk objek: { date: { count: ..., totalPrice: ... } }
+    // 📌 Map hasil query ke kategori
     const dataMap = transactions.reduce((acc, trx) => {
-      let key = range === "week" ? `Week ${trx.date}` : trx.date;
+      const key = range === "day" ? trx.date.toString() : trx.date;
       acc[key] = {
-        count: parseInt(trx.count),
+        count: parseInt(trx.count, 10),
         totalPrice: parseFloat(trx.totalPrice || 0),
       };
       return acc;
     }, {});
 
-    // 📊 Buat array untuk masing-masing series
-    const countSeries = categories.map((label) =>
-      dataMap[label] ? dataMap[label].count : 0
-    );
-    const revenueSeries = categories.map((label) =>
-      dataMap[label] ? dataMap[label].totalPrice : 0
+    const countSeries = categories.map((label) => dataMap[label]?.count || 0);
+    const revenueSeries = categories.map(
+      (label) => dataMap[label]?.totalPrice || 0
     );
 
-    const totalMemberships = countSeries.reduce((a, b) => a + b, 0);
-    const totalRevenue = revenueSeries.reduce((a, b) => a + b, 0);
-
-    // ✅ Kirim response
     res.json({
+      status: "success",
       categories,
       series: [
         { name: "Memberships", data: countSeries },
         { name: "Revenue", data: revenueSeries },
       ],
-      totalMemberships,
-      totalRevenue,
+      totalMemberships: countSeries.reduce((a, b) => a + b, 0),
+      totalRevenue: revenueSeries.reduce((a, b) => a + b, 0),
     });
   } catch (error) {
     console.error("Error fetching membership statistics:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    res.status(500).json({ status: "error", message: error.message });
   }
 };
 
@@ -211,19 +231,19 @@ export const totalValue = async (req, res) => {
       const [year, monthNumber] = month.split("-").map(Number);
 
       // start: 26 bulan sebelumnya
-      startOfMonth = new Date(year, monthNumber - 2, 26, 0, 0, 0);
+      startOfMonth = new Date(year, monthNumber - 1, 1, 0, 0, 0);
       // -2 karena JS month dimulai dari 0, dan kita ambil bulan sebelumnya
 
       // end: 25 bulan ini
-      endOfMonth = new Date(year, monthNumber - 1, 25, 23, 59, 59);
+      endOfMonth = new Date(year, monthNumber, 0, 23, 59, 59);
     } else {
       // Kalau tidak ada query → pakai bulan sekarang
       const now = new Date();
       const year = now.getFullYear();
-      const monthNumber = now.getMonth() + 1; // bulan sekarang (1–12)
+      const monthNumber = now.getMonth(); // bulan sekarang (1–12)
 
-      startOfMonth = new Date(year, monthNumber - 2, 26, 0, 0, 0);
-      endOfMonth = new Date(year, monthNumber - 1, 25, 23, 59, 59);
+      startOfMonth = new Date(year, monthNumber - 1, 1, 0, 0, 0);
+      endOfMonth = new Date(year, monthNumber, 0, 23, 59, 59);
     }
 
     const totalMembershipActive = await MembershipDetail.count({
@@ -355,14 +375,29 @@ export const totalValue = async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
+
 export const listSummaryLocation = async (req, res) => {
   try {
     const now = new Date();
-    // start dari tanggal 26 bulan sebelumnya
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth() - 1, 26);
+    // tanggal 1 bulan ini jam 00:00:00
+    const startOfMonth = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      1,
+      0,
+      0,
+      0
+    );
 
-    // end di tanggal 25 bulan ini
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth(), 25);
+    // tanggal terakhir bulan ini jam 23:59:59
+    const endOfMonth = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      0,
+      23,
+      59,
+      59
+    );
 
     // 1. Ambil total member aktif
     const activeMembers = await MembershipDetail.findAll({
@@ -485,27 +520,23 @@ export const summaryByProduct = async (req, res) => {
     let startOfMonth, endOfMonth;
 
     if (month) {
-      // Parse dari "2025-07"
+      // Parse dari "2025-09"
       const [year, monthNumber] = month.split("-").map(Number);
 
-      // start = 26 bulan sebelumnya
-      startOfMonth = new Date(year, monthNumber - 2, 26, 0, 0, 0);
+      // start: 26 bulan sebelumnya
+      startOfMonth = new Date(year, monthNumber - 1, 1, 0, 0, 0);
+      // -2 karena JS month dimulai dari 0, dan kita ambil bulan sebelumnya
 
-      // end = 25 bulan ini
-      endOfMonth = new Date(year, monthNumber - 1, 25, 23, 59, 59);
+      // end: 25 bulan ini
+      endOfMonth = new Date(year, monthNumber, 0, 23, 59, 59);
     } else {
-      // Default: bulan berjalan (26 bulan lalu → 25 bulan ini)
+      // Kalau tidak ada query → pakai bulan sekarang
       const now = new Date();
+      const year = now.getFullYear();
+      const monthNumber = now.getMonth() + 1; // bulan sekarang (1–12)
 
-      startOfMonth = new Date(
-        now.getFullYear(),
-        now.getMonth() - 1,
-        26,
-        0,
-        0,
-        0
-      );
-      endOfMonth = new Date(now.getFullYear(), now.getMonth(), 25, 23, 59, 59);
+      startOfMonth = new Date(year, monthNumber - 1, 1, 0, 0, 0);
+      endOfMonth = new Date(year, monthNumber, 0, 23, 59, 59);
     }
 
     const result = await TransactionHistoryPayment.findAll({

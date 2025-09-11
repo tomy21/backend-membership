@@ -146,9 +146,9 @@ export const exportHistoryTransaction = async (req, res) => {
       whereClause.location_code = { [Op.in]: locationCode };
     }
 
-    if (type === "TOPUP") {
-      whereClause.purchase_type = "TOPUP";
-    }
+    // if (type === "TOPUP") {
+    //   whereClause.purchase_type = "TOPUP";
+    // }
 
     if (type === "MEMBERSHIP") {
       whereClause.purchase_type = "MEMBERSHIP";
@@ -157,9 +157,8 @@ export const exportHistoryTransaction = async (req, res) => {
     const dateCondition =
       startDate && endDate
         ? {
-            createdAt: {
-              [Sequelize.Op.gte]: `${startDate} 00:00:00`,
-              [Sequelize.Op.lt]: `${endDate} 23:59:59`,
+            updatedAt: {
+              [Op.between]: [`${startDate} 00:00:00`, `${endDate} 23:59:59`],
             },
           }
         : null;

@@ -555,14 +555,7 @@ export const activateAccount = async (req, res) => {
       },
     });
 
-    const userCMS = await UserCMS.findOne({
-      where: {
-        active_token: hashedToken,
-        expired_active: { [Op.gt]: Date.now() },
-      },
-    });
-
-    if (!user && !userCMS) {
+    if (!user) {
       const allowedDomains =
         `${req.protocol}://${req.get("host")}` === "http://localhost:3008"
           ? "http://localhost:3000"
@@ -579,7 +572,50 @@ export const activateAccount = async (req, res) => {
     if (user) {
       user.is_active = 1;
       await user.save();
-    } else if (userCMS) {
+    } else {
+      return res.status(400).json({
+        status: "fail",
+        message: "Token is invalid or has expired",
+      });
+    }
+
+    res.redirect(`${allowedDomains}/register-success`);
+  } catch (err) {
+    res.status(400).json({
+      status: "fail",
+      message: err.message,
+    });
+  }
+};
+export const activateAccountCMS = async (req, res) => {
+  try {
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(req.params.token)
+      .digest("hex");
+
+    const userCMS = await UserCMS.findOne({
+      where: {
+        active_token: hashedToken,
+        expired_active: { [Op.gt]: Date.now() },
+      },
+    });
+
+    if (!userCMS) {
+      const allowedDomains =
+        `${req.protocol}://${req.get("host")}` === "http://localhost:3008/admin"
+          ? "http://localhost:3000/admin"
+          : "https://membership.skyparking.online/admin";
+
+      return res.redirect(`${allowedDomains}/request-token`);
+    }
+
+    const allowedDomains =
+      `${req.protocol}://${req.get("host")}` === "http://localhost:3008/admin"
+        ? "http://localhost:3000/admin"
+        : `https://membership.skyparking.online/admin`;
+
+    if (userCMS) {
       userCMS.is_active = 1;
       await userCMS.save();
     } else {
@@ -589,7 +625,7 @@ export const activateAccount = async (req, res) => {
       });
     }
 
-    res.redirect(`${allowedDomains}/register-success`);
+    res.redirect(`${allowedDomains}/register-success/cms`);
   } catch (err) {
     res.status(400).json({
       status: "fail",
@@ -665,7 +701,6 @@ export const getCardDetail = async (req, res) => {
       include: [
         {
           model: MembershipDetail,
-          where: { is_active: 1 },
           attributes: ["is_active", "location_id"],
         },
       ],

@@ -98,18 +98,32 @@ export const getByVehicle = async (req, res) => {
         [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
       },
       attributes: [
-        [Sequelize.fn("DISTINCT", Sequelize.col("periode")), "periode"],
+        "periode",
+        "product_name",
+        [Sequelize.fn("MAX", Sequelize.col("id")), "id"],
+        [Sequelize.fn("MAX", Sequelize.col("product_code")), "product_code"],
+        [Sequelize.fn("MAX", Sequelize.col("price")), "price"],
       ],
+      group: ["periode"],
       limit: parseInt(limit),
       offset: parseInt(offset),
-      order: [["created_at", "DESC"]],
+      order: [[Sequelize.fn("MAX", Sequelize.col("id")), "ASC"]],
+    });
+
+    const total = await ProductMembership.count({
+      distinct: true,
+      col: "periode",
+      where: {
+        vehicle_type: type,
+        location_code: code,
+        [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
+      },
     });
 
     res.json({
       status: "success",
       message: "Data fetched successfully",
-      total: count,
-      totalPages: Math.ceil(count / limit),
+      totalPages: Math.ceil(total / limit),
       currentPage: parseInt(page),
       data: rows,
     });

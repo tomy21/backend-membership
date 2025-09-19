@@ -472,7 +472,7 @@ export const register = async (req, res) => {
       address: address,
       password: password,
       phone_number: phone_number,
-      pin: pin,
+      pin: pin ?? null,
       gender: gender,
       dob: dob,
       customer_no: customerNo, // Include the generated customer number
@@ -697,7 +697,12 @@ export const getCardDetail = async (req, res) => {
     const cardDetail = await VehicleList.findAll({
       where: { cust_id: userId, rfid: { [Op.not]: "" } },
       group: ["rfid"],
-      attributes: ["member_customer_no", "rfid", "vehicle_type"],
+      attributes: [
+        "member_customer_no",
+        "rfid",
+        "vehicle_type",
+        "plate_number",
+      ],
       include: [
         {
           model: MembershipDetail,

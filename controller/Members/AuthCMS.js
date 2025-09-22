@@ -526,45 +526,51 @@ export const getAllMembership = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
 
-    const locationFilter = req.query.search || null;
+    const search = req.query.search || "";
 
-    // Hitung total kendaraan dengan filter lokasi
+    // bikin kondisi search global
+    const searchCondition = search
+      ? {
+          [Op.or]: [
+            { "$User.fullname$": { [Op.like]: `%${search}%` } },
+            { "$User.email$": { [Op.like]: `%${search}%` } },
+            { "$User.username$": { [Op.like]: `%${search}%` } },
+            {
+              "$MembershipDetail.location_name$": { [Op.like]: `%${search}%` },
+            },
+            { rfid: { [Op.like]: `%${search}%` } },
+            { plate_number: { [Op.like]: `%${search}%` } },
+          ],
+        }
+      : {};
+
+    // hitung total
     const totalUsers = await VehicleList.count({
-      include: [
-        {
-          model: MembershipDetail,
-          required: locationFilter ? true : false, // INNER JOIN kalau filter digunakan
-          where: locationFilter
-            ? { location_name: { [Op.like]: `%${locationFilter}%` } }
-            : undefined,
-        },
-      ],
+      where: searchCondition,
+      include: [{ model: MembershipDetail }, { model: User }],
     });
 
+    // ambil data
     const rows = await VehicleList.findAll({
+      where: searchCondition,
       include: [
         {
           model: MembershipDetail,
-          required: locationFilter ? true : false, // penting untuk filter benar-benar diterapkan
-          where: locationFilter
-            ? { location_name: { [Op.like]: `%${locationFilter}%` } }
-            : undefined,
           attributes: [
             "id",
             "location_name",
             "start_date",
             "end_date",
-            "is_active",
+            [
+              Sequelize.literal(
+                "IF(`customer_membership_detail`.`end_date` >= CURDATE(), 1, 0)"
+              ),
+              "isActive",
+            ],
           ],
         },
         {
           model: User,
-          where: locationFilter
-            ? {
-                fullname: { [Op.like]: `%${locationFilter}%` },
-                email: { [Op.like]: `%${locationFilter}%` },
-              }
-            : undefined,
           attributes: [
             "fullname",
             "email",
@@ -583,16 +589,23 @@ export const getAllMembership = async (req, res) => {
       ],
       limit,
       offset,
-      order: [["createdAt", "DESC"]],
+      order: [["updatedAt", "DESC"]],
     });
 
-    const totalPages = Math.ceil(totalUsers / limit);
+    // ubah isActive ke boolean
+    const rowsWithActive = rows.map((v) => {
+      if (v.MembershipDetail) {
+        v.MembershipDetail.dataValues.isActive =
+          v.MembershipDetail.dataValues.isActive === 1;
+      }
+      return v;
+    });
 
     res.status(200).json({
       total: totalUsers,
-      totalPages,
+      totalPages: Math.ceil(totalUsers / limit),
       currentPage: page,
-      data: rows,
+      data: rowsWithActive,
     });
   } catch (error) {
     console.error("Error in getAllMembership:", error);

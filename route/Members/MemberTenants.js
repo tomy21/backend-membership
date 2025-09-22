@@ -2,6 +2,7 @@ import express from "express";
 import {
   getAllMemberTenants,
   getMemberTenant,
+  getPurchaseHistory,
   getTennantPurchaseHistoryByUser,
 } from "../../controller/Members/MemberTenants.js";
 import { loginTennant } from "../../controller/Members/AuthTenant.js";
@@ -13,5 +14,6 @@ router.route("/tenant/login").post(loginTennant);
 router.route("/tenant").get(getAllMemberTenants);
 router.get("/tenant/history", protect, getTennantPurchaseHistoryByUser);
 router.route("/tenant-members/:tennantCode").get(getMemberTenant);
+router.route("/tenant-transaction").get(getPurchaseHistory);
 
 export default router;

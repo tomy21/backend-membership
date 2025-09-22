@@ -1,6 +1,7 @@
 import { DataTypes, Sequelize } from "sequelize";
 import { db } from "../../../config/dbConfig.js";
 import MembershipDetail from "./MembershipDetail.js";
+import User from "../Users.js";
 
 const VehicleList = db.define(
   "customer_membership",
@@ -64,5 +65,10 @@ VehicleList.belongsTo(MembershipDetail, {
   foreignKey: "member_customer_no",
   targetKey: "member_customer_no",
 });
+
+// VehicleList.belongsTo(User, {
+//   foreignKey: "cust_id",
+//   targetKey: "id", // atau sesuaikan primary key User
+// });
 
 export default VehicleList;

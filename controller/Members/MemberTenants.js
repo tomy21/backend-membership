@@ -2,7 +2,7 @@ import MemberTenant from "../../model/Members/MemberTenants.js";
 import { LocationMembers } from "../../model/Master/RefLocationMembers.js";
 import VehicleList from "../../model/Members/v02/VehicleList.js";
 import TennantPurchaseHistory from "../../model/Members/v02/TenantPurchaseHistory.js";
-import { Op } from "sequelize";
+import { col, fn, Op } from "sequelize";
 
 // Get all member tenants with pagination
 export const getAllMemberTenants = async (req, res) => {
@@ -28,12 +28,29 @@ export const getAllMemberTenants = async (req, res) => {
 
     const totalPages = Math.ceil(count / limit);
 
+    const summary = await VehicleList.findAll({
+      attributes: ["tennant_code", [fn("COUNT", col("id")), "totalTenant"]],
+      group: ["tennant_code"],
+    });
+
+    const summaryMap = {};
+
+    summary.forEach((item) => {
+      summaryMap[item.tennant_code] = item.dataValues.totalTenant;
+    });
+
+    // inject ke setiap row
+    const dataWithCount = rows.map((row) => ({
+      ...row.dataValues,
+      totalTenant: summaryMap[row.tennant_code] || 0,
+    }));
+
     res.status(200).json({
       statusCode: 200,
       total: count,
       totalPages: totalPages,
       currentPage: parseInt(page),
-      data: rows,
+      data: dataWithCount,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -136,5 +153,58 @@ export const getValueByUser = async (req, res) => {
   } catch (error) {
     console.error("Error fetching history by user:", error);
     res.status(500).json({ error: "Failed to fetch purchase history" });
+  }
+};
+
+export const getPurchaseHistory = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    const month = parseInt(req.query.month); // ex: 9
+    const year = parseInt(req.query.year); // ex: 2025
+
+    let whereCondition = {};
+
+    // kalau ada filter month & year
+    if (month && year) {
+      const startDate = new Date(year, month - 1, 1); // awal bulan
+      const endDate = new Date(year, month, 0, 23, 59, 59); // akhir bulan
+      whereCondition = {
+        updated_at: {
+          [Op.between]: [startDate, endDate],
+        },
+      };
+    } else if (year) {
+      // filter by year saja
+      const startDate = new Date(year, 0, 1);
+      const endDate = new Date(year, 11, 31, 23, 59, 59);
+      whereCondition = {
+        periode: {
+          [Op.between]: [startDate, endDate],
+        },
+      };
+    }
+
+    const { count, rows } = await TennantPurchaseHistory.findAndCountAll({
+      where: whereCondition,
+      limit,
+      offset,
+      order: [["updated_at", "DESC"]],
+    });
+
+    const totalPages = Math.ceil(count / limit);
+
+    res.status(200).json({
+      statusCode: 200,
+      total: count,
+      totalPages,
+      currentPage: page,
+      data: rows,
+    });
+  } catch (error) {
+    console.error("Error getPurchaseHistory:", error);
+    res.status(500).json({ error: error.message });
   }
 };

@@ -8,9 +8,26 @@ import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 import VehicleList from "../../model/Members/v02/VehicleList.js";
 import User from "../../model/Members/Users.js";
 import { errorResponse, successResponse } from "../../config/response.js";
+import CryptoJS from "crypto-js";
+import dotenv from "dotenv";
+dotenv.config({ path: ".env" });
+
+const secret_key = process.env.SECRET_KEY;
 
 export const login = async (req, res) => {
-  const { identifier, password, rememberMe } = req.body;
+  const { data } = req.body;
+
+  if (!data) {
+    return res.status(400).json({
+      status: "fail",
+      message: "Data tidak boleh kosong.",
+    });
+  }
+
+  const bytes = CryptoJS.AES.decrypt(data, secret_key);
+  const decryptedData = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+
+  const { identifier, password, rememberMe } = decryptedData;
 
   if (!identifier || !password) {
     return res.status(400).json({
@@ -184,7 +201,7 @@ export const registerCMS = async (req, res) => {
 
     const activationURL = `${req.protocol}://${req.get(
       "host"
-    )}/v01/member/api/auth/activate/${activationToken}`;
+    )}/v01/member/api/auth/activate-account-cms/${activationToken}`;
 
     // Kirim email aktivasi
     const to = newUser.email;
@@ -256,6 +273,85 @@ export const registerCMS = async (req, res) => {
         message: errorMessage,
       });
     }
+    console.error(err);
+    res.status(500).json({
+      status: "fail",
+      message: "Terjadi kesalahan pada server.",
+    });
+  }
+};
+
+export const updateCMSUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { fullname, email, username, phone_number, role } = req.body;
+
+    if (!id) {
+      return res.status(400).json({
+        status: "fail",
+        message: "User ID diperlukan untuk update",
+      });
+    }
+
+    // Validasi input
+    const invalidField =
+      validateInput("fullname", fullname) ||
+      validateInput("email", email) ||
+      validateInput("username", username) ||
+      validateInput("phone_number", phone_number) ||
+      validateInput("role", role.toString());
+
+    if (invalidField) {
+      return res.status(400).json({
+        status: "fail",
+        message: `Input pada field "${invalidField}" mengandung karakter tidak valid.`,
+      });
+    }
+
+    // Cari user yang mau diupdate
+    const user = await UserCMS.findByPk(id);
+    if (!user) {
+      return res.status(404).json({
+        status: "fail",
+        message: "User tidak ditemukan",
+      });
+    }
+
+    // Cek konflik username/email/phone_number (exclude user saat ini)
+    const existingUser = await UserCMS.findOne({
+      where: {
+        [Sequelize.Op.or]: [{ username }, { email }, { phone_number }],
+        id: { [Sequelize.Op.ne]: id }, // exclude self
+      },
+    });
+
+    if (existingUser) {
+      let conflictField = "";
+      if (existingUser.username === username) conflictField = "Username";
+      if (existingUser.email === email) conflictField = "Email";
+      if (existingUser.phone_number === phone_number)
+        conflictField = "Nomor Telepon";
+      return res.status(400).json({
+        status: "fail",
+        message: `${conflictField} sudah digunakan. Mohon gunakan yang lain.`,
+      });
+    }
+
+    // Update user
+    user.fullname = fullname;
+    user.email = email;
+    user.username = username;
+    user.phone_number = phone_number;
+    user.role = role;
+    user.updated_by = "admin"; // atau user login
+    await user.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "User berhasil diperbarui",
+      data: user,
+    });
+  } catch (err) {
     console.error(err);
     res.status(500).json({
       status: "fail",
@@ -430,35 +526,47 @@ export const getAllMembership = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
 
-    const locationFilter = req.query.locationFilter || null;
+    const search = req.query.search || "";
 
-    // Hitung total kendaraan dengan filter lokasi
+    // bikin kondisi search global
+    const searchCondition = search
+      ? {
+          [Op.or]: [
+            { "$User.fullname$": { [Op.like]: `%${search}%` } },
+            { "$User.email$": { [Op.like]: `%${search}%` } },
+            { "$User.username$": { [Op.like]: `%${search}%` } },
+            {
+              "$MembershipDetail.location_name$": { [Op.like]: `%${search}%` },
+            },
+            { rfid: { [Op.like]: `%${search}%` } },
+            { plate_number: { [Op.like]: `%${search}%` } },
+          ],
+        }
+      : {};
+
+    // hitung total
     const totalUsers = await VehicleList.count({
-      include: [
-        {
-          model: MembershipDetail,
-          required: locationFilter ? true : false, // INNER JOIN kalau filter digunakan
-          where: locationFilter
-            ? { location_name: { [Op.like]: `%${locationFilter}%` } }
-            : undefined,
-        },
-      ],
+      where: searchCondition,
+      include: [{ model: MembershipDetail }, { model: User }],
     });
 
+    // ambil data
     const rows = await VehicleList.findAll({
+      where: searchCondition,
       include: [
         {
           model: MembershipDetail,
-          required: locationFilter ? true : false, // penting untuk filter benar-benar diterapkan
-          where: locationFilter
-            ? { location_name: { [Op.like]: `%${locationFilter}%` } }
-            : undefined,
           attributes: [
             "id",
             "location_name",
             "start_date",
             "end_date",
-            "is_active",
+            [
+              Sequelize.literal(
+                "IF(`customer_membership_detail`.`end_date` >= CURDATE(), 1, 0)"
+              ),
+              "isActive",
+            ],
           ],
         },
         {
@@ -481,16 +589,23 @@ export const getAllMembership = async (req, res) => {
       ],
       limit,
       offset,
-      order: [["createdAt", "DESC"]],
+      order: [["updatedAt", "DESC"]],
     });
 
-    const totalPages = Math.ceil(totalUsers / limit);
+    // ubah isActive ke boolean
+    const rowsWithActive = rows.map((v) => {
+      if (v.MembershipDetail) {
+        v.MembershipDetail.dataValues.isActive =
+          v.MembershipDetail.dataValues.isActive === 1;
+      }
+      return v;
+    });
 
     res.status(200).json({
       total: totalUsers,
-      totalPages,
+      totalPages: Math.ceil(totalUsers / limit),
       currentPage: page,
-      data: rows,
+      data: rowsWithActive,
     });
   } catch (error) {
     console.error("Error in getAllMembership:", error);
@@ -556,5 +671,181 @@ export const addRole = async (req, res) => {
     return successResponse(res, 200, "Role created successfully", role);
   } catch (error) {
     return errorResponse(res, 500, "Error creating role", error.message);
+  }
+};
+
+export const changePassword = async (req, res) => {
+  try {
+    const { oldPassword, newPassword, confirmPassword } = req.body;
+    const userId = req.userId;
+
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ message: "All fields are required." });
+    }
+
+    // ambil user
+    const user = await UserCMS.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    // cek password lama
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Old password is incorrect." });
+    }
+
+    // validasi new password
+    if (newPassword.length < 8) {
+      return res
+        .status(400)
+        .json({ message: "New password must be at least 8 characters." });
+    }
+    if (oldPassword === newPassword) {
+      return res
+        .status(400)
+        .json({ message: "New password cannot be the same as old password." });
+    }
+    if (newPassword !== confirmPassword) {
+      return res
+        .status(400)
+        .json({ message: "Confirm password does not match." });
+    }
+
+    // hash password baru
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    await user.save();
+
+    return res.status(200).json({ message: "Password updated successfully." });
+  } catch (error) {
+    console.error("Error changing password:", error);
+    return res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+export const requestResetPassword = async (req, res) => {
+  try {
+    const randomString = Date.now().toString() + Math.random().toString();
+    const token = CryptoJS.SHA256(randomString).toString(CryptoJS.enc.Hex); // Hash unik
+    const expired = new Date(Date.now() + 1000 * 60 * 15);
+
+    const { email, referralUrl } = req.body;
+    const user = await UserCMS.findOne({
+      where: {
+        [Op.or]: [{ email: email }, { username: email }],
+      },
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        status: "fail",
+        message: "User tidak ditemukan.",
+      });
+    }
+
+    await UserCMS.update(
+      {
+        reset_password_token: token,
+        reset_password_expired: expired,
+      },
+      {
+        where: { id: user.id }, // atau pakai email kalau lebih aman
+      }
+    );
+
+    const activationURL = `${referralUrl}/change-password-admin?token=${token}`;
+
+    const to = user.email;
+    const subject = "Welcome to SKY PARKING - Reset Your Password";
+    const html = `
+          <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+            <div style="text-align: center; padding-bottom: 20px;">
+              <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
+            </div>
+            <h2 style="color: #333;">Hi, ${user.username}</h2>
+            <p style="color: #555;">
+              Terima kasih telah menggunakan layanan membership <strong>SKY PARKING</strong>. Kami sangat senang membantu anda!
+              Silahkan ubah password anda dengan klik tombol di bawah
+            </p>
+            <div style="text-align: center; margin: 20px 0;">
+              <a href="${activationURL}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
+                Ganti password
+              </a>
+            </div>
+            <p style="color: #555;">
+              Jika kamu mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
+            </p>
+            <p style="color: #555;">
+              Best Regards,<br/>
+              <strong>SKY Parking Utama</strong>
+            </p>
+          </div>
+        `;
+
+    const attachments = [
+      {
+        filename: "logo.png",
+        path: "./images/logo.png",
+        cid: "logo",
+      },
+    ];
+
+    await sendEmailRegister({ to, subject, html, attachments });
+
+    res.status(200).json({
+      status: "success",
+      message: "Token reset telah dikirimkan ke email Anda.",
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: "Terjadi kesalahan pada server. Silakan coba lagi nanti.",
+      error: error.message, // Opsional: Hapus di produksi jika terlalu sensitif
+    });
+  }
+};
+
+export const changePasswordByToken = async (req, res) => {
+  try {
+    const { password, confirmPassword, token } = req.body;
+
+    const user = await User.findOne({
+      where: {
+        reset_password_token: token,
+        reset_password_expired: {
+          [Op.gt]: new Date(),
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        status: "fail",
+        message: "Token reset sudah kadaluarsa.",
+      });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Password dan konfirmasi password tidak cocok.",
+      });
+    }
+
+    user.password = password;
+    user.is_active = 1;
+
+    await user.save();
+
+    res.status(200).json({
+      status: "success",
+      message: "Password berhasil diubah.",
+    });
+  } catch (error) {
+    res.status(400).json({
+      statusCode: 400,
+      message: error.message,
+    });
   }
 };

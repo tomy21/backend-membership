@@ -23,15 +23,19 @@ export const protect = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET, {
       algorithms: ["HS256"],
     });
-    
     req.userId = decoded.id;
     // Cari user berdasarkan ID yang ada di token
     const currentUser = await User.findByPk(decoded.id);
+
     if (!currentUser) {
-      return res.status(401).json({
-        status: "fail",
-        message: "The user belonging to this token no longer exists.",
-      });
+      const currentUserCMS = await UserCMS.findByPk(decoded.id);
+
+      if (!currentUserCMS) {
+        return res.status(401).json({
+          status: "fail",
+          message: "The user belonging to this token no longer exists.",
+        });
+      }
     }
 
     // Simpan data user yang terverifikasi ke req.user untuk digunakan di rute selanjutnya

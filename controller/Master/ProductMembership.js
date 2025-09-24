@@ -1,5 +1,6 @@
-import { Op } from "sequelize";
+import { Op, Sequelize } from "sequelize";
 import ProductMembership from "../../model/Members/v02/ProductMembership.js";
+import moment from "moment";
 
 export const getAllProductMembers = async (req, res) => {
   const { page = 1, limit = 10, search = "" } = req.query;
@@ -67,6 +68,7 @@ export const getByLocationCode = async (req, res) => {
       },
       limit: parseInt(limit),
       offset: parseInt(offset),
+      group: ["vehicle_type"],
       order: [["created_at", "DESC"]],
     });
 
@@ -87,7 +89,6 @@ export const getByVehicle = async (req, res) => {
   const { type, code } = req.params;
   const { page = 1, limit = 10, search = "" } = req.query;
 
-  console.log(type);
   try {
     const offset = (page - 1) * limit;
     const { count, rows } = await ProductMembership.findAndCountAll({
@@ -97,18 +98,32 @@ export const getByVehicle = async (req, res) => {
         [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
       },
       attributes: [
-        [Sequelize.fn("DISTINCT", Sequelize.col("periode")), "periode"],
+        "periode",
+        "product_name",
+        [Sequelize.fn("MAX", Sequelize.col("id")), "id"],
+        [Sequelize.fn("MAX", Sequelize.col("product_code")), "product_code"],
+        [Sequelize.fn("MAX", Sequelize.col("price")), "price"],
       ],
+      group: ["periode"],
       limit: parseInt(limit),
       offset: parseInt(offset),
-      order: [["created_at", "DESC"]],
+      order: [[Sequelize.fn("MAX", Sequelize.col("id")), "ASC"]],
+    });
+
+    const total = await ProductMembership.count({
+      distinct: true,
+      col: "periode",
+      where: {
+        vehicle_type: type,
+        location_code: code,
+        [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
+      },
     });
 
     res.json({
       status: "success",
       message: "Data fetched successfully",
-      total: count,
-      totalPages: Math.ceil(count / limit),
+      totalPages: Math.ceil(total / limit),
       currentPage: parseInt(page),
       data: rows,
     });

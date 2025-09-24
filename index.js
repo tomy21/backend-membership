@@ -8,6 +8,7 @@ import ProductMemberRoute from "./route/Members/Master/ProductMasterRoute.js";
 import TrxMemberPayment from "./route/Members/TrxMemberPayments.js";
 
 import MemberHistoryPost from "./route/Members/MemberHistoryPost.js";
+import MemberHistoryTrx from "./route/Members/MemberHistoryTransaction.js";
 import LocationMembers from "./route/Members/LocationMaster.js";
 import vehicleList from "./route/Members/VehicleListRoute.js";
 import Provider from "./route/Members/Master/Provider.js";
@@ -21,7 +22,11 @@ import ExportData from "./route/CMS/ExportDataRoute.js";
 import NotificationRoute from "./route/Members/NotificationRoute.js";
 import UploadMember from "./route/CMS/UploadMember.js";
 
-import scheduleMembershipReminder from "./jobs/MembershipReminder.js";
+import Reconsiliasi from "./route/CMS/reconsiliasi.js";
+
+import MemberTenantRoute from "./route/Members/MemberTenants.js";
+
+// import scheduleMembershipReminder from "./jobs/MembershipReminder.js";`
 
 const app = express();
 
@@ -30,6 +35,8 @@ app.use(
     credentials: true,
     origin: [
       "http://localhost:3000",
+      "http://localhost:3001",
+      "http://localhost:3003",
       "https://dev-membership.skyparking.online",
       "https://dev-injectmember.skyparking.online",
       "https://inject.skyparking.online",
@@ -38,7 +45,7 @@ app.use(
   })
 );
 
-scheduleMembershipReminder();
+// scheduleMembershipReminder();
 
 const __dirname = path.resolve();
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -51,6 +58,7 @@ app.use("/v01/member/api", ProductMemberRoute);
 app.use("/v01/member/api", TrxMemberPayment);
 
 app.use("/v01/member/api", MemberHistoryPost);
+app.use("/v01/member/api", MemberHistoryTrx);
 app.use("/v01/member/api", LocationMembers);
 app.use("/v01/member/api", vehicleList);
 app.use("/v01/member/api", Provider);
@@ -63,8 +71,11 @@ app.use("/v01/cms/api/auth", Menu);
 app.use("/v01/cms/api", Dashboard);
 app.use("/v01/cms/api", ExportData);
 app.use("/v01/cms/api", UploadMember);
+app.use("/v01/member/api", Reconsiliasi);
 
 app.use("/v01/member/api", NotificationRoute);
+
+app.use("/v01/member/api", MemberTenantRoute);
 
 const PORT = 3008;
 app.listen(PORT, () => {

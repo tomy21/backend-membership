@@ -1,135 +1,135 @@
-import MemberHistoryTransaction from "../../model/Members/MemberHistoryTransaction.js";
+import User from "../../model/Members/Users.js";
+import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
+import TransactionHistoryPayment from "../../model/Members/v02/TransactionPaymentHistory.js";
+import { Op } from "sequelize";
 
-// Create a new MemberHistoryTransaction
-export const createMemberHistoryTransaction = async (req, res) => {
+export const historyPointUsed = async (req, res) => {
   try {
-    const newTransaction = await MemberHistoryTransaction.create(req.body);
-    res.status(201).json({
-      statusCode: 201,
-      message: "MemberHistoryTransaction created successfully",
-      data: newTransaction,
-    });
-  } catch (err) {
-    res.status(400).json({
-      statusCode: 400,
-      message: err.message,
-    });
-  }
-};
-
-// Get all MemberHistoryTransactions
-export const getAllMemberHistoryTransactions = async (req, res) => {
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 10;
-
-  try {
-    if (page < 1 || limit < 1) {
-      return res.status(400).json({
-        statusCode: 400,
-        message: "Page and limit must be greater than 0.",
-      });
-    }
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
 
-    const { count: totalTransactions, rows: transactions } =
-      await MemberHistoryTransaction.findAndCountAll({
-        limit,
-        offset,
-      });
+    // Ambil semua membership
+    const allMembershipDetails = await MembershipDetail.findAll({
+      attributes: ["Cust_Member", "start_date", "end_date"],
+      raw: true,
+    });
+    const membershipMap = {};
+    allMembershipDetails.forEach((md) => {
+      membershipMap[md.Cust_Member] = {
+        start_date: md.start_date,
+        end_date: md.end_date,
+      };
+    });
 
-    const totalPages = Math.ceil(totalTransactions / limit);
-
-    res.status(200).json({
-      statusCode: 200,
-      message: "MemberHistoryTransactions retrieved successfully",
-      pagination: {
-        currentPage: page,
-        totalPages,
-        totalTransactions,
-        limit,
+    // 1. Ambil semua transaksi PAID dengan relasi user
+    const allTransactions = await TransactionHistoryPayment.findAll({
+      where: {
+        statusPayment: "PAID",
       },
-      data: transactions,
+      include: [
+        {
+          model: User,
+          as: "trxHistoryUser",
+          attributes: ["id", "username", "email"],
+        },
+      ],
+
+      raw: true,
+    });
+
+    // 2. Kelompokkan berdasarkan user_id
+    const groupedByUser = {};
+    for (const trx of allTransactions) {
+      const userId = trx["trxHistoryUser.id"];
+      const username = trx["trxHistoryUser.username"];
+      const email = trx["trxHistoryUser.email"];
+      const price = parseInt(trx.price);
+
+      if (!groupedByUser[userId]) {
+        const memberDetail = membershipMap[userId] || {};
+        groupedByUser[userId] = {
+          user_id: userId,
+          user_name: username,
+          email,
+          total_point: 0,
+          purchase_member: 0,
+          start: memberDetail.start_date || null,
+          end: memberDetail.end_date || null,
+          sisa_point: 0,
+          last_topup_date: null,
+          last_purchase_date: null,
+        };
+      }
+
+      if (trx.purchase_type === "TOPUP") {
+        groupedByUser[userId].total_point += price;
+        const topupDate = new Date(trx.timestamp);
+        if (
+          !groupedByUser[userId].last_topup_date ||
+          topupDate > new Date(groupedByUser[userId].last_topup_date)
+        ) {
+          groupedByUser[userId].last_topup_date = topupDate;
+        }
+      }
+
+      if (
+        trx.purchase_type === "MEMBERSHIP" &&
+        trx.transactionType === "POINT"
+      ) {
+        groupedByUser[userId].purchase_member += price;
+        const purchaseDate = new Date(trx.timestamp);
+        if (
+          !groupedByUser[userId].last_purchase_date ||
+          purchaseDate > new Date(groupedByUser[userId].last_purchase_date)
+        ) {
+          groupedByUser[userId].last_purchase_date = purchaseDate;
+        }
+      }
+    }
+
+    // 3. Hitung sisa poin dan filter user yang punya topup
+    const fullResult = Object.values(groupedByUser)
+      .map((item) => {
+        item.sisa_point = item.total_point - item.purchase_member;
+        return item;
+      })
+      .filter((item) => item.total_point > 0); // hanya user yang pernah topup
+
+    // Urutkan berdasarkan last_purchase_date (terbaru di atas)
+    fullResult.sort((a, b) => {
+      const dateA = new Date(a.last_purchase_date || 0);
+      const dateB = new Date(b.last_purchase_date || 0);
+      return dateB - dateA;
+    });
+
+    // 4. Hitung total semua sisa point
+    const totalAllSisaPoint = fullResult.reduce(
+      (acc, cur) => acc + cur.sisa_point,
+      0
+    );
+
+    // 5. Paging
+    const paginatedResult = fullResult.slice(offset, offset + limit);
+
+    // 6. Kirim hasil
+    res.status(200).json({
+      success: true,
+      total_user: fullResult.length,
+      total_all_sisa_point: totalAllSisaPoint,
+      pagination: {
+        total: fullResult.length,
+        page: page,
+        limit: limit,
+        totalPages: Math.ceil(fullResult.length / limit),
+      },
+      data: paginatedResult,
     });
   } catch (error) {
-    res.status(400).json({
-      statusCode: 400,
-      message: error.message,
-    });
-  }
-};
-
-// Get a single MemberHistoryTransaction by ID
-export const getMemberHistoryTransaction = async (req, res) => {
-  try {
-    const id = req.userId;
-    const transactions = await MemberHistoryTransaction.findAll({
-      where: { memberId: id }, // Mengasumsikan memberId sebagai foreign key
-      order: [["createdAt", "DESC"]], // Mengurutkan berdasarkan createdAt descending
-    });
-
-    if (!transactions || transactions.length === 0) {
-      return res.status(404).json({
-        statusCode: 404,
-        message: "MemberHistoryTransaction not found",
-      });
-    }
-
-    res.status(200).json({
-      statusCode: 200,
-      message: "MemberHistoryTransaction retrieved successfully",
-      data: transactions,
-    });
-  } catch (err) {
-    res.status(400).json({
-      statusCode: 400,
-      message: err.message,
-    });
-  }
-};
-
-export const getHistoryByUserId = async (req, res) => {
-  try {
-    const userId = req.userId;
-    const page = parseInt(req.query.page) || 1; // Default ke halaman pertama
-    const limit = parseInt(req.query.limit) || 10; // Default limit 10 item per halaman
-
-    if (!userId) {
-      return res.status(400).json({
-        statusCode: 400,
-        message: "Missing userId query parameter",
-      });
-    }
-
-    const offset = (page - 1) * limit;
-
-    const { count, rows } = await MemberHistoryTransaction.findAndCountAll({
-      where: {
-        IdUsers: userId,
-      },
-      order: [["createdAt", "DESC"]],
-      limit: limit,
-      offset: offset,
-    });
-
-    if (rows.length === 0) {
-      return res.status(404).json({
-        statusCode: 404,
-        message: "MemberUserProduct not found",
-      });
-    }
-
-    res.status(200).json({
-      statusCode: 200,
-      message: "MemberUserProducts retrieved successfully",
-      currentPage: page,
-      totalPages: Math.ceil(count / limit),
-      totalItems: count,
-      data: rows,
-    });
-  } catch (err) {
-    res.status(400).json({
-      statusCode: 400,
-      message: err.message,
+    console.error("Error historyPointUsed:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
     });
   }
 };

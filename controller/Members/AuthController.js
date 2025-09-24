@@ -13,7 +13,6 @@ import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 
 import dotenv from "dotenv";
 import CryptoJS from "crypto-js";
-import { id } from "date-fns/locale";
 dotenv.config({ path: ".env" });
 
 const secret_key = process.env.SECRET_KEY;
@@ -298,8 +297,6 @@ export const requestResetPin = async (req, res) => {
       where: id,
     });
 
-    console.log(user, id);
-
     if (!user) {
       return res.status(401).json({
         status: "fail",
@@ -475,7 +472,7 @@ export const register = async (req, res) => {
       address: address,
       password: password,
       phone_number: phone_number,
-      pin: pin,
+      pin: pin ?? null,
       gender: gender,
       dob: dob,
       customer_no: customerNo, // Include the generated customer number
@@ -558,7 +555,44 @@ export const activateAccount = async (req, res) => {
       },
     });
 
-    console.log(user);
+    if (!user) {
+      const allowedDomains =
+        `${req.protocol}://${req.get("host")}` === "http://localhost:3008"
+          ? "http://localhost:3000"
+          : "https://membership.skyparking.online";
+
+      return res.redirect(`${allowedDomains}/request-token`);
+    }
+
+    const allowedDomains =
+      `${req.protocol}://${req.get("host")}` === "http://localhost:3008"
+        ? "http://localhost:3000"
+        : `https://membership.skyparking.online`;
+
+    if (user) {
+      user.is_active = 1;
+      await user.save();
+    } else {
+      return res.status(400).json({
+        status: "fail",
+        message: "Token is invalid or has expired",
+      });
+    }
+
+    res.redirect(`${allowedDomains}/register-success`);
+  } catch (err) {
+    res.status(400).json({
+      status: "fail",
+      message: err.message,
+    });
+  }
+};
+export const activateAccountCMS = async (req, res) => {
+  try {
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(req.params.token)
+      .digest("hex");
 
     const userCMS = await UserCMS.findOne({
       where: {
@@ -567,24 +601,21 @@ export const activateAccount = async (req, res) => {
       },
     });
 
-    if (!user && !userCMS) {
-      return res.status(400).json({
-        status: "fail",
-        message: "Token is invalid or has expired",
-      });
+    if (!userCMS) {
+      const allowedDomains =
+        `${req.protocol}://${req.get("host")}` === "http://localhost:3008/admin"
+          ? "http://localhost:3000/admin"
+          : "https://membership.skyparking.online/admin";
+
+      return res.redirect(`${allowedDomains}/request-token`);
     }
 
-
     const allowedDomains =
-      `${req.protocol}://${req.get("host")}` === "http://localhost:3008"
-        ? "http://localhost:3000"
-        : `https://membership.skyparking.online`;
+      `${req.protocol}://${req.get("host")}` === "http://localhost:3008/admin"
+        ? "http://localhost:3000/admin"
+        : `https://membership.skyparking.online/admin`;
 
-
-    if (user) {
-      user.is_active = 1;
-      await user.save();
-    } else if (userCMS) {
+    if (userCMS) {
       userCMS.is_active = 1;
       await userCMS.save();
     } else {
@@ -594,7 +625,7 @@ export const activateAccount = async (req, res) => {
       });
     }
 
-    res.redirect(`${referralUrl}/registerSuccess`);
+    res.redirect(`${allowedDomains}/register-success/cms`);
   } catch (err) {
     res.status(400).json({
       status: "fail",
@@ -632,7 +663,7 @@ export const getUserById = async (req, res) => {
             {
               model: MembershipDetail,
               where: { is_active: 1 },
-              attributes: ["is_active"],
+              attributes: ["is_active", "location_id"],
             },
           ],
         },
@@ -666,7 +697,18 @@ export const getCardDetail = async (req, res) => {
     const cardDetail = await VehicleList.findAll({
       where: { cust_id: userId, rfid: { [Op.not]: "" } },
       group: ["rfid"],
-      attributes: ["member_customer_no", "rfid"],
+      attributes: [
+        "member_customer_no",
+        "rfid",
+        "vehicle_type",
+        "plate_number",
+      ],
+      include: [
+        {
+          model: MembershipDetail,
+          attributes: ["is_active", "location_id"],
+        },
+      ],
     });
 
     res.status(200).json({
@@ -798,4 +840,3 @@ export const getAllUsers = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-

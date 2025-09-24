@@ -22,189 +22,88 @@ export const createMenu = async (req, res) => {
   }
 };
 
-export const getAllMenus = async (req, res) => {
-  const { page = 1, limit = 10, search = "" } = req.query;
-  const offset = (page - 1) * limit;
-
+export const getMenusByRole = async (req, res) => {
   try {
-    const { count, rows: parents } = await MenuModels.findAndCountAll({
-      where: {
-        parent_slug: null,
-        [Op.or]: [
-          { name: { [Op.like]: `%${search}%` } },
-          { slug: { [Op.like]: `%${search}%` } },
-          { link: { [Op.like]: `%${search}%` } },
-        ],
-      },
+    const { roleId } = req.params;
+
+    const menus = await MenuModels.findAll({
+      where: { parent_slug: null }, // menu utama
       include: [
         {
           model: MenuModels,
-          as: "subMenus", // sesuai relasi kamu sebelumnya
+          as: "subMenus",
+          required: false, // biar semua sub menu muncul
+          include: [
+            {
+              model: RolePermission,
+              as: "permissions",
+              where: { role_id: roleId },
+              required: false, // biar tetap muncul walau belum ada permission
+            },
+          ],
+        },
+        {
+          model: RolePermission,
+          as: "permissions",
+          where: { role_id: roleId },
+          required: true,
         },
       ],
       order: [["position", "ASC"]],
-      limit: parseInt(limit),
-      offset: parseInt(offset),
     });
 
-    return res.status(200).json({
-      status: "success",
-      totalItems: count,
-      totalPages: Math.ceil(count / limit),
-      currentPage: parseInt(page),
-      data: parents,
+    res.status(200).json({
+      message: "Success get menus by role",
+      data: menus,
     });
   } catch (err) {
-    console.error("Error getAllMenus:", err);
-    return res.status(500).json({
-      status: "error",
-      message: err.message,
+    console.error("Error getMenusByRole:", err);
+    res.status(500).json({
+      message: "Internal server error",
+      error: err.message,
     });
   }
 };
 
 export const getMenus = async (req, res) => {
-  const { page = 1, limit = 10, search = "" } = req.query;
-  const offset = (page - 1) * limit;
-
   try {
-    // Ambil semua menu dan relasi submenu-nya
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+
+    // Hitung total parent menu
+    const total = await MenuModels.count({
+      where: { parent_slug: null },
+    });
+
+    // Ambil data sesuai pagination
     const menus = await MenuModels.findAll({
       where: { parent_slug: null },
       include: [
         {
           model: MenuModels,
           as: "subMenus",
+          required: false,
         },
       ],
       order: [["position", "ASC"]],
+      limit: Number(limit),
+      offset,
     });
 
-    // Format data sesuai kebutuhan frontend
-    const formatted = menus.map((menu) => {
-      if (menu.subMenus && menu.subMenus.length > 0) {
-        return {
-          icon: menu.icon,
-          name: menu.name,
-          subItems: menu.subMenus.map((sub) => ({
-            name: sub.name,
-            path: sub.link,
-            pro: false,
-          })),
-        };
-      } else {
-        return {
-          icon: menu.icon,
-          name: menu.name,
-          path: menu.link,
-        };
-      }
-    });
-
-    return res.status(200).json({
-      status: "success",
-      data: formatted,
+    res.status(200).json({
+      message: "Success get all menus",
+      data: {
+        total,
+        page: Number(page),
+        totalPages: Math.ceil(total / limit),
+        menus,
+      },
     });
   } catch (err) {
-    console.error("Error fetching menus:", err);
-    return res.status(500).json({
-      status: "error",
-      message: err.message,
-    });
-  }
-};
-
-export const getMenuById = async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const menu = await MenuModels.findOne({
-      where: { id },
-    });
-
-    if (!menu) {
-      return res.status(404).json({
-        success: false,
-        message: "Menu not found!",
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: menu,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Error fetching menu!",
-      error: error.message,
-    });
-  }
-};
-
-// controller/menusController.js
-
-export const updateMenu = async (req, res) => {
-  const { id } = req.params;
-  const { name, link, parent_slug, icon } = req.body;
-
-  try {
-    const menu = await MenuModels.findOne({ where: { id } });
-
-    if (!menu) {
-      return res.status(404).json({
-        success: false,
-        message: "Menu not found!",
-      });
-    }
-
-    menu.name = name || menu.name;
-    menu.link = link || menu.link;
-    menu.parent_slug = parent_slug || menu.parent_slug;
-    menu.icon = icon || menu.icon;
-
-    await menu.save();
-
-    return res.status(200).json({
-      success: true,
-      message: "Menu updated successfully!",
-      data: menu,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Error updating menu!",
-      error: error.message,
-    });
-  }
-};
-
-// controller/menusController.js
-
-export const deleteMenu = async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    const menu = await MenuModels.findOne({ where: { id } });
-
-    if (!menu) {
-      return res.status(404).json({
-        success: false,
-        message: "Menu not found!",
-      });
-    }
-
-    await menu.destroy();
-
-    return res.status(200).json({
-      success: true,
-      message: "Menu deleted successfully!",
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Error deleting menu!",
-      error: error.message,
+    console.error("Error getAllMenusController:", err);
+    res.status(500).json({
+      message: "Failed get all menus",
+      error: err.message,
     });
   }
 };

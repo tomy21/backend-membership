@@ -1,12 +1,12 @@
 import { DataTypes } from "sequelize";
-import db from "../../config/dbConfig.js";
+import { db } from "../../config/dbConfig.js";
 
 export const MemberUserRole = db.define(
   "membershipRole",
   {
     id: {
       type: DataTypes.INTEGER,
-      autoIncrement: false,
+      autoIncrement: true,
       primaryKey: true,
     },
     name: {

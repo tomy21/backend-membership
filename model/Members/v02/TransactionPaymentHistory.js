@@ -1,11 +1,14 @@
 import { DataTypes, Sequelize } from "sequelize";
-import db from "../../../config/dbConfig.js";
+import { db } from "../../../config/dbConfig.js";
 import User from "../Users.js";
+import MembershipDetail from "./MembershipDetail.js";
+import PaymentTransaction from "./PaymentHistory.js";
+import LocationArea from "./LocationMaster.js";
 
 const TransactionHistoryPayment = db.define(
   "transaction_customer_history",
   {
-    id: {
+    Id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
     },
@@ -106,6 +109,33 @@ TransactionHistoryPayment.belongsTo(User, {
   foreignKey: "user_id",
   targetKey: "id",
   as: "trxHistoryUser",
+});
+
+TransactionHistoryPayment.hasOne(MembershipDetail, {
+  foreignKey: "invoice_id",
+  sourceKey: "invoice_id",
+  as: "membershipDetail",
+});
+MembershipDetail.belongsTo(TransactionHistoryPayment, {
+  foreignKey: "invoice_id",
+  targetKey: "invoice_id",
+});
+
+TransactionHistoryPayment.hasOne(PaymentTransaction, {
+  foreignKey: "trx_id",
+  sourceKey: "trxId",
+  as: "payment_trx",
+});
+PaymentTransaction.belongsTo(TransactionHistoryPayment, {
+  foreignKey: "trx_id",
+  targetKey: "trxId",
+  as: "payment_trx",
+});
+
+TransactionHistoryPayment.belongsTo(LocationArea, {
+  foreignKey: "location_code",
+  targetKey: "location_code",
+  as: "locationArea",
 });
 
 export default TransactionHistoryPayment;

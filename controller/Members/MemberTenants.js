@@ -1,13 +1,8 @@
-import { errorResponse, successResponse } from "../../config/response.js";
 import MemberTenant from "../../model/Members/MemberTenants.js";
-import db from "../../config/dbConfig.js";
-import User from "../../model/Members/Users.js";
-import UserDetails from "../../model/Members/UserDetails.js";
-import MemberUserRole from "../../model/Members/MemberUserRoles.js";
-import nodemailer from "nodemailer";
-import crypto from "crypto";
-import { sendEmail } from "../../config/EmailService.js";
 import { LocationMembers } from "../../model/Master/RefLocationMembers.js";
+import VehicleList from "../../model/Members/v02/VehicleList.js";
+import TennantPurchaseHistory from "../../model/Members/v02/TenantPurchaseHistory.js";
+import { col, fn, Op } from "sequelize";
 
 // Get all member tenants with pagination
 export const getAllMemberTenants = async (req, res) => {
@@ -17,14 +12,72 @@ export const getAllMemberTenants = async (req, res) => {
     const offset = (page - 1) * limit;
 
     const { count, rows } = await MemberTenant.findAndCountAll({
+      attributes: [
+        "id",
+        "tennant_code",
+        "tennant_name",
+        "address",
+        "email",
+        "username",
+        "is_active",
+      ],
       limit: parseInt(limit),
       offset: parseInt(offset),
-      order: [["CreatedOn", "DESC"]],
-      include: {
-        model: LocationMembers,
-        as: "MemberLocation",
-        attributes: ["LocationName"], // Pastikan ini ada di LocationMembers
-      },
+      order: [["created_at", "DESC"]],
+    });
+
+    const totalPages = Math.ceil(count / limit);
+
+    const summary = await VehicleList.findAll({
+      attributes: ["tennant_code", [fn("COUNT", col("id")), "totalTenant"]],
+      group: ["tennant_code"],
+    });
+
+    const summaryMap = {};
+
+    summary.forEach((item) => {
+      summaryMap[item.tennant_code] = item.dataValues.totalTenant;
+    });
+
+    // inject ke setiap row
+    const dataWithCount = rows.map((row) => ({
+      ...row.dataValues,
+      totalTenant: summaryMap[row.tennant_code] || 0,
+    }));
+
+    res.status(200).json({
+      statusCode: 200,
+      total: count,
+      totalPages: totalPages,
+      currentPage: parseInt(page),
+      data: dataWithCount,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get member tenant by ID
+export const getMemberTenant = async (req, res) => {
+  try {
+    const page = req.query.page || 1;
+    const tenantCode = req.params.tennantCode;
+    const limit = req.query.limit || 10;
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await VehicleList.findAndCountAll({
+      where: { tennant_code: tenantCode },
+      attributes: [
+        "id",
+        "plate_number",
+        "vehicle_type",
+        "cust_id",
+        "member_customer_no",
+        "rfid",
+      ],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [["createdAt", "DESC"]],
     });
 
     const totalPages = Math.ceil(count / limit);
@@ -41,173 +94,117 @@ export const getAllMemberTenants = async (req, res) => {
   }
 };
 
-// Get member tenant by ID
-export const getMemberTenantById = async (req, res) => {
-  try {
-    const memberTenant = await MemberTenant.findByPk(req.params.id);
-    if (memberTenant) {
-      return successResponse(
-        res,
-        201,
-        "Tenants retrieved successfully",
-        memberTenant
-      );
-    } else {
-      return errorResponse(
-        res,
-        400,
-        "Product not found,The requested bundle does not exist",
-        error.message
-      );
-    }
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
+export const getTennantPurchaseHistoryByUser = async (req, res) => {
+  const userId = req.userId;
+  const { page = 1, limit = 10, search = "" } = req.query;
 
-// Create new member tenant
-export const createMemberTenant = async (req, res) => {
-  const transaction = await db.transaction();
+  const offset = (page - 1) * limit;
 
   try {
-    const userId = req.userId;
-    const user = await User.findByPk(userId);
-    if (!user) {
-      return errorResponse(res, 404, "User not found");
-    }
-
-    const newData = {
-      ...req.body,
-      CreatedBy: user.UserName,
+    const whereClause = {
+      user_id: userId,
+      [Op.or]: [
+        { virtual_account_number: { [Op.like]: `%${search}%` } },
+        { virtual_account_name: { [Op.like]: `%${search}%` } },
+        { trx_id: { [Op.like]: `%${search}%` } },
+        { status_payment: { [Op.like]: `%${search}%` } },
+        { status_progress: { [Op.like]: `%${search}%` } },
+        { type_payment: { [Op.like]: `%${search}%` } },
+      ],
     };
 
-    const newMemberTenant = await MemberTenant.create(newData, {
-      transaction,
+    const { rows, count } = await TennantPurchaseHistory.findAndCountAll({
+      where: whereClause,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [["created_at", "DESC"]],
     });
 
-    // Step 2: Automatically create a new User for this Tenant with RoleId: 5
-    const { UserName, Email, Password, PhoneNumber, Pin } = req.body;
-
-    const newUser = await User.create(
-      {
-        UserName: UserName,
-        NormalizedUserName: UserName.toUpperCase(),
-        Email: Email,
-        NormalizedEmail: Email.toUpperCase(),
-        PasswordHash: Password,
-        PhoneNumber: PhoneNumber,
-        MemberTenantId: newMemberTenant.Id,
+    res.status(200).json({
+      data: rows,
+      pagination: {
+        total: count,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(count / limit),
       },
-      { transaction }
-    );
-
-    // Step 3: Create UserDetails for the new user
-    await UserDetails.create(
-      {
-        Pin: Pin,
-        MemberUserId: newUser.id,
-      },
-      { transaction }
-    );
-
-    // Step 4: Assign the RoleId: 5 to the new user
-    await MemberUserRole.create(
-      {
-        UserId: newUser.id,
-        RoleId: 5, // Assuming RoleId 5 is the role you want to assign
-      },
-      { transaction }
-    );
-
-    // Step 5: Generate an activation token
-    const activationToken = crypto.randomBytes(32).toString("hex");
-    newUser.activationToken = crypto
-      .createHash("sha256")
-      .update(activationToken)
-      .digest("hex");
-    newUser.activationExpires = Date.now() + 24 * 60 * 60 * 1000; // Token expires in 24 hours
-    await newUser.save({ validate: false });
-
-    // Step 6: Generate activation URL
-    const activationURL = `${req.protocol}://${req.get(
-      "host"
-    )}/v01/member/api/auth/activate/${activationToken}`;
-
-    // Step 7: Send activation email with user information
-    await sendEmail({
-      to: newUser.Email,
-      subject: "Account Activation",
-      text: `Please activate your account by clicking on the link: ${activationURL}`,
-      html: `
-        <h1>Account Activation</h1>
-        <p>Please activate your account by clicking on the link below:</p>
-        <a href="${activationURL}">Activate Account</a>
-        <h3>Your account details:</h3>
-        <ul>
-          <li>Username: ${newUser.UserName}</li>
-          <li>Email: ${newUser.Email}</li>
-          <li>PIN: ${Pin}</li>
-          <li>Password: ${Password}</li>
-        </ul>
-        <p>Please keep this information safe.</p>
-      `,
     });
-
-    // Commit transaction after all operations succeed
-    await transaction.commit();
-
-    return successResponse(
-      res,
-      201,
-      "Tenant and associated user created successfully",
-      { tenant: newMemberTenant, user: newUser }
-    );
   } catch (error) {
-    await transaction.rollback();
-
-    return errorResponse(
-      res,
-      500,
-      "An error occurred while creating Tenant and user",
-      error.message
-    );
+    console.error("Error fetching history by user:", error);
+    res.status(500).json({ error: "Failed to fetch purchase history" });
   }
 };
 
-// Update member tenant by ID
-export const updateMemberTenant = async (req, res) => {
+export const getValueByUser = async (req, res) => {
+  const userId = req.userId;
+
   try {
-    const [updated] = await MemberTenant.update(req.body, {
-      where: { Id: req.params.id },
+    const cekTenantCode = await MemberTenant.findByPk(userId);
+
+    const totalMembership = await res.status(200).json({
+      data: rows,
+      pagination: {
+        total: count,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(count / limit),
+      },
     });
-    if (updated) {
-      const updatedMemberTenant = await MemberTenant.findByPk(req.params.id);
-      return successResponse(
-        res,
-        201,
-        "Tenants updated successfully",
-        updatedMemberTenant
-      );
-    } else {
-      return errorResponse(res, 404, "Member Tenant not found", error.message);
-    }
   } catch (error) {
-    return errorResponse(res, 500, "Member Tenant error", error.message);
+    console.error("Error fetching history by user:", error);
+    res.status(500).json({ error: "Failed to fetch purchase history" });
   }
 };
 
-// Delete member tenant by ID
-export const deleteMemberTenant = async (req, res) => {
+export const getPurchaseHistory = async (req, res) => {
   try {
-    const deleted = await MemberTenant.destroy({
-      where: { Id: req.params.id },
-    });
-    if (deleted) {
-      res.status(204).json();
-    } else {
-      res.status(404).json({ error: "Member Tenant not found" });
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    const month = parseInt(req.query.month); // ex: 9
+    const year = parseInt(req.query.year); // ex: 2025
+
+    let whereCondition = {};
+
+    // kalau ada filter month & year
+    if (month && year) {
+      const startDate = new Date(year, month - 1, 1); // awal bulan
+      const endDate = new Date(year, month, 0, 23, 59, 59); // akhir bulan
+      whereCondition = {
+        updated_at: {
+          [Op.between]: [startDate, endDate],
+        },
+      };
+    } else if (year) {
+      // filter by year saja
+      const startDate = new Date(year, 0, 1);
+      const endDate = new Date(year, 11, 31, 23, 59, 59);
+      whereCondition = {
+        periode: {
+          [Op.between]: [startDate, endDate],
+        },
+      };
     }
+
+    const { count, rows } = await TennantPurchaseHistory.findAndCountAll({
+      where: whereCondition,
+      limit,
+      offset,
+      order: [["updated_at", "DESC"]],
+    });
+
+    const totalPages = Math.ceil(count / limit);
+
+    res.status(200).json({
+      statusCode: 200,
+      total: count,
+      totalPages,
+      currentPage: page,
+      data: rows,
+    });
   } catch (error) {
-    res.status(404).json({ error: error.message });
+    console.error("Error getPurchaseHistory:", error);
+    res.status(500).json({ error: error.message });
   }
 };

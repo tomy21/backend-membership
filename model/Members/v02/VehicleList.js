@@ -1,6 +1,7 @@
 import { DataTypes, Sequelize } from "sequelize";
-import db from "../../../config/dbConfig.js";
+import { db } from "../../../config/dbConfig.js";
 import MembershipDetail from "./MembershipDetail.js";
+import User from "../Users.js";
 
 const VehicleList = db.define(
   "customer_membership",
@@ -26,6 +27,10 @@ const VehicleList = db.define(
     rfid: {
       type: DataTypes.STRING,
       allowNull: false,
+    },
+    tennant_code: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     plate_number: {
       type: DataTypes.STRING,
@@ -60,5 +65,10 @@ VehicleList.belongsTo(MembershipDetail, {
   foreignKey: "member_customer_no",
   targetKey: "member_customer_no",
 });
+
+// VehicleList.belongsTo(User, {
+//   foreignKey: "cust_id",
+//   targetKey: "id", // atau sesuaikan primary key User
+// });
 
 export default VehicleList;

@@ -1,5 +1,5 @@
 import { DataTypes, Sequelize } from "sequelize";
-import db from "../../../config/dbConfig.js";
+import { db } from "../../../config/dbConfig.js";
 import User from "../../Members/Users.js";
 import LocationArea from "./LocationMaster.js";
 

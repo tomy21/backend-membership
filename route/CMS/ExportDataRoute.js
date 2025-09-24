@@ -16,5 +16,9 @@ router.get(
   protect,
   ExportData.exportDataHistoryPointByUser
 );
+router.get(
+  "/export-data-history/:locationCode",
+  ExportData.exportDetailTransaksiLocation
+);
 
 export default router;

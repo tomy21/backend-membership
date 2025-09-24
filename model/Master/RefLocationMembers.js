@@ -1,5 +1,5 @@
 import { DataTypes } from "sequelize";
-import db from "../../config/dbConfig.js";
+import { db } from "../../config/dbConfig.js";
 import { Location } from "./RefLocation.js";
 
 export const LocationMembers = db.define(

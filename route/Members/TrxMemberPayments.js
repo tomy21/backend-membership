@@ -12,6 +12,9 @@ router
 router
   .route("/history/transaction-topup")
   .get(trxHistoryPayment.getTransactionsTopup);
+router
+  .route("/history/transaction-detail-topup")
+  .get(trxHistoryPayment.getDetailTransactionsTopup);
 
 router
   .route("/history/payment-status")

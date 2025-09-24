@@ -3,7 +3,9 @@ import express from "express";
 import { protect } from "../../../middleware/member/authMiddleware.js";
 import {
   exportDataTransaksiPostById,
+  exportDetailTransaksiLocation,
   exportHistoryPaymentByUser,
+  exportHistoryPoint,
 } from "../../../controller/ExportData/ExportData.js";
 const router = express.Router();
 
@@ -13,5 +15,7 @@ router.get(
   protect,
   exportDataTransaksiPostById
 );
+
+router.get("/export-data-history-point", exportHistoryPoint);
 
 export default router;

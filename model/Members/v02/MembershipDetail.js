@@ -1,5 +1,5 @@
 import { DataTypes, Sequelize } from "sequelize";
-import db from "../../../config/dbConfig.js";
+import { db } from "../../../config/dbConfig.js";
 import LocationArea from "./LocationMaster.js";
 import VehicleList from "./VehicleList.js";
 
@@ -60,6 +60,10 @@ const MembershipDetail = db.define(
       allowNull: false,
       defaultValue: Sequelize.NOW,
     },
+    // updated_expired: {
+    //   type: DataTypes.DATE,
+    //   allowNull: true,
+    // },
   },
   {
     tableName: "customer_membership_detail",
@@ -69,6 +73,7 @@ const MembershipDetail = db.define(
 
 MembershipDetail.belongsTo(LocationArea, {
   foreignKey: "location_id",
+  as: "locationArea",
   targetKey: "location_code",
 });
 

@@ -1,32 +1,19 @@
 import { DataTypes, Sequelize } from "sequelize";
 import { db } from "../../../config/dbConfig.js";
-import User from "../Users.js";
 
-const PaymentTransaction = db.define(
-  "payment_transactions",
+const TennantPurchaseHistory = db.define(
+  "tennant_purchase_history",
   {
     id: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       primaryKey: true,
     },
-    trx_id: {
+    user_id: {
       type: DataTypes.STRING,
       allowNull: false,
     },
-    inquiry_request_id: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    external_id: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    expired_date: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    invoice_number: {
-      type: DataTypes.STRING,
+    invoice_id: {
+      type: DataTypes.INTEGER,
       allowNull: false,
     },
     virtual_account_number: {
@@ -37,50 +24,65 @@ const PaymentTransaction = db.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
-    virtual_account_email: {
+    trx_id: {
       type: DataTypes.STRING,
       allowNull: false,
     },
-    payment_using: {
+    expired_date: {
       type: DataTypes.STRING,
       allowNull: false,
     },
-    module_name: {
+    timestamp: {
+      type: DataTypes.DATE,
+      allowNull: false,
+    },
+    amount: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    price: {
       type: DataTypes.STRING,
       allowNull: false,
     },
-    status_transaction: {
-      type: DataTypes.ENUM,
-      values: ["PENDING", "COMPLETED", "FAILED"],
+    admin_fee: {
+      type: DataTypes.STRING,
       allowNull: false,
     },
-    paid_amount: {
-      type: DataTypes.FLOAT,
+    total_admin_fee: {
+      type: DataTypes.STRING,
       allowNull: false,
     },
-    app_module: {
-      type: DataTypes.ENUM,
-      values: [
-        "APP_MEMBERSHIP",
-        "APP_MEMBERSHIP_B2B",
-        "APP_VOUCHER",
-        "APP_OTHERS",
-      ],
+    total_price: {
+      type: DataTypes.STRING,
       allowNull: false,
     },
-    RRN: {
+    additonal_fee: {
       type: DataTypes.STRING,
       allowNull: false,
     },
     product_name: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    periode: {
+      type: DataTypes.DATE,
+      allowNull: false,
+    },
+    status_payment: {
+      type: DataTypes.ENUM,
+      values: ["COMPLETED", "PENDING", "FAILED"],
+      allowNull: false,
+    },
+    status_progress: {
+      type: DataTypes.ENUM,
+      values: ["COMPLETED", "PROCESSING", "INITIATED"],
+      allowNull: false,
+    },
+    type_payment: {
       type: DataTypes.STRING,
       allowNull: false,
     },
-    location_name: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    no_tiket: {
+    purchase_type: {
       type: DataTypes.STRING,
       allowNull: false,
     },
@@ -96,9 +98,15 @@ const PaymentTransaction = db.define(
     },
   },
   {
-    tableName: "payment_transactions",
+    tableName: "tennant_purchase_history",
     timestamps: false,
   }
 );
 
-export default PaymentTransaction;
+// TransactionHistoryPayment.belongsTo(User, {
+//   foreignKey: "user_id",
+//   targetKey: "id",
+//   as: "trxHistoryUser",
+// });
+
+export default TennantPurchaseHistory;

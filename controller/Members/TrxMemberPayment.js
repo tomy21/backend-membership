@@ -7,6 +7,7 @@ import ExcelJs from "exceljs";
 import HistoryPost from "../../model/Members/v02/HistoryPost.js";
 import { errorResponse, successResponse } from "../../config/response.js";
 import VehicleList from "../../model/Members/v02/VehicleList.js";
+import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 
 export const createTransaction = async (req, res) => {
   try {
@@ -100,6 +101,45 @@ export const getTrxStatusPaymentByTrxid = async (req, res) => {
       where: { trxId: idTrx },
       order: [["createdAt", "DESC"]],
     });
+
+    if (
+      paymentTrx?.status_transaction === "COMPLETED" &&
+      transaction?.statusPayment === "PAID"
+    ) {
+      const membership = transaction.membershipDetail;
+
+      if (membership) {
+        // cek end_date === updatedAt
+        if (
+          new Date(membership.end_date).getTime() ===
+          new Date(membership.updated_at).getTime()
+        ) {
+          // parse jumlah bulan dari product_name
+          let monthsToAdd = 0;
+          if (/1\s*Bulan/i.test(transaction.product_name)) {
+            monthsToAdd = 1;
+          } else if (/3\s*Bulan/i.test(transaction.product_name)) {
+            monthsToAdd = 3;
+          }
+
+          if (monthsToAdd > 0) {
+            const newEndDate = addMonths(
+              new Date(membership.end_date),
+              monthsToAdd
+            );
+
+            await MembershipDetail.update(
+              { end_date: newEndDate, updated_at: new Date() },
+              { where: { id: membership.id } }
+            );
+
+            console.log(
+              `Membership ${membership.id} diperpanjang ${monthsToAdd} bulan → end_date baru: ${newEndDate}`
+            );
+          }
+        }
+      }
+    }
 
     return res.status(200).json({
       statusCode: 200,
@@ -773,8 +813,8 @@ export const transactionByLocation = async (req, res) => {
     const selectedMonth = month ? parseInt(month) : currentDate.getMonth() + 1;
     const selectedYear = year ? parseInt(year) : currentDate.getFullYear();
 
-    const startDate = new Date(selectedYear, selectedMonth - 2, 26, 0, 0, 0);
-    const endDate = new Date(selectedYear, selectedMonth - 1, 25, 23, 59, 59);
+    const startDate = new Date(selectedYear, selectedMonth - 1, 1, 0, 0, 0);
+    const endDate = new Date(selectedYear, selectedMonth, 0, 23, 59, 59);
 
     // bikin filter dasar
     const whereCondition = {
@@ -812,7 +852,7 @@ export const transactionByLocation = async (req, res) => {
     const response = await TransactionHistoryPayment.findAll({
       where: whereCondition,
       attributes: [
-        "id",
+        ["id", "trx_history_id"], // alias unik untuk model utama
         "location_code",
         "location_name",
         "vehicle_type",
@@ -826,8 +866,55 @@ export const transactionByLocation = async (req, res) => {
         {
           model: User,
           as: "trxHistoryUser",
-          attributes: ["id", "fullname", "email", "points"],
+          attributes: [
+            ["id", "user_id"], // 👈 kasih alias biar gak bentrok
+            "fullname",
+            "email",
+            "points",
+            "username",
+          ],
+          include: [
+            {
+              model: VehicleList,
+              attributes: [
+                ["id", "vehicle_id"], // alias unik
+                "rfid",
+                "vehicle_type",
+                "plate_number",
+              ],
+              include: [
+                {
+                  model: MembershipDetail,
+                  attributes: [
+                    ["id", "membership_detail_id"], // alias unik
+                    "updated_at",
+                    "end_date",
+                  ],
+                },
+              ],
+            },
+          ],
         },
+        // {
+        //   model: MembershipDetail,
+        //   as: "membershipDetail",
+        //   attributes: [
+        //     ["id", "membership_detail_id"], // alias unik
+        //     "updated_at",
+        //     "end_date",
+        //   ],
+        //   include: [
+        //     {
+        //       model: VehicleList,
+        //       attributes: [
+        //         ["id", "vehicle_id"], // alias unik
+        //         "rfid",
+        //         "vehicle_type",
+        //         "plate_number",
+        //       ],
+        //     },
+        //   ],
+        // },
       ],
       limit: parseInt(limit),
       offset: parseInt(offset),

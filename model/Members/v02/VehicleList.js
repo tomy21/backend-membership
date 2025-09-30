@@ -66,6 +66,11 @@ VehicleList.belongsTo(MembershipDetail, {
   targetKey: "member_customer_no",
 });
 
+MembershipDetail.hasMany(VehicleList, {
+  foreignKey: "member_customer_no",
+  sourceKey: "member_customer_no",
+});
+
 // VehicleList.belongsTo(User, {
 //   foreignKey: "cust_id",
 //   targetKey: "id", // atau sesuaikan primary key User

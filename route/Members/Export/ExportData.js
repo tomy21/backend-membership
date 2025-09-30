@@ -4,6 +4,7 @@ import { protect } from "../../../middleware/member/authMiddleware.js";
 import {
   exportDataTransaksiPostById,
   exportDetailTransaksiLocation,
+  exportExcelByMonth,
   exportHistoryPaymentByUser,
   exportHistoryPoint,
 } from "../../../controller/ExportData/ExportData.js";
@@ -17,5 +18,6 @@ router.get(
 );
 
 router.get("/export-data-history-point", exportHistoryPoint);
+router.get("/export-mutasi-bymonth", exportExcelByMonth);
 
 export default router;

@@ -530,18 +530,16 @@ export const getAllMembership = async (req, res) => {
 
     // bikin kondisi search global
     const searchCondition = search
-      ? {
-          [Op.or]: [
-            { "$User.fullname$": { [Op.like]: `%${search}%` } },
-            { "$User.email$": { [Op.like]: `%${search}%` } },
-            { "$User.username$": { [Op.like]: `%${search}%` } },
-            {
-              "$MembershipDetail.location_name$": { [Op.like]: `%${search}%` },
-            },
-            { rfid: { [Op.like]: `%${search}%` } },
-            { plate_number: { [Op.like]: `%${search}%` } },
-          ],
-        }
+      ? Sequelize.literal(`
+      (
+        Member_Customer.fullname LIKE '%${search}%' OR
+        Member_Customer.email LIKE '%${search}%' OR
+        Member_Customer.username LIKE '%${search}%' OR
+        customer_membership_detail.location_name LIKE '%${search}%' OR
+        customer_membership.rfid LIKE '%${search}%' OR
+        customer_membership.plate_number LIKE '%${search}%'
+      )
+    `)
       : {};
 
     // hitung total
@@ -574,6 +572,7 @@ export const getAllMembership = async (req, res) => {
           attributes: [
             "fullname",
             "email",
+            "points",
             "phone_number",
             "username",
             "created_at",
@@ -582,6 +581,7 @@ export const getAllMembership = async (req, res) => {
       ],
       attributes: [
         "id",
+        "cust_id",
         "member_customer_no",
         "rfid",
         "vehicle_type",

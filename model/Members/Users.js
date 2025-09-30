@@ -167,25 +167,4 @@ VehicleList.belongsTo(User, {
   as: "customer_memberships",
 });
 
-// User.hasMany(UserDetails, {
-//   foreignKey: "MemberUserId",
-// });
-// User.hasMany(MemberUserProduct, {
-//   foreignKey: "MemberUserId",
-// });
-// User.hasMany(MemberUserRole, {
-//   foreignKey: "UserId",
-// });
-
-// UserDetails.belongsTo(User, {
-//   foreignKey: "MemberUserId",
-// });
-// MemberUserProduct.belongsTo(User, {
-//   foreignKey: "MemberUserId",
-// });
-
-// MemberUserRole.belongsTo(User, {
-//   foreignKey: "UserId",
-// });
-
 export default User;

@@ -133,3 +133,93 @@ export const historyPointUsed = async (req, res) => {
     });
   }
 };
+
+export const getUserPointHistory = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      startDate,
+      endDate,
+      search,
+      userId,
+    } = req.query;
+
+    const offset = (page - 1) * limit;
+
+    // filter dasar
+    const whereCondition = {
+      user_id: userId,
+      statusPayment: "PAID",
+    };
+
+    // filter date range
+    if (startDate && endDate) {
+      whereCondition.createdAt = {
+        [Op.between]: [new Date(startDate), new Date(endDate)],
+      };
+    }
+
+    // filter description
+    if (search) {
+      whereCondition[Op.or] = [
+        { product_name: { [Op.like]: `%${search}%` } },
+        { purchase_type: { [Op.like]: `%${search}%` } },
+      ];
+    }
+
+    const userData = await User.findOne({
+      where: { id: userId },
+      attributes: ["fullname", "email", "phone_number"],
+    });
+
+    const { rows, count } = await TransactionHistoryPayment.findAndCountAll({
+      where: whereCondition,
+      order: [["createdAt", "ASC"]],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+    });
+
+    let totalPoint = 0;
+    const result = rows.map((t) => {
+      let debit = "-";
+      let credit = "-";
+
+      if (t.purchase_type === "TOPUP") {
+        // ✅ TOPUP selalu kredit
+        credit = parseFloat(t.price);
+        totalPoint += credit;
+      } else if (
+        t.purchase_type === "MEMBERSHIP" &&
+        t.transactionType === "POINT"
+      ) {
+        // ✅ Purchase membership hanya debit kalau pakai POINT
+        debit = parseFloat(t.price);
+        totalPoint -= debit;
+      }
+
+      return {
+        Date: t.createdAt.toISOString().slice(0, 10),
+        Description:
+          t.purchase_type === "TOPUP"
+            ? "TOPUP"
+            : `Purchase ${t.product_name || "Membership"}`,
+        Debet: debit !== "-" ? debit.toFixed(2) : 0,
+        Kredit: credit !== "-" ? credit.toFixed(2) : 0,
+        TotalPoint: totalPoint.toFixed(2),
+      };
+    });
+
+    res.json({
+      page: parseInt(page),
+      limit: parseInt(limit),
+      totalData: count,
+      totalPages: Math.ceil(count / limit),
+      userData,
+      data: result,
+    });
+  } catch (err) {
+    console.error("Error getUserPointHistory:", err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};

@@ -4,10 +4,11 @@ import ExcelJs from "exceljs";
 import moment from "moment/moment.js";
 import PaymentTransaction from "../../model/Members/v02/PaymentHistory.js";
 import TransactionHistoryPayment from "../../model/Members/v02/TransactionPaymentHistory.js";
-import { Op, Sequelize } from "sequelize";
+import { col, fn, Op, Sequelize, where } from "sequelize";
 import { errorResponse } from "../../config/response.js";
 import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 import MutasiBank from "../../model/Members/v02/MutasiBank.js";
+import VehicleList from "../../model/Members/v02/VehicleList.js";
 
 export const exportDataTransaksiPost = async (req, res) => {
   const locationCode = req.query.locationCode
@@ -1109,8 +1110,8 @@ export const exportDetailTransaksiLocation = async (req, res) => {
     const selectedMonth = month ? parseInt(month) : currentDate.getMonth() + 1;
     const selectedYear = year ? parseInt(year) : currentDate.getFullYear();
 
-    const startDate = new Date(selectedYear, selectedMonth - 2, 26, 0, 0, 0);
-    const endDate = new Date(selectedYear, selectedMonth - 1, 25, 23, 59, 59);
+    const startDate = new Date(selectedYear, selectedMonth - 1, 1, 0, 0, 0);
+    const endDate = new Date(selectedYear, selectedMonth, 0, 23, 59, 59);
 
     // bikin filter dasar
     const whereCondition = {
@@ -1131,25 +1132,72 @@ export const exportDetailTransaksiLocation = async (req, res) => {
     const response = await TransactionHistoryPayment.findAll({
       where: whereCondition,
       attributes: [
-        "id",
+        ["id", "trx_history_id"],
+        "trxId",
         "location_code",
         "location_name",
         "vehicle_type",
+        "virtual_account",
+        "transactionType",
         "rfid",
         "updatedAt",
         "price",
         "product_name",
         "statusPayment",
-        "trxId",
-        "virtual_account",
-        "purchase_type",
       ],
       include: [
         {
           model: User,
           as: "trxHistoryUser",
-          attributes: ["id", "fullname", "email", "points"],
+          attributes: [
+            ["id", "user_id"], // 👈 kasih alias biar gak bentrok
+            "fullname",
+            "email",
+            "points",
+            "username",
+          ],
+          include: [
+            {
+              model: VehicleList,
+              attributes: [
+                ["id", "vehicle_id"], // alias unik
+                "rfid",
+                "vehicle_type",
+                "plate_number",
+              ],
+              include: [
+                {
+                  model: MembershipDetail,
+                  attributes: [
+                    ["id", "membership_detail_id"], // alias unik
+                    "updated_at",
+                    "end_date",
+                  ],
+                },
+              ],
+            },
+          ],
         },
+        // {
+        //   model: MembershipDetail,
+        //   as: "membershipDetail",
+        //   attributes: [
+        //     ["id", "membership_detail_id"], // alias unik
+        //     "updated_at",
+        //     "end_date",
+        //   ],
+        //   include: [
+        //     {
+        //       model: VehicleList,
+        //       attributes: [
+        //         ["id", "vehicle_id"], // alias unik
+        //         "rfid",
+        //         "vehicle_type",
+        //         "plate_number",
+        //       ],
+        //     },
+        //   ],
+        // },
       ],
       order: [["updatedAt", "DESC"]],
     });
@@ -1167,12 +1215,17 @@ export const exportDetailTransaksiLocation = async (req, res) => {
         { header: "Transaction Date", width: 20, key: "dateTransaction" },
         { header: "Transaction Time", width: 20, key: "timeTransaction" },
         { header: "Transaction Code", width: 30, key: "trxId" },
+        { header: "Transaction Type", width: 30, key: "transactionType" },
         { header: "Virtual Account", width: 20, key: "noVirtualAccount" },
+        { header: "Account Name", width: 20, key: "AccountName" },
         { header: "Location", width: 35, key: "locationName" },
         { header: "Product Name", width: 20, key: "typePurchase" },
         { header: "Price", width: 15, key: "amount" },
         { header: "Fee Admin", width: 15, key: "feeAdmin" },
         { header: "Vehicle Type", width: 15, key: "vehicle_type" },
+        { header: "Start Date", width: 15, key: "start_date" },
+        { header: "End Date", width: 15, key: "end_date" },
+        { header: "Plate Number", width: 15, key: "plate_number" },
         { header: "No RFID", width: 15, key: "rfid" },
       ];
 
@@ -1190,6 +1243,8 @@ export const exportDetailTransaksiLocation = async (req, res) => {
       let locationName = "";
 
       response.forEach((value, index) => {
+        const price = Number(value.price) || 0;
+
         worksheet.addRow({
           No: index + 1,
           dateTransaction: value.updatedAt
@@ -1199,16 +1254,28 @@ export const exportDetailTransaksiLocation = async (req, res) => {
             ? moment(value.updatedAt).tz("Asia/Jakarta").format("HH:mm:ss")
             : "-",
           trxId: value.trxId || "-",
+          transactionType: value.transactionType || "-",
           noVirtualAccount: value.virtual_account || "-",
+          AccountName: value.trxHistoryUser.username || "-",
           locationName: value.location_name || "-",
-          typePurchase: value.purchase_type || "-",
-          amount: Number(value.price) || 0,
+          typePurchase: value.product_name || "-",
+          amount: price,
           feeAdmin: 5000,
           vehicle_type: value.vehicle_type || "-",
-          rfid: value.rfid || "-",
+          start_date:
+            value.trxHistoryUser?.customer_memberships?.[0]
+              ?.customer_membership_detail?.updated_at || "-",
+          end_date:
+            value.trxHistoryUser?.customer_memberships?.[0]
+              ?.customer_membership_detail?.end_date || "-",
+          plate_number:
+            value.membershipDetail?.customer_memberships[0]?.plate_number ||
+            "-",
+          rfid: value?.trxHistoryUser?.customer_memberships?.[0].rfid || "-",
         });
+
         locationName = value.location_name || "-";
-        totalPrice += value.price || 0;
+        totalPrice += price;
       });
 
       // Tambahin row total
@@ -1217,15 +1284,18 @@ export const exportDetailTransaksiLocation = async (req, res) => {
         dateTransaction: "",
         timeTransaction: "",
         trxId: "",
+        transactionType: "",
         noVirtualAccount: "",
+        AccountName: "",
         locationName: "",
-        typePurchase: "TOTAL",
-        amount: totalPrice,
+        typePurchase: "",
+        amount: "",
         feeAdmin: "",
         vehicle_type: "",
+        start_date: "",
+        end_date: "",
+        plate_number: "",
         rfid: "",
-        startDate: "",
-        endDate: "",
       });
 
       totalRow.font = { bold: true };
@@ -1255,5 +1325,85 @@ export const exportDetailTransaksiLocation = async (req, res) => {
       message: "Internal server error",
       error: error.message,
     });
+  }
+};
+
+export const exportExcelByMonth = async (req, res) => {
+  try {
+    const { month, bankName } = req.query; // format "YYYY-MM"
+
+    if (!month) {
+      return res
+        .status(400)
+        .json({ message: "Parameter month wajib diisi, format YYYY-MM" });
+    }
+
+    const [year, bulan] = month.split("-");
+
+    const filters = {
+      [Op.and]: [
+        where(fn("YEAR", col("trxDate")), year),
+        where(fn("MONTH", col("trxDate")), bulan),
+      ],
+    };
+
+    if (bankName) {
+      filters.bankName = bankName;
+    }
+
+    // ambil data berdasarkan bulan & tahun dari trxDate
+    const records = await MutasiBank.findAll({
+      where: filters,
+      raw: true,
+    });
+
+    // buat workbook Excel
+    const workbook = new ExcelJs.Workbook();
+    const worksheet = workbook.addWorksheet("Mutasi Bank");
+
+    worksheet.columns = [
+      { header: "No", key: "no", width: 5 },
+      { header: "Location", key: "locationName", width: 30 },
+      { header: "Bank", key: "bankName", width: 35 },
+      { header: "Transaction No", key: "transactionNo", width: 25 },
+      { header: "Trx Date", key: "trxDate", width: 15 },
+      { header: "Virtual Account", key: "noVirtualAcount", width: 25 },
+      { header: "Amount", key: "amount", width: 15 },
+      { header: "RFID", key: "rfid", width: 20 },
+      { header: "Plat Number", key: "platNumber", width: 15 },
+      { header: "Type Purchase", key: "typePurchase", width: 20 },
+      { header: "Start Date", key: "startDate", width: 15 },
+      { header: "End Date", key: "endDate", width: 15 },
+      { header: "Status", key: "status", width: 15 },
+      { header: "Transfer Date", key: "transferDate", width: 20 },
+    ];
+
+    // isi data ke Excel
+    records.forEach((row, index) => {
+      const safeRow = Object.fromEntries(
+        Object.entries(row).map(([k, v]) => [k, v ?? "-"])
+      );
+
+      worksheet.addRow({
+        no: index + 1,
+        ...safeRow,
+      });
+    });
+
+    // response file
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=mutasi-${month}.xlsx`
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Gagal export Excel" });
   }
 };

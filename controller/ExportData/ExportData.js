@@ -180,7 +180,7 @@ export const exportHistoryTransaction = async (req, res) => {
           model: MembershipDetail,
           required: false,
           as: "membershipDetail",
-          attributes: ["start_date", "end_date"],
+          attributes: ["start_date", "updated_at"],
           where: {
             is_active: 1,
           },
@@ -251,8 +251,8 @@ export const exportHistoryTransaction = async (req, res) => {
           start_date: value.createdAt
             ? moment(value.createdAt).format("YYYY-MM-DD")
             : "-",
-          end_date: value.membershipDetail?.end_date
-            ? moment(value.membershipDetail.end_date).format("YYYY-MM-DD")
+          end_date: value.membershipDetail?.updated_at
+            ? moment(value.membershipDetail.updated_at).format("YYYY-MM-DD")
             : "-",
           purchase_type: value.purchase_type || "-",
           transactionType: value.transactionType || "-",

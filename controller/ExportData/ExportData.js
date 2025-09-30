@@ -203,7 +203,7 @@ export const exportHistoryTransaction = async (req, res) => {
         { header: "Transaction Date", width: 20, key: "dateTransaction" },
         { header: "Transaction Time", width: 20, key: "timeTransaction" },
         { header: "Transaction Code", width: 30, key: "trxId" },
-        { header: "Invoice No", width: 40, key: "invoice_id" },
+        { header: "Location", width: 40, key: "location_name" },
         { header: "Name", width: 35, key: "fullname" },
         { header: "Email", width: 35, key: "email" },
         { header: "No Card", width: 35, key: "rfid" },
@@ -236,7 +236,7 @@ export const exportHistoryTransaction = async (req, res) => {
             ? moment(value.createdAt).tz("Asia/Jakarta").format("HH:mm:ss")
             : "-",
           trxId: value.trxId || "-",
-          invoice_id: value.invoice_id || "-",
+          location_name: value.location_name || "-",
           fullname: value.trxHistoryUser ? value.trxHistoryUser?.fullname : "-",
           email: value.trxHistoryUser ? value.trxHistoryUser?.email : "-",
           rfid: value.rfid ? value.rfid : "-",

@@ -138,21 +138,12 @@ export const exportHistoryTransaction = async (req, res) => {
     : [];
   const startDate = req.query.startDate;
   const endDate = req.query.endDate;
-  const type = req.query.type;
 
   try {
     const whereClause = {};
 
     if (locationCode.length > 0) {
       whereClause.location_code = { [Op.in]: locationCode };
-    }
-
-    // if (type === "TOPUP") {
-    //   whereClause.purchase_type = "TOPUP";
-    // }
-
-    if (type === "MEMBERSHIP") {
-      whereClause.purchase_type = "MEMBERSHIP";
     }
 
     const dateCondition =
@@ -170,6 +161,8 @@ export const exportHistoryTransaction = async (req, res) => {
         ...(dateCondition ? dateCondition : {}),
         statusPayment: "PAID",
       },
+      distinct: true,
+      col: "trxId",
       include: [
         {
           model: User,
@@ -241,7 +234,6 @@ export const exportHistoryTransaction = async (req, res) => {
           email: value.trxHistoryUser ? value.trxHistoryUser?.email : "-",
           rfid: value.rfid ? value.rfid : "-",
           vehicle_type: value.vehicle_type ? value.vehicle_type : "-",
-          virtual_account: value.virtual_account || "-",
           virtual_account: value.virtual_account || "-",
           bank_name:
             value.payment_trx?.module_name === "BAYARIND_BCA_VIRTUAL_ACCOUNT"

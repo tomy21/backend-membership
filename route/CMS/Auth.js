@@ -6,6 +6,7 @@ const router = express.Router();
 router.post("/register-cms", Users.registerCMS);
 router.put("/update-users-cms/:id", Users.updateCMSUser);
 router.post("/login-cms", Users.login);
+router.post("/login-aplikasi", Users.loginAplikasi);
 router.get("/cms-userById", protect, Users.getUserByIdCMS);
 router.get("/all-data-users", Users.getUserCMS);
 router.delete("/delete-user/:id", Users.softDeleteUser);

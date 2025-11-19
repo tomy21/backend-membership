@@ -49,3 +49,28 @@ export const createSendToken = (user, statusCode, res, rememberMe) => {
     data: encryptedData,
   });
 };
+
+export const createTokenAplikasi = (user, statusCode, res, rememberMe) => {
+  const token = signToken(user, rememberMe);
+
+  res.cookie("refreshToken", token, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === "production",
+    expires: new Date(Date.now() + (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000),
+    sameSite: "strict",
+    domain: ".skyparking.online",
+  });
+
+  const response = {
+    status: "success",
+    message: "Successfully",
+    token,
+    name: user.fullname,
+    email: user.email,
+    location: user.membershipRole.location,
+  };
+
+  res.status(statusCode).json({
+    response,
+  });
+};

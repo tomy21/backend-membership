@@ -84,6 +84,10 @@ const PaymentTransaction = db.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    paymentDate: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,

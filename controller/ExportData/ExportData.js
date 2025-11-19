@@ -307,7 +307,7 @@ export const exportHistoryPayment = async (req, res) => {
     const dateCondition =
       startDate && endDate
         ? {
-            created_at: {
+            updated_at: {
               [Sequelize.Op.gte]: `${startDate} 00:00:00`,
               [Sequelize.Op.lt]: `${endDate} 23:59:59`,
             },
@@ -320,6 +320,7 @@ export const exportHistoryPayment = async (req, res) => {
         ...dateCondition,
         status_transaction: "COMPLETED",
         payment_using: "VIRTUAL_ACCOUNT",
+        app_module: "APP_MEMBERSHIP_B2B",
       },
     });
 

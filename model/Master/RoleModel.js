@@ -13,6 +13,10 @@ export const MemberUserRole = db.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
+    location: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
     created_by: {
       type: DataTypes.STRING,
       allowNull: false,

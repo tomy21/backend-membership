@@ -320,6 +320,131 @@ export const exportHistoryPayment = async (req, res) => {
         ...dateCondition,
         status_transaction: "COMPLETED",
         payment_using: "VIRTUAL_ACCOUNT",
+        app_module: "APP_MEMBERSHIP",
+      },
+    });
+
+    if (result.count > 0) {
+      const workbook = new ExcelJs.Workbook();
+      const worksheet = workbook.addWorksheet("Transaction Membership");
+
+      worksheet.columns = [
+        { header: "No", key: "No", width: 5 },
+        { header: "Transaction Date", width: 20, key: "dateTransaction" },
+        { header: "Transaction Time", width: 20, key: "timeTransaction" },
+
+        { header: "Transaction Code", width: 30, key: "trx_id" },
+        { header: "Invoice Number", width: 30, key: "invoice_number" },
+        {
+          header: "Virtual Account Name",
+          width: 35,
+          key: "virtual_account_name",
+        },
+        {
+          header: "Virtual Account Number",
+          width: 35,
+          key: "virtual_account_number",
+        },
+        {
+          header: "Virtual Account Email",
+          width: 35,
+          key: "virtual_account_email",
+        },
+        { header: "Payment Method", width: 30, key: "payment_using" },
+        { header: "Product", width: 35, key: "app_module" },
+        { header: "Amount", width: 30, key: "paid_amount" },
+        { header: "Status", width: 20, key: "status_transaction" },
+      ];
+
+      worksheet.getRow(1).eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; // Bold & warna putih
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "0070C0" }, // Background biru
+        };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+      });
+
+      for (const [index, value] of result.rows.entries()) {
+        const row = worksheet.addRow({
+          No: index + 1,
+          dateTransaction: value.created_at
+            ? moment(value.created_at).tz("Asia/Jakarta").format("YYYY-MM-DD")
+            : "-",
+          timeTransaction: value.created_at
+            ? moment(value.created_at).tz("Asia/Jakarta").format("HH:mm:ss")
+            : "-",
+
+          trx_id: value.trx_id || "-",
+          invoice_number: value.invoice_number || "-",
+          virtual_account_name: value.virtual_account_name || "-",
+          virtual_account_number: value.virtual_account_number || "-",
+          virtual_account_email: value.virtual_account_email || "-",
+          payment_using: value.payment_using || "-",
+          app_module: value.app_module || "-",
+
+          purchase_type: value.transactionType || "-",
+          paid_amount: value.paid_amount || "-",
+          status_transaction: value.status_transaction || "-",
+        });
+
+        row.eachCell((cell) => {
+          cell.alignment = { vertical: "middle", horizontal: "center" };
+        });
+      }
+
+      const fileName = startDate
+        ? `History_Payment_${startDate}_to_${endDate}.xlsx`
+        : `History_Payment_alldate.xlsx`;
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
+
+      await workbook.xlsx.write(res);
+      res.end();
+    } else {
+      res.status(400).json({ success: false, message: "Get data failed" });
+    }
+  } catch (error) {
+    console.log("Error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+export const exportHistoryPaymentB2B = async (req, res) => {
+  const locationCode = req.query.locationCode
+    ? JSON.parse(req.query.locationCode)
+    : [];
+  const startDate = req.query.startDate;
+  const endDate = req.query.endDate;
+
+  try {
+    const whereClause = {};
+
+    if (locationCode.length > 0) {
+      whereClause.location_code = { [Op.in]: locationCode };
+    }
+
+    const dateCondition =
+      startDate && endDate
+        ? {
+            updated_at: {
+              [Sequelize.Op.gte]: `${startDate} 00:00:00`,
+              [Sequelize.Op.lt]: `${endDate} 23:59:59`,
+            },
+          }
+        : {};
+
+    const result = await PaymentTransaction.findAndCountAll({
+      where: {
+        ...whereClause,
+        ...dateCondition,
+        status_transaction: "COMPLETED",
+        payment_using: "VIRTUAL_ACCOUNT",
         app_module: "APP_MEMBERSHIP_B2B",
       },
     });
@@ -1390,7 +1515,7 @@ export const exportExcelByMonth = async (req, res) => {
     );
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=mutasi-${month}.xlsx`
+      `attachment; filename=reconcile-${month}.xlsx`
     );
 
     await workbook.xlsx.write(res);

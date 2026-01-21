@@ -1,5 +1,7 @@
 import { DataTypes, Sequelize } from "sequelize";
 import { db } from "../../../config/dbConfig.js";
+import User from "../Users.js";
+import MemberTenant from "../MemberTenants.js";
 
 const TennantPurchaseHistory = db.define(
   "tennant_purchase_history",
@@ -103,10 +105,10 @@ const TennantPurchaseHistory = db.define(
   }
 );
 
-// TransactionHistoryPayment.belongsTo(User, {
-//   foreignKey: "user_id",
-//   targetKey: "id",
-//   as: "trxHistoryUser",
-// });
+TennantPurchaseHistory.belongsTo(MemberTenant, {
+  foreignKey: "user_id",
+  targetKey: "id",
+  as: "trxHistoryUserTennant",
+});
 
 export default TennantPurchaseHistory;

@@ -5,6 +5,7 @@ import { protect } from "../../middleware/member/authMiddleware.js";
 const router = express.Router();
 
 router.post("/register", Users.register);
+router.post("/register-encrypt", Users.registerEncrypt);
 router.post("/login", Users.login);
 router.post("/verifikasi", protect, Users.getUserByIdDetail);
 router.get("/logout", Users.logout);
@@ -15,6 +16,7 @@ router.patch("/user/:id", protect, Users.getUserById);
 router.get("/activate/:token", Users.activateAccount);
 router.get("/activate-account-cms/:token", Users.activateAccountCMS);
 router.get("/list-card-members", protect, Users.getCardDetail);
+router.get("/find-card-plat", Users.getAllCardOrPlat);
 router.get("/list-card-members/:rfid", protect, Users.getListCardDetail);
 
 router.post("/request-email-verification", Users.requestTokenActivation);

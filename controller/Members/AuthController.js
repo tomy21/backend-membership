@@ -156,7 +156,7 @@ export const requestTokenActivation = async (req, res) => {
 
     const activationURL = `${req.protocol}://${req.get(
       "host"
-    )}/v01/member/api/auth/activate/${activationToken}`;
+    )}/v01/member/api/auth/activate/${activationToken}?referralUrl=${referralUrl}`;
 
     const to = user.email;
     const subject = "Welcome to SKY PARKING - Activate Your Account";
@@ -478,12 +478,115 @@ export const register = async (req, res) => {
       customer_no: customerNo, // Include the generated customer number
     });
 
+    const activationToken = newUser.createActivationToken();
+    await newUser.save({ validate: false });
+
+    const activationURL = `${referralUrl}/api/activation-akun/${activationToken}?referralUrl=${referralUrl}`;
+
+    const to = newUser.email;
+    const subject = "Welcome to SKY PARKING - Activate Your Account";
+    const html = `
+          <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+            <div style="text-align: center; padding-bottom: 20px;">
+              <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
+            </div>
+            <h2 style="color: #333;">Hi, ${newUser.username}</h2>
+            <p style="color: #555;">
+              Terima kasih telah menggunakan layanan membership <strong>SKY PARKING</strong>. Kami sangat senang menyambut anda!
+              Sebelum anda bisa menikmati semua keuntungan sebagai member, silakan aktifkan akun anda dengan mengklik tombol di bawah ini.
+            </p>
+            <div style="text-align: center; margin: 20px 0;">
+              <a href="${activationURL}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
+                Aktifkan Akun
+              </a>
+            </div>
+            <p style="color: #555;">
+              Untuk pengambilan kartu membership anda bisa ambil di petugas SKY PARKING.
+              Jika anda mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
+            </p>
+            <p style="color: #555;">
+              Best Regards,<br/>
+              <strong>SKY Parking Utama</strong>
+            </p>
+          </div>
+        `;
+
+    const attachments = [
+      {
+        filename: "logo.png",
+        path: "./images/logo.png",
+        cid: "logo",
+      },
+    ];
+
+    await sendEmailRegister({ to, subject, html, attachments });
+
+    createSendToken(newUser, 201, res);
+  } catch (err) {
+    if (err instanceof Sequelize.UniqueConstraintError) {
+      const errorField = err.errors[0].path; // Mendapatkan nama field yang menyebabkan error
+      const errorMessage = `${errorField} sudah digunakan. Mohon gunakan yang lain.`;
+      return res.status(400).json({
+        status: "fail",
+        message: errorMessage,
+      });
+    }
+
+    res.status(400).json({
+      status: "fail",
+      message: err.message,
+    });
+  }
+};
+
+export const registerEncrypt = async (req, res) => {
+  try {
+    const { data } = req.body;
+
+    const bytes = CryptoJS.AES.decrypt(data, secret_key);
+    const decryptedData = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+
+    const prefix = "03";
+    const now = new Date();
+    const year = now.getFullYear().toString().slice(-2);
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const date = String(now.getDate()).padStart(2, "0");
+    // const datePart = `${year}${month}${date}`;
+    const random = Math.floor(100 + Math.random() * 900);
+    const customerNo = `${prefix}${year}${month}${date}${random}`; // Generate a random 10-digit number
+
+    const dob = new Date(decryptedData.dob);
+
+    if (isNaN(dob.getTime())) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Invalid date format",
+      });
+    }
+    const referralUrl = decryptedData.referalURL ?? null;
+
+    const payloadData = {
+      fullname: decryptedData.fullname,
+      username: decryptedData.username,
+      email: decryptedData.email,
+      address: decryptedData.address,
+      password: decryptedData.password,
+      phone_number: decryptedData.phone_number.toString(),
+      pin: decryptedData.pin ?? null,
+      gender: decryptedData.gender,
+      dob: dob,
+      customer_no: customerNo, // Include the generated customer number
+    };
+
+
+    const newUser = await User.create(payloadData, {
+      validate: false,
+    });
+
     const activationToken = newUser.createActivationToken(referralUrl);
     await newUser.save({ validate: false });
 
-    const activationURL = `https://${req.get(
-      "host"
-    )}/v01/member/api/auth/activate/${activationToken}?referralUrl=${referralUrl}`;
+    const activationURL = `${referralUrl}/api/activation-akun/${activationToken}?referralUrl=${referralUrl}`;
 
     const to = newUser.email;
     const subject = "Welcome to SKY PARKING - Activate Your Account";
@@ -543,10 +646,14 @@ export const register = async (req, res) => {
 
 export const activateAccount = async (req, res) => {
   try {
+    const referralUrl = req.query.referralUrl;
     const hashedToken = crypto
       .createHash("sha256")
       .update(req.params.token)
       .digest("hex");
+
+    console.log("referal", referralUrl);
+    console.log("hashed", hashedToken);
 
     const user = await User.findOne({
       where: {
@@ -556,30 +663,23 @@ export const activateAccount = async (req, res) => {
     });
 
     if (!user) {
-      const allowedDomains =
-        `${req.protocol}://${req.get("host")}` === "http://localhost:3008"
-          ? "http://localhost:3000"
-          : "https://membership.skyparking.online";
-
-      return res.redirect(`${allowedDomains}/request-token`);
-    }
-
-    const allowedDomains =
-      `${req.protocol}://${req.get("host")}` === "http://localhost:3008"
-        ? "http://localhost:3000"
-        : `https://membership.skyparking.online`;
-
-    if (user) {
-      user.is_active = 1;
-      await user.save();
-    } else {
+      // Kirim JSON, jangan redirect langsung dari sini
       return res.status(400).json({
         status: "fail",
         message: "Token is invalid or has expired",
+        redirectTo: "/request-token" // Beri info ke frontend
       });
     }
 
-    res.redirect(`${allowedDomains}/register-success`);
+    user.is_active = 1;
+    user.active_token = null; // Opsional: hapus token setelah pakai
+    await user.save();
+
+    return res.status(200).json({
+      status: "success",
+      message: "Account activated successfully",
+      redirectTo: "/register-success"
+    });
   } catch (err) {
     res.status(400).json({
       status: "fail",
@@ -629,6 +729,52 @@ export const activateAccountCMS = async (req, res) => {
   } catch (err) {
     res.status(400).json({
       status: "fail",
+      message: err.message,
+    });
+  }
+};
+
+export const getUserByUsername = async (req, res) => {
+  try {
+    const username = req.params.username
+    const result = await User.findOne({
+      where: { username: username },
+      attributes: [
+        "id",
+        "fullname",
+        "email",
+      ],
+      // include: [
+      //   {
+      //     model: VehicleList,
+      //     // where: { isActive: 1 },
+      //     attributes: ["member_customer_no", "rfid", "vehicle_type"],
+      //     required: false,
+      //     include: [
+      //       {
+      //         model: MembershipDetail,
+      //         where: { is_active: 1 },
+      //         attributes: ["is_active", "location_id"],
+      //       },
+      //     ],
+      //   },
+      // ],
+    });
+
+    if (!result) {
+      return res.status(404).json({
+        statusCode: 404,
+        message: "No users found with that ID",
+      });
+    }
+    res.status(200).json({
+      statusCode: 200,
+      message: "Users retrieved successfully",
+      data: result,
+    });
+  } catch (err) {
+    res.status(400).json({
+      statusCode: 400,
       message: err.message,
     });
   }
@@ -838,5 +984,53 @@ export const getAllUsers = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+export const getAllCardOrPlat = async (req, res) => {
+  try {
+    // Mengambil query parameter dari URL, misal: /api/cards?search=B1234
+    const { search } = req.query;
+
+    let whereCondition = {};
+
+    // Jika ada parameter search, tambahkan kondisi OR untuk rfid dan plate_number
+    if (search) {
+      whereCondition = {
+        [Op.or]: [
+          { rfid: { [Op.like]: `%${search}%` } },
+          { plate_number: { [Op.like]: `%${search}%` } }
+        ]
+      };
+    }
+
+    const cardDetail = await VehicleList.findAll({
+      where: whereCondition, // Masukkan kondisi filter di sini
+      group: ["rfid"],
+      attributes: [
+        "member_customer_no",
+        "rfid",
+        "vehicle_type",
+        "plate_number",
+      ],
+      include: [
+        {
+          model: MembershipDetail,
+          attributes: ["is_active", "location_id", "updated_at", "end_date"],
+        },
+      ],
+    });
+
+    res.status(200).json({
+      statusCode: 200,
+      message: "Membership Detail retrieved successfully",
+      count: cardDetail.length,
+      data: cardDetail,
+    });
+  } catch (err) {
+    res.status(400).json({
+      statusCode: 400,
+      message: err.message,
+    });
   }
 };

@@ -5,11 +5,11 @@ import UserCMS from "../../model/Members/v02/UserCMS.js";
 export const protect = async (req, res, next) => {
   let token;
 
+
   // Pastikan Anda menggunakan nama cookie yang benar ('refreshToken' dalam hal ini)
   if (req.cookies.refreshToken) {
     token = req.cookies.refreshToken;
   }
-
   // Jika token tidak ada
   if (!token) {
     return res.status(401).json({
@@ -24,6 +24,7 @@ export const protect = async (req, res, next) => {
       algorithms: ["HS256"],
     });
     req.userId = decoded.id;
+    req.roleId = decoded.roleId;
     // Cari user berdasarkan ID yang ada di token
     const currentUser = await User.findByPk(decoded.id);
 

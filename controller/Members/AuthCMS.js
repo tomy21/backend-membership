@@ -453,7 +453,6 @@ export const getUserByIdCMS = async (req, res) => {
       include: [
         {
           model: MemberUserRole,
-          attributes: ["name"],
         },
       ],
     });
@@ -486,13 +485,13 @@ export const getUserCMS = async (req, res) => {
       search.trim() === ""
         ? {} // Jika tidak ada search, ambil semua
         : {
-            [Op.or]: [
-              { fullname: { [Op.like]: `%${search}%` } },
-              { email: { [Op.like]: `%${search}%` } },
-              { username: { [Op.like]: `%${search}%` } },
-              { phone_number: { [Op.like]: `%${search}%` } },
-            ],
-          };
+          [Op.or]: [
+            { fullname: { [Op.like]: `%${search}%` } },
+            { email: { [Op.like]: `%${search}%` } },
+            { username: { [Op.like]: `%${search}%` } },
+            { phone_number: { [Op.like]: `%${search}%` } },
+          ],
+        };
     const users = await UserCMS.findAndCountAll({
       where: whereCondition,
       attributes: [
@@ -589,15 +588,15 @@ export const restoreUser = async (req, res) => {
 };
 
 export const logoutCMS = (req, res) => {
-  res.cookie("refreshToken", "loggedout", {
-    expires: new Date(Date.now() + 10 * 1000),
+  res.clearCookie("refreshToken", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    domain: ".skyparking.online",
+    sameSite: "strict", // HARUS sama dengan saat set login
+    path: "/",
+    domain: ".skyparking.online", // aktifkan jika login pakai domain ini
   });
 
-  res.status(200).json({
+  return res.status(200).json({
     status: "success",
     message: "Logged out successfully",
   });

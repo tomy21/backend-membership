@@ -1,6 +1,7 @@
 import express from "express";
 import {
   getMembershipStatistics,
+  getMembershipStatisticsByRange,
   listSummaryLocation,
   summaryByProduct,
   totalValue,
@@ -9,6 +10,7 @@ import {
 const router = express.Router();
 
 router.get("/memberships/statistics", getMembershipStatistics);
+router.get("/memberships/statistics-range", getMembershipStatisticsByRange);
 router.get("/memberships/dashboard-value", totalValue);
 router.get("/memberships/location-member", listSummaryLocation);
 router.get("/memberships/summary-by-product", summaryByProduct);

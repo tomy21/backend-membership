@@ -2,6 +2,7 @@ import { Op } from "sequelize";
 import { errorResponse, successResponse } from "../../config/response.js";
 import { MenuModels } from "../../model/Master/MenuModels.js";
 import { RolePermission } from "../../model/Master/RolePermission.js";
+import { menuCMS } from "../../model/Master/Menu.js";
 
 export const createMenu = async (req, res) => {
   const { name, link, parent_slug, icon, position, slug, created_by } =
@@ -104,6 +105,46 @@ export const getMenus = async (req, res) => {
     res.status(500).json({
       message: "Failed get all menus",
       error: err.message,
+    });
+  }
+};
+
+export const getMenusByParent = async (req, res) => {
+  try {
+    const { parent_slug } = req.query;
+    const roleId = req.roleId;
+
+    console.log(roleId);
+
+    if (roleId !== 1 && parent_slug === "master") {
+      return res.status(400).json({
+        status: false,
+        message: "Role ini tidak ada akses ke master",
+      })
+    }
+
+    if (!parent_slug) {
+      return res.status(400).json({
+        message: "parent_slug is required",
+      });
+    }
+
+    const menus = await menuCMS.findAll({
+      where: {
+        parent_slug,
+      },
+      order: [["position", "ASC"]],
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: menus,
+    });
+  } catch (error) {
+    console.error("getMenusByParent error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
     });
   }
 };

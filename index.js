@@ -21,10 +21,16 @@ import Dashboard from "./route/CMS/DashboardRoute.js";
 import ExportData from "./route/CMS/ExportDataRoute.js";
 import NotificationRoute from "./route/Members/NotificationRoute.js";
 import UploadMember from "./route/CMS/UploadMember.js";
-
+import HistoryPoints from "./route/CMS/HistoryPoints.js";
 import Reconsiliasi from "./route/CMS/reconsiliasi.js";
-
 import MemberTenantRoute from "./route/Members/MemberTenants.js";
+
+import authAplikasi from "./route/aplikasi/auth.js"
+import transaksiAplikasi from "./route/aplikasi/transaksi.js"
+
+import TennantRouteAuth from "./route/Members/MemberTenants.js"
+
+
 
 // import scheduleMembershipReminder from "./jobs/MembershipReminder.js";`
 
@@ -36,7 +42,7 @@ app.use(
     origin: [
       "http://localhost:3000",
       "http://localhost:3001",
-      "http://localhost:3003",
+      "http://localhost:3002",
       "https://dev-membership.skyparking.online",
       "https://dev-injectmember.skyparking.online",
       "https://inject.skyparking.online",
@@ -71,11 +77,18 @@ app.use("/v01/cms/api/auth", Menu);
 app.use("/v01/cms/api", Dashboard);
 app.use("/v01/cms/api", ExportData);
 app.use("/v01/cms/api", UploadMember);
+app.use("/v01/cms/api", HistoryPoints);
 app.use("/v01/member/api", Reconsiliasi);
-
 app.use("/v01/member/api", NotificationRoute);
-
 app.use("/v01/member/api", MemberTenantRoute);
+
+//tennant
+app.use("/v01/tennant/api/auth", TennantRouteAuth);
+
+
+//aplikasi
+app.use("/v01/aplikasi/api", authAplikasi);
+app.use("/v01/aplikasi/api", transaksiAplikasi);
 
 const PORT = 3008;
 app.listen(PORT, () => {

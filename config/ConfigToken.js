@@ -27,11 +27,11 @@ export const createSendToken = (user, statusCode, res, rememberMe) => {
   const token = signToken(user, rememberMe);
 
   res.cookie("refreshToken", token, {
-    httpOnly: false,
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     expires: new Date(Date.now() + (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000),
-    sameSite: "strict",
-    domain: ".skyparking.online",
+    // sameSite: "strict",
+    // domain: ".skyparking.online",
   });
 
   const response = {
@@ -54,17 +54,18 @@ export const createTokenAplikasi = (user, statusCode, res, rememberMe) => {
   const token = signToken(user, rememberMe);
 
   res.cookie("refreshToken", token, {
-    httpOnly: false,
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     expires: new Date(Date.now() + (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000),
     sameSite: "strict",
     domain: ".skyparking.online",
   });
-
+  // console.log(user);
   const response = {
     status: "success",
     message: "Successfully",
     token,
+    userId: user.id,
     name: user.fullname,
     email: user.email,
     location: user.membershipRole.location,

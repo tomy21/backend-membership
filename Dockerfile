@@ -1,22 +1,23 @@
+# Base image
 FROM node:20-alpine
 
-# Set the working directory
+# Set working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json
+# Copy package.json & package-lock.json
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install
+RUN npm ci
 
 # Install PM2 globally
 RUN npm install -g pm2
 
-# Copy the rest of the application code
+# Copy semua kode aplikasi
 COPY . .
 
-# Expose the application port
+# Expose port sesuai aplikasi
 EXPOSE 3008
 
-# Start the application using PM2
+# Start app with PM2
 CMD ["pm2-runtime", "start", "npm", "--", "start"]

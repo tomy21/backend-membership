@@ -32,6 +32,8 @@ export const getAllMemberProducts = async (req, res) => {
       order: [["Id", "DESC"]],
     });
 
+    console.log(rows);
+
     return successResponse(res, 200, "Products retrieved successfully", {
       total: count,
       totalPages: Math.ceil(count / limit),

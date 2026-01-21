@@ -85,19 +85,19 @@ export const getByTypePayment = async (req, res) => {
   const { type, locationCode } = req.query;
 
   try {
-    let payments;
+    // let payments;
 
-    if (locationCode === "004SK") {
-      payments = await ProviderPayment.findAll({
-        where: { type_payment: type, gateway_partner: "NOBU", is_show: 1 },
-      });
-      return res.status(200).json(payments);
-    } else {
-      payments = await ProviderPayment.findAll({
-        where: { type_payment: type, is_show: 1 },
-      });
-      return res.status(200).json(payments);
-    }
+    // if (locationCode === "004SK") {
+    //   payments = await ProviderPayment.findAll({
+    //     where: { type_payment: type, gateway_partner: "NOBU", is_show: 1 },
+    //   });
+    //   return res.status(200).json(payments);
+    // } else {
+    const payments = await ProviderPayment.findAll({
+      where: { type_payment: type, is_show: 1 },
+    });
+    return res.status(200).json(payments);
+    // }
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }

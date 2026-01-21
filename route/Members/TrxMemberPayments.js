@@ -9,6 +9,7 @@ router
   .route("/history/transaction")
   .get(trxHistoryPayment.getTransactions)
   .post(trxHistoryPayment.createTransaction);
+router.route("/history/transaction-b2b").get(trxHistoryPayment.getPaymentB2B);
 router
   .route("/history/transaction-topup")
   .get(trxHistoryPayment.getTransactionsTopup);

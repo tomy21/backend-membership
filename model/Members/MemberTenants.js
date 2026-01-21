@@ -1,6 +1,7 @@
 import { Sequelize, DataTypes } from "sequelize";
 import { db } from "../../config/dbConfig.js";
 import { LocationMembers } from "../Master/RefLocationMembers.js";
+import VehicleList from "./v02/VehicleList.js";
 
 const MemberTenant = db.define(
   "admin_tennant",
@@ -86,5 +87,18 @@ const MemberTenant = db.define(
     tableName: "admin_tennant",
   }
 );
+
+// MemberTenant.js
+MemberTenant.hasMany(VehicleList, {
+  foreignKey: "tennant_code",
+  sourceKey: "tennant_code",
+  as: "membersTennant",
+});
+
+// VehicleList Model
+VehicleList.belongsTo(MemberTenant, {
+  foreignKey: "tennant_code",
+  targetKey: "tennant_code",
+});
 
 export default MemberTenant;

@@ -4,22 +4,23 @@ import dotenv from "dotenv";
 import { Op } from "sequelize";
 import bcrypt from "bcryptjs/dist/bcrypt.js";
 import { createSendToken } from "../../config/ConfigToken.js";
-dotenv.config({ path: ".env.production" });
+dotenv.config({ path: ".env" });
 const secret_key = process.env.SECRET_KEY;
 
 export const loginTennant = async (req, res) => {
-  const { data } = req.body;
-
-  if (!data) {
+  const encryptedPayload = req.body.data?.encrypted || req.body.encrypted;
+  console.log("[]", res.body);
+  if (!encryptedPayload) {
     return res.status(400).json({
       status: "fail",
       message: "Data tidak boleh kosong.",
     });
   }
+  console.log("data", encryptedPayload);
 
-  const bytes = CryptoJS.AES.decrypt(data, secret_key);
-  const decryptedData = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
-
+  const bytes = CryptoJS.AES.decrypt(encryptedPayload, secret_key);
+  const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
+  const decryptedData = JSON.parse(decryptedString);
   const { identifier, password, rememberMe } = decryptedData;
 
   if (!identifier || !password) {

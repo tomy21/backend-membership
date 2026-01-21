@@ -11,6 +11,7 @@ const LocationArea = db.define(
     location_code: {
       type: DataTypes.STRING,
       allowNull: false,
+      unique: true,
     },
     location_name: {
       type: DataTypes.STRING,

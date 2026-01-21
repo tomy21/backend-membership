@@ -1,6 +1,8 @@
 import { Op, Sequelize } from "sequelize";
 import ProductMembership from "../../model/Members/v02/ProductMembership.js";
 import moment from "moment";
+import { LocationMembers } from "../../model/Master/RefLocationMembers.js";
+import LocationArea from "../../model/Members/v02/LocationMaster.js";
 
 export const getAllProductMembers = async (req, res) => {
   const { page = 1, limit = 10, search = "" } = req.query;
@@ -26,6 +28,12 @@ export const getAllProductMembers = async (req, res) => {
       limit: parseInt(limit),
       offset: parseInt(offset),
       order: [["created_at", "DESC"]],
+      include: [
+        {
+          model: LocationArea,
+          attributes: ["location_name"],
+        },
+      ],
     });
 
     res.json({
@@ -95,6 +103,7 @@ export const getByVehicle = async (req, res) => {
       where: {
         vehicle_type: type,
         location_code: code,
+        is_show: 1,
         [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
       },
       attributes: [
@@ -103,6 +112,11 @@ export const getByVehicle = async (req, res) => {
         [Sequelize.fn("MAX", Sequelize.col("id")), "id"],
         [Sequelize.fn("MAX", Sequelize.col("product_code")), "product_code"],
         [Sequelize.fn("MAX", Sequelize.col("price")), "price"],
+        [Sequelize.fn("MAX", Sequelize.col("Fee")), "Fee"],
+        [
+          Sequelize.fn("MAX", Sequelize.col("card_activation_fee")),
+          "card_activation_fee",
+        ],
       ],
       group: ["periode"],
       limit: parseInt(limit),

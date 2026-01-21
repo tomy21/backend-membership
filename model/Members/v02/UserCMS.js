@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { MemberUserRole } from "../../Master/RoleModel.js";
+import LocationArea from "./LocationMaster.js";
 
 const UserCMS = db.define(
   "membershipUsersCms",
@@ -83,6 +84,10 @@ const UserCMS = db.define(
       type: DataTypes.DATE,
       allowNull: true,
     },
+    location_code: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   },
   {
     tableName: "membershipUsersCms",
@@ -116,5 +121,6 @@ UserCMS.prototype.correctPassword = async function (
 };
 
 UserCMS.belongsTo(MemberUserRole, { foreignKey: "role" });
+
 
 export default UserCMS;

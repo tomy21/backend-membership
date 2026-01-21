@@ -68,6 +68,10 @@ const ProductMembership = db.define(
       ],
       allowNull: false,
     },
+    is_show: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
     Create_by: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -92,10 +96,14 @@ const ProductMembership = db.define(
     timestamps: false,
   }
 );
-
 ProductMembership.belongsTo(LocationArea, {
   foreignKey: "location_code",
   targetKey: "location_code",
+});
+
+LocationArea.hasMany(ProductMembership, {
+  foreignKey: "location_code",
+  sourceKey: "location_code",
 });
 
 export default ProductMembership;

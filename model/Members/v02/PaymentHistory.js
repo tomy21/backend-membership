@@ -1,6 +1,7 @@
 import { DataTypes, Sequelize } from "sequelize";
 import { db } from "../../../config/dbConfig.js";
 import User from "../Users.js";
+import MemberTenant from "../MemberTenants.js";
 
 const PaymentTransaction = db.define(
   "payment_transactions",
@@ -104,5 +105,11 @@ const PaymentTransaction = db.define(
     timestamps: false,
   }
 );
+
+PaymentTransaction.belongsTo(MemberTenant, {
+  foreignKey: "virtual_account_email",
+  targetKey: "email",
+  as: "tenant_detail",
+});
 
 export default PaymentTransaction;

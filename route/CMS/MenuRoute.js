@@ -1,11 +1,15 @@
 import express from "express";
 import * as Menu from "../../controller/Master/Menu.js";
 import * as RolePermission from "../../controller/Master/RolePermission.js";
+import { protect } from "../../middleware/member/authMiddleware.js";
 
 const router = express.Router();
 
 router.route("/get-menu-byrole/:roleId").get(Menu.getMenusByRole);
 router.route("/get-menus").get(Menu.getMenus);
+// router.route("/get-menus-byparent").get(Menu.getMenusByParent);
+
+router.get("/get-menus-byparent", protect, Menu.getMenusByParent);
 
 //role-permission
 router.route("/add-role-permission").post(RolePermission.addRolePermission);

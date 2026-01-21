@@ -565,11 +565,50 @@ export const summaryByProduct = async (req, res) => {
       status: "success",
       message: "Success",
       range: { start: startOfMonth, end: endOfMonth },
-      totalRevenue, // 👈 tambahan total keseluruhan
+      totalRevenue,
       data: result,
     });
   } catch (error) {
     console.error("Error fetching membership statistics:", error);
     res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const getMembershipStatisticsByRange = async (req, res) => {
+  try {
+    const { range } = req.query; // default 90d
+    let days = 90;
+    if (range === "30d") days = 30;
+    else if (range === "7d") days = 7;
+
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - days);
+
+    const transactions = await TransactionHistoryPayment.findAll({
+      where: {
+        updatedAt: {
+          [Op.between]: [startDate, endDate],
+        },
+      },
+      attributes: [
+        [Sequelize.fn("DATE", Sequelize.col("updatedAt")), "date"],
+        [Sequelize.fn("COUNT", Sequelize.col("trxId")), "trxCount"],
+        [Sequelize.fn("SUM", Sequelize.col("price")), "trxTotal"],
+      ],
+      group: ["date"],
+      raw: true,
+    });
+
+    const chartData = transactions.map((t) => ({
+      date: t.date,
+      transactionCount: parseInt(t.trxCount, 10),
+      totalAmount: parseFloat(t.trxTotal || 0),
+    }));
+
+    res.json({ success: true, data: chartData });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
   }
 };

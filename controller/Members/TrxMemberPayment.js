@@ -8,6 +8,9 @@ import HistoryPost from "../../model/Members/v02/HistoryPost.js";
 import { errorResponse, successResponse } from "../../config/response.js";
 import VehicleList from "../../model/Members/v02/VehicleList.js";
 import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
+import LocationArea from "../../model/Members/v02/LocationMaster.js";
+import MemberTenant from "../../model/Members/MemberTenants.js";
+import TennantPurchaseHistory from "../../model/Members/v02/TenantPurchaseHistory.js";
 
 export const createTransaction = async (req, res) => {
   try {
@@ -83,12 +86,12 @@ export const getTransactionByUserId = async (req, res) => {
 export const getTrxStatusPaymentByTrxid = async (req, res) => {
   try {
     const idTrx = req.params.idTrx;
-
     const paymentTrx = await PaymentTransaction.findOne({
       where: { trx_id: idTrx },
       order: [["created_at", "DESC"]],
     });
 
+    console.log(paymentTrx);
     if (paymentTrx) {
       return res.status(200).json({
         statusCode: 200,
@@ -558,7 +561,7 @@ export const getPaymentByTrxId = async (req, res) => {
   }
 };
 
-export const getDetailPayment = async (req, res) => {};
+export const getDetailPayment = async (req, res) => { };
 
 //history payment
 export const getPayment = async (req, res) => {
@@ -575,13 +578,71 @@ export const getPayment = async (req, res) => {
           { virtual_account_number: { [Op.like]: `%${search}%` } },
         ],
       }),
+      app_module: "APP_MEMBERSHIP",
     };
 
-    const { count, rows } = await PaymentTransaction.findAndCountAll({
-      where: { ...whereClause, app_module: "APP_MEMBERSHIP" },
-      limit: parseInt(limit, 10),
-      offset: parseInt(offset, 10),
+    const rows = await PaymentTransaction.findAll({
+      where: whereClause,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
       order: [["created_at", "DESC"]],
+    });
+
+    const count = await PaymentTransaction.count({
+      where: whereClause,
+    });
+
+    res.status(200).json({
+      statusCode: 200,
+      message: "Transactions retrieved successfully",
+      pagination: {
+        total: count,
+        page: parseInt(page, 10),
+        totalPages: Math.ceil(count / limit),
+      },
+      data: rows,
+    });
+  } catch (err) {
+    res.status(400).json({
+      statusCode: 400,
+      message: err.message,
+    });
+  }
+};
+
+export const getPaymentB2B = async (req, res) => {
+  try {
+    const { search, page = 1, limit = 10, status } = req.query;
+    const offset = (page - 1) * limit;
+
+    const whereClause = {
+      ...(status && { status_payment: status }),
+      ...(search && {
+        [Op.or]: [
+          { trx_id: { [Op.like]: `%${search}%` } },
+          { invoice_id: { [Op.like]: `%${search}%` } },
+          { virtual_account_number: { [Op.like]: `%${search}%` } },
+        ],
+      }),
+    };
+
+    const rows = await TennantPurchaseHistory.findAll({
+      where: whereClause,
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      include: [
+        {
+          model: MemberTenant,
+          as: "trxHistoryUserTennant",
+          attributes: ["tennant_name", "tennant_code", "email"],
+        },
+      ],
+
+      order: [["created_at", "DESC"]],
+    });
+
+    const count = await TennantPurchaseHistory.count({
+      where: whereClause,
     });
 
     res.status(200).json({
@@ -712,21 +773,13 @@ export const historyTransactionByLocation = async (req, res) => {
   try {
     const { month, year, page = 1, limit = 10, search = "" } = req.query;
 
-    // Tanggal sekarang
     const currentDate = new Date();
-    const selectedMonth = month ? parseInt(month) : currentDate.getMonth(); // 1–12
-    const selectedYear = year ? parseInt(year) : currentDate.getFullYear();
+    const selectedMonth = month ? parseInt(month) : currentDate.getUTCMonth() + 1;
+    const selectedYear = year ? parseInt(year) : currentDate.getUTCFullYear();
 
-    // Hitung startDate & endDate (periode 26 → 25)
-    const startDate = new Date(selectedYear, selectedMonth - 1, 1, 0, 0, 0);
-    const endDate = new Date(selectedYear, selectedMonth, 0, 23, 59, 59);
-
-    // Catatan:
-    // - new Date(y, m, d) pakai 0-index untuk bulan.
-    //   contoh: selectedMonth=9 (September), maka:
-    //   startDate → (9-2=7 → Agustus) tanggal 26
-    //   endDate   → (9-1=8 → September) tanggal 25
-
+    const startDate = new Date(Date.UTC(selectedYear, selectedMonth - 1, 1, 0, 0, 0));
+    const endDate = new Date(Date.UTC(selectedYear, selectedMonth, 0, 23, 59, 59));
+    console.log("Membership location", startDate, endDate);
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     const transactions = await TransactionHistoryPayment.findAll({
@@ -740,7 +793,7 @@ export const historyTransactionByLocation = async (req, res) => {
       where: {
         purchase_type: "MEMBERSHIP",
         statusPayment: "PAID",
-        createdAt: {
+        UpdatedAt: {
           [Op.between]: [startDate, endDate],
         },
         location_name: {
@@ -810,12 +863,12 @@ export const transactionByLocation = async (req, res) => {
     const offset = (page - 1) * limit;
 
     const currentDate = new Date();
-    const selectedMonth = month ? parseInt(month) : currentDate.getMonth() + 1;
-    const selectedYear = year ? parseInt(year) : currentDate.getFullYear();
+    const selectedMonth = month ? parseInt(month) : currentDate.getUTCMonth() + 1;
+    const selectedYear = year ? parseInt(year) : currentDate.getUTCFullYear();
 
-    const startDate = new Date(selectedYear, selectedMonth - 1, 1, 0, 0, 0);
-    const endDate = new Date(selectedYear, selectedMonth, 0, 23, 59, 59);
-
+    const startDate = new Date(Date.UTC(selectedYear, selectedMonth - 1, 1, 0, 0, 0));
+    const endDate = new Date(Date.UTC(selectedYear, selectedMonth, 0, 23, 59, 59));
+    console.log(startDate, endDate)
     // bikin filter dasar
     const whereCondition = {
       location_code: req.params.locationCode,
@@ -864,57 +917,19 @@ export const transactionByLocation = async (req, res) => {
       ],
       include: [
         {
-          model: User,
-          as: "trxHistoryUser",
-          attributes: [
-            ["id", "user_id"], // 👈 kasih alias biar gak bentrok
-            "fullname",
-            "email",
-            "points",
-            "username",
-          ],
+          model: MembershipDetail,
+          as: "membershipDetail",
           include: [
             {
               model: VehicleList,
-              attributes: [
-                ["id", "vehicle_id"], // alias unik
-                "rfid",
-                "vehicle_type",
-                "plate_number",
-              ],
-              include: [
-                {
-                  model: MembershipDetail,
-                  attributes: [
-                    ["id", "membership_detail_id"], // alias unik
-                    "updated_at",
-                    "end_date",
-                  ],
-                },
-              ],
             },
           ],
         },
-        // {
-        //   model: MembershipDetail,
-        //   as: "membershipDetail",
-        //   attributes: [
-        //     ["id", "membership_detail_id"], // alias unik
-        //     "updated_at",
-        //     "end_date",
-        //   ],
-        //   include: [
-        //     {
-        //       model: VehicleList,
-        //       attributes: [
-        //         ["id", "vehicle_id"], // alias unik
-        //         "rfid",
-        //         "vehicle_type",
-        //         "plate_number",
-        //       ],
-        //     },
-        //   ],
-        // },
+        {
+          model: User,
+          as: "trxHistoryUser",
+          attributes: ["fullname", "email"],
+        },
       ],
       limit: parseInt(limit),
       offset: parseInt(offset),

@@ -16,12 +16,12 @@ const User = db.define(
     fullname: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
+      unique: false,
     },
     address: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
+      unique: false,
     },
     email: {
       type: DataTypes.STRING,
@@ -57,7 +57,7 @@ const User = db.define(
     },
     pin: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
     points: {
       type: DataTypes.INTEGER,
@@ -126,8 +126,12 @@ User.beforeUpdate(async (user) => {
 });
 
 User.beforeCreate(async (user) => {
-  user.password = await bcrypt.hash(user.password, 10);
-  user.pin = await bcrypt.hash(user.pin, 10);
+  if (user.password) {
+    user.password = await bcrypt.hash(user.password, 10);
+  }
+  if (user.pin) {
+    user.pin = await bcrypt.hash(user.pin, 10);
+  }
 });
 
 User.prototype.createActivationToken = function () {

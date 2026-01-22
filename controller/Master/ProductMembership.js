@@ -103,7 +103,7 @@ export const getByVehicle = async (req, res) => {
       where: {
         vehicle_type: type,
         location_code: code,
-        // is_show: 1,
+        is_show: 1,
         [Op.or]: [{ product_name: { [Op.like]: `%${search}%` } }],
       },
       attributes: [

@@ -7,7 +7,7 @@ const MembershipDetail = db.define(
   "customer_membership_detail",
   {
     id: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       primaryKey: true,
     },
     Cust_Member: {

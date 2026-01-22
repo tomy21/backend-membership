@@ -227,3 +227,65 @@ export const deleteVehicle = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const createMembershipDetail = async (req, res) => {
+  try {
+    // Mengambil input sesuai request mase
+    const { Cust_Member, location_id, kid, member_customer_no } = req.body;
+    console.log("[data-request]", req.body);
+    // 1. Validasi Input Dasar
+    if (!Cust_Member || !location_id || !kid || !member_customer_no) {
+      return res.status(400).json({
+        success: false,
+        message: "Field berikut wajib diisi: Cust_Member, location_id, kid, member_customer_no"
+      });
+    }
+
+    // 2. Ambil data Location Name secara otomatis
+    // Karena di model location_name tidak boleh null
+    const location = await LocationArea.findOne({
+      where: { location_code: location_id }
+    });
+
+    if (!location) {
+      return res.status(404).json({
+        success: false,
+        message: "Location ID tidak ditemukan di master lokasi"
+      });
+    }
+
+    // 3. Logic Tanggal (Otomatis Aktif 1 Bulan)
+    const startDate = new Date();
+    const endDate = new Date();
+    endDate.setMonth(endDate.getMonth() + 1);
+
+    // 4. Eksekusi Create
+    const newMembership = await MembershipDetail.create({
+      Cust_Member,
+      location_id,
+      kid,
+      member_customer_no,
+      is_active: 0,           // Default sesuai request mase
+      is_used: 0,             // Default baru dibuat
+      location_name: location.location_name,
+      start_date: startDate,
+      end_date: endDate,
+      created_at: new Date(),
+      updated_at: new Date()
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Membership Detail berhasil didaftarkan",
+      data: newMembership
+    });
+
+  } catch (error) {
+    console.error("Error Create Membership:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Gagal menyimpan data ke database",
+      error: error.message
+    });
+  }
+};

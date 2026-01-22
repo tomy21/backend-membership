@@ -779,7 +779,7 @@ export const historyTransactionByLocation = async (req, res) => {
 
     const startDate = new Date(Date.UTC(selectedYear, selectedMonth - 1, 1, 0, 0, 0));
     const endDate = new Date(Date.UTC(selectedYear, selectedMonth, 0, 23, 59, 59));
-    console.log("Membership location", startDate, endDate);
+
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     const transactions = await TransactionHistoryPayment.findAll({
@@ -793,7 +793,7 @@ export const historyTransactionByLocation = async (req, res) => {
       where: {
         purchase_type: "MEMBERSHIP",
         statusPayment: "PAID",
-        UpdatedAt: {
+        updatedAt: {
           [Op.between]: [startDate, endDate],
         },
         location_name: {

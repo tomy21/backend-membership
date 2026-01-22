@@ -13,6 +13,7 @@ import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 
 import dotenv from "dotenv";
 import CryptoJS from "crypto-js";
+import LocationArea from "../../model/Members/v02/LocationMaster.js";
 dotenv.config({ path: ".env" });
 
 const secret_key = process.env.SECRET_KEY;
@@ -1008,6 +1009,7 @@ export const getAllCardOrPlat = async (req, res) => {
       where: whereCondition, // Masukkan kondisi filter di sini
       group: ["rfid"],
       attributes: [
+        "id",
         "member_customer_no",
         "rfid",
         "vehicle_type",
@@ -1017,6 +1019,9 @@ export const getAllCardOrPlat = async (req, res) => {
         {
           model: MembershipDetail,
           attributes: ["is_active", "location_id", "updated_at", "end_date"],
+          include: [
+            { model: LocationArea, as: "locationArea", attributes: ["location_name"] }
+          ]
         },
       ],
     });

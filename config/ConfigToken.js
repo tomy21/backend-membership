@@ -11,7 +11,7 @@ export const signToken = (user, rememberMe) => {
   const payload = {
     id: user.id,
     username: user.username,
-    roleId: user.role,
+    role: user.role,
     iat: Math.floor(Date.now() / 1000),
   };
 

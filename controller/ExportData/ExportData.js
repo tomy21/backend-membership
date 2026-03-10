@@ -28,11 +28,11 @@ export const exportDataTransaksiPost = async (req, res) => {
     const dateCondition =
       startDate && endDate
         ? {
-            createdAt: {
-              [Sequelize.Op.gte]: `${startDate} 00:00:00`,
-              [Sequelize.Op.lt]: `${endDate} 23:59:59`,
-            },
-          }
+          createdAt: {
+            [Sequelize.Op.gte]: `${startDate} 00:00:00`,
+            [Sequelize.Op.lt]: `${endDate} 23:59:59`,
+          },
+        }
         : null;
 
     if (statusMember) {
@@ -88,13 +88,13 @@ export const exportDataTransaksiPost = async (req, res) => {
           status_membership: value.status_member || "-",
           in_time: value.gate_in_time
             ? moment(value.gate_in_time)
-                .tz("Asia/Jakarta")
-                .format("YYYY-MM-DD HH:mm:ss")
+              .tz("Asia/Jakarta")
+              .format("YYYY-MM-DD HH:mm:ss")
             : "-",
           out_time: value.gate_out_time
             ? moment(value.gate_out_time)
-                .tz("Asia/Jakarta")
-                .format("YYYY-MM-DD HH:mm:ss")
+              .tz("Asia/Jakarta")
+              .format("YYYY-MM-DD HH:mm:ss")
             : "-",
           tariff: value.tariff || "-",
           status: value.is_close === 1 ? "Out Area Parking" : "In Area Parking",
@@ -149,10 +149,10 @@ export const exportHistoryTransaction = async (req, res) => {
     const dateCondition =
       startDate && endDate
         ? {
-            updatedAt: {
-              [Op.between]: [`${startDate} 00:00:00`, `${endDate} 23:59:59`],
-            },
-          }
+          updatedAt: {
+            [Op.between]: [`${startDate} 00:00:00`, `${endDate} 23:59:59`],
+          },
+        }
         : null;
 
     const result = await TransactionHistoryPayment.findAndCountAll({
@@ -252,8 +252,8 @@ export const exportHistoryTransaction = async (req, res) => {
             value.payment_trx?.app_module === "APP_MEMBERSHIP_B2B"
               ? "B2B"
               : value.payment_trx
-              ? "Personal"
-              : "-",
+                ? "Personal"
+                : "-",
           price: value.price ? Number(value.price) : "",
           statusPayment: value.statusPayment || "-",
         });
@@ -307,11 +307,11 @@ export const exportHistoryPayment = async (req, res) => {
     const dateCondition =
       startDate && endDate
         ? {
-            updated_at: {
-              [Sequelize.Op.gte]: `${startDate} 00:00:00`,
-              [Sequelize.Op.lt]: `${endDate} 23:59:59`,
-            },
-          }
+          updated_at: {
+            [Sequelize.Op.gte]: `${startDate} 00:00:00`,
+            [Sequelize.Op.lt]: `${endDate} 23:59:59`,
+          },
+        }
         : {};
 
     const result = await PaymentTransaction.findAndCountAll({
@@ -432,13 +432,14 @@ export const exportHistoryPaymentB2B = async (req, res) => {
     const dateCondition =
       startDate && endDate
         ? {
-            updated_at: {
-              [Sequelize.Op.gte]: `${startDate} 00:00:00`,
-              [Sequelize.Op.lt]: `${endDate} 23:59:59`,
-            },
-          }
+          updated_at: {
+            [Sequelize.Op.gte]: `${startDate} 00:00:00`,
+            [Sequelize.Op.lt]: `${endDate} 23:59:59`,
+          },
+        }
         : {};
 
+    // Ambil data dengan urutan terbaru (DESC) agar jika ada duplikat, yang terbaru yang diambil
     const result = await PaymentTransaction.findAndCountAll({
       where: {
         ...whereClause,
@@ -447,9 +448,23 @@ export const exportHistoryPaymentB2B = async (req, res) => {
         payment_using: "VIRTUAL_ACCOUNT",
         app_module: "APP_MEMBERSHIP_B2B",
       },
+      order: [['updated_at', 'DESC']],
     });
 
     if (result.count > 0) {
+      // --- LOGIC: FILTER UNIQUE INVOICE ---
+      const uniqueRows = [];
+      const seenInvoices = new Set();
+
+      for (const row of result.rows) {
+        // Jika invoice_number belum pernah muncul, masukkan ke array
+        if (!seenInvoices.has(row.invoice_number)) {
+          seenInvoices.add(row.invoice_number);
+          uniqueRows.push(row);
+        }
+      }
+      // ------------------------------------
+
       const workbook = new ExcelJs.Workbook();
       const worksheet = workbook.addWorksheet("Transaction Membership");
 
@@ -457,41 +472,30 @@ export const exportHistoryPaymentB2B = async (req, res) => {
         { header: "No", key: "No", width: 5 },
         { header: "Transaction Date", width: 20, key: "dateTransaction" },
         { header: "Transaction Time", width: 20, key: "timeTransaction" },
-
         { header: "Transaction Code", width: 30, key: "trx_id" },
         { header: "Invoice Number", width: 30, key: "invoice_number" },
-        {
-          header: "Virtual Account Name",
-          width: 35,
-          key: "virtual_account_name",
-        },
-        {
-          header: "Virtual Account Number",
-          width: 35,
-          key: "virtual_account_number",
-        },
-        {
-          header: "Virtual Account Email",
-          width: 35,
-          key: "virtual_account_email",
-        },
+        { header: "Virtual Account Name", width: 35, key: "virtual_account_name" },
+        { header: "Virtual Account Number", width: 35, key: "virtual_account_number" },
+        { header: "Virtual Account Email", width: 35, key: "virtual_account_email" },
         { header: "Payment Method", width: 30, key: "payment_using" },
         { header: "Product", width: 35, key: "app_module" },
         { header: "Amount", width: 30, key: "paid_amount" },
         { header: "Status", width: 20, key: "status_transaction" },
       ];
 
+      // Styling Header
       worksheet.getRow(1).eachCell((cell) => {
-        cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; // Bold & warna putih
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
         cell.fill = {
           type: "pattern",
           pattern: "solid",
-          fgColor: { argb: "0070C0" }, // Background biru
+          fgColor: { argb: "0070C0" },
         };
         cell.alignment = { vertical: "middle", horizontal: "center" };
       });
 
-      for (const [index, value] of result.rows.entries()) {
+      // Menggunakan data yang sudah difilter (uniqueRows)
+      for (const [index, value] of uniqueRows.entries()) {
         const row = worksheet.addRow({
           No: index + 1,
           dateTransaction: value.created_at
@@ -500,7 +504,6 @@ export const exportHistoryPaymentB2B = async (req, res) => {
           timeTransaction: value.created_at
             ? moment(value.created_at).tz("Asia/Jakarta").format("HH:mm:ss")
             : "-",
-
           trx_id: value.trx_id || "-",
           invoice_number: value.invoice_number || "-",
           virtual_account_name: value.virtual_account_name || "-",
@@ -508,8 +511,6 @@ export const exportHistoryPaymentB2B = async (req, res) => {
           virtual_account_email: value.virtual_account_email || "-",
           payment_using: value.payment_using || "-",
           app_module: value.app_module || "-",
-
-          purchase_type: value.transactionType || "-",
           paid_amount: value.paid_amount || "-",
           status_transaction: value.status_transaction || "-",
         });
@@ -532,11 +533,11 @@ export const exportHistoryPaymentB2B = async (req, res) => {
       await workbook.xlsx.write(res);
       res.end();
     } else {
-      res.status(400).json({ success: false, message: "Get data failed" });
+      res.status(404).json({ success: false, message: "No data found to export" });
     }
   } catch (error) {
-    console.log("Error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    console.error("Export Error:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
 
@@ -559,11 +560,11 @@ export const exportDataHistoryPointByUser = async (req, res) => {
     const dateCondition =
       startDate && endDate
         ? {
-            createdAt: {
-              [Sequelize.Op.gte]: `${startDate} 00:00:00`,
-              [Sequelize.Op.lt]: `${endDate} 23:59:59`,
-            },
-          }
+          createdAt: {
+            [Sequelize.Op.gte]: `${startDate} 00:00:00`,
+            [Sequelize.Op.lt]: `${endDate} 23:59:59`,
+          },
+        }
         : {};
 
     const transactions = await TransactionHistoryPayment.findAll({
@@ -712,11 +713,11 @@ export const exportHistoryPaymentByUser = async (req, res) => {
     const dateCondition =
       startDate && endDate
         ? {
-            createdAt: {
-              [Sequelize.Op.gte]: `${startDate} 00:00:00`,
-              [Sequelize.Op.lt]: `${endDate} 23:59:59`,
-            },
-          }
+          createdAt: {
+            [Sequelize.Op.gte]: `${startDate} 00:00:00`,
+            [Sequelize.Op.lt]: `${endDate} 23:59:59`,
+          },
+        }
         : {};
 
     const result = await TransactionHistoryPayment.findAndCountAll({
@@ -823,11 +824,11 @@ export const exportDataTransaksiPostById = async (req, res) => {
     const dateCondition =
       startDate && endDate
         ? {
-            createdAt: {
-              [Sequelize.Op.gte]: `${startDate} 00:00:00`,
-              [Sequelize.Op.lt]: `${endDate} 23:59:59`,
-            },
-          }
+          createdAt: {
+            [Sequelize.Op.gte]: `${startDate} 00:00:00`,
+            [Sequelize.Op.lt]: `${endDate} 23:59:59`,
+          },
+        }
         : null;
 
     if (statusMember) {
@@ -883,13 +884,13 @@ export const exportDataTransaksiPostById = async (req, res) => {
           status_membership: value.status_member || "-",
           in_time: value.gate_in_time
             ? moment(value.gate_in_time)
-                .tz("Asia/Jakarta")
-                .format("YYYY-MM-DD HH:mm:ss")
+              .tz("Asia/Jakarta")
+              .format("YYYY-MM-DD HH:mm:ss")
             : "-",
           out_time: value.gate_out_time
             ? moment(value.gate_out_time)
-                .tz("Asia/Jakarta")
-                .format("YYYY-MM-DD HH:mm:ss")
+              .tz("Asia/Jakarta")
+              .format("YYYY-MM-DD HH:mm:ss")
             : "-",
           tariff: value.tariff || "-",
           status: value.is_close === 1 ? "Out Area Parking" : "In Area Parking",
@@ -1062,13 +1063,13 @@ export const exportHistoryPoint = async (req, res) => {
             : "-",
           last_topup: value.last_topup_date
             ? moment(value.last_topup_date)
-                .tz("Asia/Jakarta")
-                .format("YYYY-MM-DD HH:mm:ss")
+              .tz("Asia/Jakarta")
+              .format("YYYY-MM-DD HH:mm:ss")
             : "-",
           purchase_date: value.last_purchase_date
             ? moment(value.last_purchase_date)
-                .tz("Asia/Jakarta")
-                .format("YYYY-MM-DD HH:mm:ss")
+              .tz("Asia/Jakarta")
+              .format("YYYY-MM-DD HH:mm:ss")
             : "-",
         });
 

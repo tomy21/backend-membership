@@ -20,7 +20,7 @@ const secret_key = process.env.SECRET_KEY;
 
 export const login = async (req, res) => {
   const { data } = req.body;
-
+  console.log("request", data);
   if (!data) {
     return res.status(400).json({
       status: "fail",
@@ -108,14 +108,14 @@ export const login = async (req, res) => {
       });
     }
 
-    if (!user.active_token) {
-      return res.status(401).json({
-        code: 401003,
-        status: "fail",
-        message:
-          "Akun Anda belum registrasi. Silakan registrasi terlebih dahulu.",
-      });
-    }
+    // if (!user.active_token) {
+    //   return res.status(401).json({
+    //     code: 401003,
+    //     status: "fail",
+    //     message:
+    //       "Akun Anda belum registrasi. Silakan registrasi terlebih dahulu.",
+    //   });
+    // }
 
     // Jika semua validasi lolos, buat token dan kirimkan respons sukses
     createSendToken(user, 200, res, rememberMe);
@@ -152,12 +152,12 @@ export const requestTokenActivation = async (req, res) => {
       });
     }
 
-    const activationToken = user.createActivationToken(referralUrl);
-    await user.save({ validate: false });
+    const URL_MEMBERSHIP_BACKEND = process.env.URL_DIRECT_BACKEND;
+    const URL_MEMBERSHIP = process.env.URL_DIRECT_MEMBERSHIP;
+    const activationToken = newUser.createActivationToken(URL_MEMBERSHIP);
+    await newUser.save({ validate: false });
 
-    const activationURL = `${req.protocol}://${req.get(
-      "host"
-    )}/v01/member/api/auth/activate/${activationToken}?referralUrl=${referralUrl}`;
+    const activationURL = `${URL_MEMBERSHIP_BACKEND}/v01/member/api/auth/activate/${activationToken}?referralUrl=${URL_MEMBERSHIP}`;
 
     const to = user.email;
     const subject = "Welcome to SKY PARKING - Activate Your Account";
@@ -234,34 +234,57 @@ export const requestResetPassword = async (req, res) => {
       reset_password_expired: expired,
     });
 
-    const activationURL = `${referralUrl}/change-password?token=${token}`;
+    const URL_BACKEND = process.env.URL_DIRECT_MEMBERSHIP;
+    const activationURL = `${URL_BACKEND}/change-password?token=${token}`;
 
     const to = user.email;
-    const subject = "Welcome to SKY PARKING - Reset Your Password";
+    const subject = "Permintaan Reset Password Akun Membership SKY PARKING";
     const html = `
-          <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-            <div style="text-align: center; padding-bottom: 20px;">
-              <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
-            </div>
-            <h2 style="color: #333;">Hi, ${user.username}</h2>
-            <p style="color: #555;">
-              Terima kasih telah menggunakan layanan membership <strong>SKY PARKING</strong>. Kami sangat senang membantu anda!
-              Silahkan ubah password anda dengan klik tombol di bawah
-            </p>
-            <div style="text-align: center; margin: 20px 0;">
-              <a href="${activationURL}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
-                Ganti password
-              </a>
-            </div>
-            <p style="color: #555;">
-              Jika kamu mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
-            </p>
-            <p style="color: #555;">
-              Best Regards,<br/>
-              <strong>SKY Parking Utama</strong>
-            </p>
-          </div>
-        `;
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 0; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; background-color: #ffffff;">
+      
+      <div style="background-color: #f8f9fa; text-align: center; padding: 30px 20px; border-bottom: 4px solid #dc3545;">
+        <img src="cid:logo" alt="SKY Parking Logo" style="width: 180px; height: auto;" />
+      </div>
+
+      <div style="padding: 40px 30px;">
+        <h2 style="color: #333333; margin-top: 0; font-size: 22px;">Halo, ${user.username}!</h2>
+        
+        <p style="color: #555555; font-size: 16px;">
+          Kami menerima permintaan untuk mengatur ulang password akun <strong>SKY PARKING</strong> Anda. 
+        </p>
+        
+        <p style="color: #555555; font-size: 16px;">
+          Jangan khawatir, hal ini biasa terjadi. Anda dapat membuat password baru dengan mengklik tombol aman di bawah ini:
+        </p>
+
+        <div style="text-align: center; margin: 35px 0;">
+          <a href="${activationURL}" style="background-color: #dc3545; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: bold; display: inline-block; box-shadow: 0 4px 6px rgba(220, 53, 69, 0.2);">
+            ATUR ULANG PASSWORD
+          </a>
+        </div>
+
+        <div style="background-color: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; margin-bottom: 25px; border-radius: 4px;">
+          <p style="color: #721c24; margin: 0; font-size: 14px;">
+            <strong>Keamanan:</strong> Link ini akan kadaluarsa dalam 1 jam. Jika Anda tidak merasa meminta reset password ini, abaikan saja email ini. Akun Anda tetap aman dan password tidak akan berubah.
+          </p>
+        </div>
+
+        <p style="color: #555555; font-size: 15px;">
+          Butuh bantuan lebih lanjut? Silakan hubungi tim IT Support kami melalui layanan helpdesk SKY PARKING.
+        </p>
+
+        <p style="color: #333333; font-size: 15px; margin-top: 30px;">
+          Salam hangat,<br/>
+          <strong>IT Support SKY Parking Utama</strong>
+        </p>
+      </div>
+
+      <div style="background-color: #f8f9fa; text-align: center; padding: 20px; color: #999999; font-size: 12px; border-top: 1px solid #eeeeee;">
+        <p style="margin: 5px 0;">&copy; 2026 SKY Parking Utama. All rights reserved.</p>
+        <p style="margin: 5px 0;">Pesan ini dikirim secara otomatis, mohon tidak membalas email ini.</p>
+      </div>
+    </div>
+`;
 
     const attachments = [
       {
@@ -478,39 +501,61 @@ export const register = async (req, res) => {
       dob: dob,
       customer_no: customerNo, // Include the generated customer number
     });
-
-    const activationToken = newUser.createActivationToken();
+    const URL_MEMBERSHIP_BACKEND = process.env.URL_DIRECT_BACKEND;
+    const URL_MEMBERSHIP = process.env.URL_DIRECT_MEMBERSHIP;
+    const activationToken = newUser.createActivationToken(URL_MEMBERSHIP);
     await newUser.save({ validate: false });
 
-    const activationURL = `${referralUrl}/api/activation-akun/${activationToken}?referralUrl=${referralUrl}`;
+    const activationURL = `${URL_MEMBERSHIP_BACKEND}/v01/member/api/auth/activate/${activationToken}?referralUrl=${URL_MEMBERSHIP}`;
 
     const to = newUser.email;
-    const subject = "Welcome to SKY PARKING - Activate Your Account";
+    const subject = "Selamat Datang di SKY PARKING - Aktifkan Akun Membership Anda";
     const html = `
-          <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-            <div style="text-align: center; padding-bottom: 20px;">
-              <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
-            </div>
-            <h2 style="color: #333;">Hi, ${newUser.username}</h2>
-            <p style="color: #555;">
-              Terima kasih telah menggunakan layanan membership <strong>SKY PARKING</strong>. Kami sangat senang menyambut anda!
-              Sebelum anda bisa menikmati semua keuntungan sebagai member, silakan aktifkan akun anda dengan mengklik tombol di bawah ini.
-            </p>
-            <div style="text-align: center; margin: 20px 0;">
-              <a href="${activationURL}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
-                Aktifkan Akun
-              </a>
-            </div>
-            <p style="color: #555;">
-              Untuk pengambilan kartu membership anda bisa ambil di petugas SKY PARKING.
-              Jika anda mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
-            </p>
-            <p style="color: #555;">
-              Best Regards,<br/>
-              <strong>SKY Parking Utama</strong>
-            </p>
-          </div>
-        `;
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 0; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; background-color: #ffffff;">
+      
+      <div style="background-color: #f8f9fa; text-align: center; padding: 30px 20px; border-bottom: 4px solid #007bff;">
+        <img src="cid:logo" alt="SKY Parking Logo" style="width: 180px; height: auto;" />
+      </div>
+
+      <div style="padding: 40px 30px;">
+        <h2 style="color: #333333; margin-top: 0; font-size: 24px;">Halo, ${newUser.username}!</h2>
+        
+        <p style="color: #555555; font-size: 16px;">
+          Terima kasih telah bergabung menjadi member <strong>SKY PARKING</strong>. Kami senang Anda menjadi bagian dari komunitas kami!
+        </p>
+        
+        <p style="color: #555555; font-size: 16px;">
+          Satu langkah lagi untuk menikmati berbagai keuntungan eksklusif. Silakan aktifkan akun Anda melalui tombol di bawah ini:
+        </p>
+
+        <div style="text-align: center; margin: 35px 0;">
+          <a href="${activationURL}" style="background-color: #007bff; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: bold; display: inline-block; box-shadow: 0 4px 6px rgba(0, 123, 255, 0.2);">
+            AKTIFKAN AKUN SAYA
+          </a>
+        </div>
+
+        <div style="background-color: #fff9db; border-left: 4px solid #fcc419; padding: 15px; margin-bottom: 25px;">
+          <p style="color: #856404; margin: 0; font-size: 14px;">
+            <strong>Informasi Kartu:</strong> Pengambilan kartu fisik membership dapat dilakukan di booth petugas <strong>SKY PARKING</strong> terdekat dengan menunjukkan email ini.
+          </p>
+        </div>
+
+        <p style="color: #555555; font-size: 15px;">
+          Jika Anda mengalami kendala atau memiliki pertanyaan, tim support kami siap membantu Anda kapan saja.
+        </p>
+
+        <p style="color: #333333; font-size: 15px; margin-top: 30px;">
+          Salam hangat,<br/>
+          <strong>Management SKY Parking Utama</strong>
+        </p>
+      </div>
+
+      <div style="background-color: #f8f9fa; text-align: center; padding: 20px; color: #999999; font-size: 12px; border-top: 1px solid #eeeeee;">
+        <p style="margin: 5px 0;">&copy; 2026 SKY Parking Utama. All rights reserved.</p>
+        <p style="margin: 5px 0;">Jl. Contoh Alamat No. 123, Jakarta, Indonesia</p>
+      </div>
+    </div>
+`;
 
     const attachments = [
       {
@@ -584,38 +629,61 @@ export const registerEncrypt = async (req, res) => {
       validate: false,
     });
 
-    const activationToken = newUser.createActivationToken(referralUrl);
+    const URL_MEMBERSHIP_BACKEND = process.env.URL_DIRECT_BACKEND;
+    const URL_MEMBERSHIP = process.env.URL_DIRECT_MEMBERSHIP;
+    const activationToken = newUser.createActivationToken(URL_MEMBERSHIP);
     await newUser.save({ validate: false });
 
-    const activationURL = `${referralUrl}/api/activation-akun/${activationToken}?referralUrl=${referralUrl}`;
+    const activationURL = `${URL_MEMBERSHIP_BACKEND}/v01/member/api/auth/activate/${activationToken}?referralUrl=${URL_MEMBERSHIP}`;
 
     const to = newUser.email;
-    const subject = "Welcome to SKY PARKING - Activate Your Account";
+    const subject = "Selamat Datang di SKY PARKING - Aktifkan Akun Membership Anda";
     const html = `
-          <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-            <div style="text-align: center; padding-bottom: 20px;">
-              <img src="cid:logo" alt="SKY Parking Logo" style="width: 150px;" />
-            </div>
-            <h2 style="color: #333;">Hi, ${newUser.username}</h2>
-            <p style="color: #555;">
-              Terima kasih telah menggunakan layanan membership <strong>SKY PARKING</strong>. Kami sangat senang menyambut anda!
-              Sebelum anda bisa menikmati semua keuntungan sebagai member, silakan aktifkan akun anda dengan mengklik tombol di bawah ini.
-            </p>
-            <div style="text-align: center; margin: 20px 0;">
-              <a href="${activationURL}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-size: 16px;">
-                Aktifkan Akun
-              </a>
-            </div>
-            <p style="color: #555;">
-              Untuk pengambilan kartu membership anda bisa ambil di petugas SKY PARKING.
-              Jika anda mengalami masalah atau butuh bantuan lebih lanjut, jangan ragu untuk menghubungi kami.
-            </p>
-            <p style="color: #555;">
-              Best Regards,<br/>
-              <strong>SKY Parking Utama</strong>
-            </p>
-          </div>
-        `;
+    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 0; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; background-color: #ffffff;">
+      
+      <div style="background-color: #f8f9fa; text-align: center; padding: 30px 20px; border-bottom: 4px solid #007bff;">
+        <img src="cid:logo" alt="SKY Parking Logo" style="width: 180px; height: auto;" />
+      </div>
+
+      <div style="padding: 40px 30px;">
+        <h2 style="color: #333333; margin-top: 0; font-size: 24px;">Halo, ${newUser.username}!</h2>
+        
+        <p style="color: #555555; font-size: 16px;">
+          Terima kasih telah bergabung menjadi member <strong>SKY PARKING</strong>. Kami senang Anda menjadi bagian dari komunitas kami!
+        </p>
+        
+        <p style="color: #555555; font-size: 16px;">
+          Satu langkah lagi untuk menikmati berbagai keuntungan eksklusif. Silakan aktifkan akun Anda melalui tombol di bawah ini:
+        </p>
+
+        <div style="text-align: center; margin: 35px 0;">
+          <a href="${activationURL}" style="background-color: #007bff; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: bold; display: inline-block; box-shadow: 0 4px 6px rgba(0, 123, 255, 0.2);">
+            AKTIFKAN AKUN SAYA
+          </a>
+        </div>
+
+        <div style="background-color: #fff9db; border-left: 4px solid #fcc419; padding: 15px; margin-bottom: 25px;">
+          <p style="color: #856404; margin: 0; font-size: 14px;">
+            <strong>Informasi Kartu:</strong> Pengambilan kartu fisik membership dapat dilakukan di booth petugas <strong>SKY PARKING</strong> terdekat dengan menunjukkan email ini.
+          </p>
+        </div>
+
+        <p style="color: #555555; font-size: 15px;">
+          Jika Anda mengalami kendala atau memiliki pertanyaan, tim support kami siap membantu Anda kapan saja.
+        </p>
+
+        <p style="color: #333333; font-size: 15px; margin-top: 30px;">
+          Salam hangat,<br/>
+          <strong>Management SKY Parking Utama</strong>
+        </p>
+      </div>
+
+      <div style="background-color: #f8f9fa; text-align: center; padding: 20px; color: #999999; font-size: 12px; border-top: 1px solid #eeeeee;">
+        <p style="margin: 5px 0;">&copy; 2026 SKY Parking Utama. All rights reserved.</p>
+        <p style="margin: 5px 0;">Jl. Contoh Alamat No. 123, Jakarta, Indonesia</p>
+      </div>
+    </div>
+`;
 
     const attachments = [
       {
@@ -664,23 +732,14 @@ export const activateAccount = async (req, res) => {
     });
 
     if (!user) {
-      // Kirim JSON, jangan redirect langsung dari sini
-      return res.status(400).json({
-        status: "fail",
-        message: "Token is invalid or has expired",
-        redirectTo: "/request-token" // Beri info ke frontend
-      });
+      return res.redirect(`${referralUrl}/request-token?error=expired`);
     }
 
     user.is_active = 1;
     user.active_token = null; // Opsional: hapus token setelah pakai
     await user.save();
 
-    return res.status(200).json({
-      status: "success",
-      message: "Account activated successfully",
-      redirectTo: "/register-success"
-    });
+    return res.redirect(`${referralUrl}/register-success`);
   } catch (err) {
     res.status(400).json({
       status: "fail",

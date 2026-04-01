@@ -223,10 +223,10 @@ export const exportHistoryTransaction = async (req, res) => {
         const row = worksheet.addRow({
           No: index + 1,
           dateTransaction: value.createdAt
-            ? moment(value.createdAt).tz("Asia/Jakarta").format("YYYY-MM-DD")
+            ? moment(value.createdAt).format("YYYY-MM-DD")
             : "-",
           timeTransaction: value.createdAt
-            ? moment(value.createdAt).tz("Asia/Jakarta").format("HH:mm:ss")
+            ? moment(value.createdAt).format("HH:mm:ss")
             : "-",
           trxId: value.trxId || "-",
           location_name: value.location_name || "-",
@@ -240,8 +240,8 @@ export const exportHistoryTransaction = async (req, res) => {
               ? "BCA_BAYARIND"
               : "NOBU",
           product_name: value.product_name || "-",
-          start_date: value.createdAt
-            ? moment(value.createdAt).format("YYYY-MM-DD")
+          start_date: value.membershipDetail?.created_at
+            ? moment(value.membershipDetail?.created_at).format("YYYY-MM-DD")
             : "-",
           end_date: value.membershipDetail?.updated_at
             ? moment(value.membershipDetail.updated_at).format("YYYY-MM-DD")

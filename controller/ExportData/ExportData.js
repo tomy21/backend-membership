@@ -173,7 +173,7 @@ export const exportHistoryTransaction = async (req, res) => {
           model: MembershipDetail,
           required: false,
           as: "membershipDetail",
-          attributes: ["start_date", "updated_at"],
+          attributes: ["start_date", "updated_at", "end_date"],
           where: {
             is_active: 1,
           },
@@ -240,11 +240,11 @@ export const exportHistoryTransaction = async (req, res) => {
               ? "BCA_BAYARIND"
               : "NOBU",
           product_name: value.product_name || "-",
-          start_date: value.membershipDetail?.created_at
-            ? moment(value.membershipDetail?.created_at).format("YYYY-MM-DD")
+          start_date: value.createdAt
+            ? moment(value.createdAt).format("YYYY-MM-DD")
             : "-",
-          end_date: value.membershipDetail?.updated_at
-            ? moment(value.membershipDetail.updated_at).format("YYYY-MM-DD")
+          end_date: value.createdAt
+            ? moment(value.createdAt).add(30, "days").format("YYYY-MM-DD")
             : "-",
           purchase_type: value.purchase_type || "-",
           transactionType: value.transactionType || "-",

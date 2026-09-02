@@ -240,6 +240,11 @@ export const exportHistoryTransaction = async (req, res) => {
 
       include: [
         {
+          model: PaymentTransaction,
+          as: "payment_trx",
+          attributes: ["module_name"],
+        },
+        {
           model: User,
           as: "trxHistoryUser",
 
@@ -350,6 +355,11 @@ export const exportHistoryTransaction = async (req, res) => {
         width: 35,
       },
       {
+        header: "Bank",
+        key: "bank",
+        width: 15,
+      },
+      {
         header: "Product Name",
         key: "typePurchase",
         width: 20,
@@ -431,7 +441,9 @@ export const exportHistoryTransaction = async (req, res) => {
       const feeAdmin = 5000;
 
       const bank =
-        value.module_name === "BAYARIND_BCA_VIRTUAL_ACCOUNT" ? "BCA" : "NOBU";
+        value.payment_trx?.module_name === "BAYARIND_BCA_VIRTUAL_ACCOUNT"
+          ? "BCA"
+          : "NOBU";
 
       const user = value.trxHistoryUser;
 
@@ -455,6 +467,7 @@ export const exportHistoryTransaction = async (req, res) => {
         noVirtualAccount: value.virtual_account || "-",
         AccountName: user?.username || "-",
         locationName: value.location_name || "-",
+        bank,
         typePurchase: value.product_name || "-",
         amount: price,
         feeAdmin,

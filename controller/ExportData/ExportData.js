@@ -1,3 +1,4 @@
+import { fromZonedTime } from "date-fns-tz";
 import ExcelJs from "exceljs";
 import moment from "moment/moment.js";
 import { col, fn, Op, Sequelize, where } from "sequelize";
@@ -168,9 +169,14 @@ export const exportHistoryTransaction = async (req, res) => {
       });
     }
 
-    const startDate = new Date(selectedYear, selectedMonth - 1, 1, 0, 0, 0, 0);
+    const timeZone = "Asia/Jakarta";
 
-    const nextMonth = new Date(selectedYear, selectedMonth, 1, 0, 0, 0, 0);
+    const startWIB = new Date(selectedYear, selectedMonth - 1, 1, 0, 0, 0, 0);
+
+    const nextMonthWIB = new Date(selectedYear, selectedMonth, 1, 0, 0, 0, 0);
+
+    const startDate = fromZonedTime(startWIB, timeZone);
+    const nextMonth = fromZonedTime(nextMonthWIB, timeZone);
 
     const endDate = new Date(selectedYear, selectedMonth, 0, 23, 59, 59, 999);
 
@@ -1967,19 +1973,24 @@ export const exportDetailMutationBank = async (req, res) => {
 export const exportDetailTransaksiLocation = async (req, res) => {
   try {
     const { month, year, search } = req.query;
+    const timeZone = "Asia/Jakarta";
     const currentDate = new Date();
-    const selectedMonth = month ? parseInt(month) : currentDate.getMonth() + 1;
+    const selectedMonth = month ? parseInt(month) : currentDate.getMonth();
     const selectedYear = year ? parseInt(year) : currentDate.getFullYear();
 
-    const startDate = new Date(selectedYear, selectedMonth - 1, 1, 0, 0, 0);
-    const endDate = new Date(selectedYear, selectedMonth, 0, 23, 59, 59);
+    const startWIB = new Date(selectedYear, selectedMonth - 1, 1, 0, 0, 0, 0);
+
+    const nextMonthWIB = new Date(selectedYear, selectedMonth, 1, 0, 0, 0, 0);
+
+    const startDate = fromZonedTime(startWIB, timeZone);
+    const nextMonth = fromZonedTime(nextMonthWIB, timeZone);
 
     // bikin filter dasar
     const whereCondition = {
       location_code: req.params.locationCode,
       purchase_type: "MEMBERSHIP",
       statusPayment: "PAID",
-      updatedAt: { [Op.between]: [startDate, endDate] },
+      updatedAt: { [Op.between]: [startDate, nextMonth] },
     };
 
     // filter search

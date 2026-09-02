@@ -1,6 +1,6 @@
-import jwt from "jsonwebtoken";
 import CryptoJS from "crypto-js";
 import dotenv from "dotenv";
+import jwt from "jsonwebtoken";
 dotenv.config({ path: ".env" });
 
 const secret_key = process.env.SECRET_KEY;
@@ -31,7 +31,7 @@ export const createSendToken = (user, statusCode, res, rememberMe) => {
     secure: process.env.NODE_ENV === "production",
     expires: new Date(Date.now() + (rememberMe ? 30 : 1) * 24 * 60 * 60 * 1000),
     sameSite: "None",
-    domain: ".skyparking.online",
+    // domain: ".skyparking.online",
   });
 
   const response = {
@@ -42,13 +42,13 @@ export const createSendToken = (user, statusCode, res, rememberMe) => {
 
   const encryptedData = CryptoJS.AES.encrypt(
     JSON.stringify(response),
-    secret_key
+    secret_key,
   ).toString();
 
   res.status(statusCode).json({
     success: true,
     data: encryptedData,
-    token: token
+    token: token,
   });
 };
 

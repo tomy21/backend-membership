@@ -1,13 +1,13 @@
-import User from "../../model/Members/Users.js";
-import HistoryPost from "../../model/Members/v02/HistoryPost.js";
 import ExcelJs from "exceljs";
 import moment from "moment/moment.js";
-import PaymentTransaction from "../../model/Members/v02/PaymentHistory.js";
-import TransactionHistoryPayment from "../../model/Members/v02/TransactionPaymentHistory.js";
 import { col, fn, Op, Sequelize, where } from "sequelize";
 import { errorResponse } from "../../config/response.js";
+import User from "../../model/Members/Users.js";
+import HistoryPost from "../../model/Members/v02/HistoryPost.js";
 import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
 import MutasiBank from "../../model/Members/v02/MutasiBank.js";
+import PaymentTransaction from "../../model/Members/v02/PaymentHistory.js";
+import TransactionHistoryPayment from "../../model/Members/v02/TransactionPaymentHistory.js";
 import VehicleList from "../../model/Members/v02/VehicleList.js";
 
 export const exportDataTransaksiPost = async (req, res) => {
@@ -28,11 +28,11 @@ export const exportDataTransaksiPost = async (req, res) => {
     const dateCondition =
       startDate && endDate
         ? {
-          createdAt: {
-            [Sequelize.Op.gte]: `${startDate} 00:00:00`,
-            [Sequelize.Op.lt]: `${endDate} 23:59:59`,
-          },
-        }
+            createdAt: {
+              [Sequelize.Op.gte]: `${startDate} 00:00:00`,
+              [Sequelize.Op.lt]: `${endDate} 23:59:59`,
+            },
+          }
         : null;
 
     if (statusMember) {
@@ -88,13 +88,13 @@ export const exportDataTransaksiPost = async (req, res) => {
           status_membership: value.status_member || "-",
           in_time: value.gate_in_time
             ? moment(value.gate_in_time)
-              .tz("Asia/Jakarta")
-              .format("YYYY-MM-DD HH:mm:ss")
+                .tz("Asia/Jakarta")
+                .format("YYYY-MM-DD HH:mm:ss")
             : "-",
           out_time: value.gate_out_time
             ? moment(value.gate_out_time)
-              .tz("Asia/Jakarta")
-              .format("YYYY-MM-DD HH:mm:ss")
+                .tz("Asia/Jakarta")
+                .format("YYYY-MM-DD HH:mm:ss")
             : "-",
           tariff: value.tariff || "-",
           status: value.is_close === 1 ? "Out Area Parking" : "In Area Parking",
@@ -117,7 +117,7 @@ export const exportDataTransaksiPost = async (req, res) => {
 
       res.setHeader(
         "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       );
       res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
 
@@ -133,160 +133,888 @@ export const exportDataTransaksiPost = async (req, res) => {
 };
 
 export const exportHistoryTransaction = async (req, res) => {
-  const locationCode = req.query.locationCode
-    ? JSON.parse(req.query.locationCode)
-    : [];
-  const startDate = req.query.startDate;
-  const endDate = req.query.endDate;
-
   try {
-    const whereClause = {};
+    const locationCode = req.query.locationCode
+      ? JSON.parse(req.query.locationCode)
+      : [];
 
-    if (locationCode.length > 0) {
-      whereClause.location_code = { [Op.in]: locationCode };
+    const { month, year, search } = req.query;
+
+    // ============================================================
+    // DATE FILTER
+    // ============================================================
+
+    const currentDate = new Date();
+
+    const selectedMonth = month ? parseInt(month, 10) : currentDate.getMonth();
+
+    const selectedYear = year ? parseInt(year, 10) : currentDate.getFullYear();
+
+    if (
+      Number.isNaN(selectedMonth) ||
+      selectedMonth < 1 ||
+      selectedMonth > 12
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid month",
+      });
     }
 
-    const dateCondition =
-      startDate && endDate
-        ? {
-          updatedAt: {
-            [Op.between]: [`${startDate} 00:00:00`, `${endDate} 23:59:59`],
-          },
-        }
-        : null;
+    if (Number.isNaN(selectedYear)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid year",
+      });
+    }
 
-    const result = await TransactionHistoryPayment.findAndCountAll({
-      where: {
-        ...whereClause,
-        ...(dateCondition ? dateCondition : {}),
-        statusPayment: "PAID",
+    const startDate = new Date(selectedYear, selectedMonth - 1, 1, 0, 0, 0, 0);
+
+    const nextMonth = new Date(selectedYear, selectedMonth, 1, 0, 0, 0, 0);
+
+    const endDate = new Date(selectedYear, selectedMonth, 0, 23, 59, 59, 999);
+
+    // ============================================================
+    // WHERE CONDITION
+    // ============================================================
+
+    const whereCondition = {
+      purchase_type: "MEMBERSHIP",
+      statusPayment: "PAID",
+      updatedAt: {
+        [Op.gte]: startDate,
+        [Op.lt]: nextMonth,
       },
-      distinct: true,
-      col: "trxId",
+    };
+
+    // Filter location
+    if (locationCode.length > 0) {
+      whereCondition.location_code = {
+        [Op.in]: locationCode,
+      };
+    }
+
+    // Filter search
+    if (search) {
+      whereCondition[Op.or] = [
+        {
+          location_name: {
+            [Op.like]: `%${search}%`,
+          },
+        },
+        {
+          "$trxHistoryUser.fullname$": {
+            [Op.like]: `%${search}%`,
+          },
+        },
+      ];
+    }
+
+    // ============================================================
+    // GET DATA
+    // ============================================================
+
+    const response = await TransactionHistoryPayment.findAll({
+      where: whereCondition,
+
+      attributes: [
+        ["id", "trx_history_id"],
+        "trxId",
+        "location_code",
+        "location_name",
+        "vehicle_type",
+        "virtual_account",
+        "transactionType",
+        "rfid",
+        "updatedAt",
+        "price",
+        "product_name",
+        "statusPayment",
+      ],
+
       include: [
         {
           model: User,
           as: "trxHistoryUser",
-          attributes: ["fullname", "email"],
-        },
-        {
-          model: MembershipDetail,
-          required: false,
-          as: "membershipDetail",
-          attributes: ["start_date", "updated_at", "end_date"],
-          where: {
-            is_active: 1,
-          },
-        },
-        {
-          model: PaymentTransaction,
-          required: false,
-          as: "payment_trx",
-          attributes: ["module_name", "app_module"],
+
+          attributes: [
+            ["id", "user_id"],
+            "fullname",
+            "email",
+            "points",
+            "username",
+          ],
+
+          include: [
+            {
+              model: VehicleList,
+
+              attributes: [
+                ["id", "vehicle_id"],
+                "rfid",
+                "vehicle_type",
+                "plate_number",
+              ],
+
+              include: [
+                {
+                  model: MembershipDetail,
+
+                  attributes: [
+                    ["id", "membership_detail_id"],
+                    "updated_at",
+                    "end_date",
+                  ],
+                },
+              ],
+            },
+          ],
         },
       ],
+
+      order: [["updatedAt", "DESC"]],
     });
 
-    if (result.count > 0) {
-      const workbook = new ExcelJs.Workbook();
-      const worksheet = workbook.addWorksheet("Transaction Membership");
+    // ============================================================
+    // NO DATA
+    // ============================================================
 
-      worksheet.columns = [
-        { header: "No", key: "No", width: 5 },
-        { header: "Transaction Date", width: 20, key: "dateTransaction" },
-        { header: "Transaction Time", width: 20, key: "timeTransaction" },
-        { header: "Transaction Code", width: 30, key: "trxId" },
-        { header: "Location", width: 40, key: "location_name" },
-        { header: "Name", width: 35, key: "fullname" },
-        { header: "Email", width: 35, key: "email" },
-        { header: "No Card", width: 35, key: "rfid" },
-        { header: "Vehicle Type", width: 35, key: "vehicle_type" },
-        { header: "Virtual Account Number", width: 35, key: "virtual_account" },
-        { header: "Bank Name", width: 35, key: "bank_name" },
-        { header: "Product Name", width: 35, key: "product_name" },
-        { header: "Start Date", width: 20, key: "start_date" },
-        { header: "End Date", width: 20, key: "end_date" },
-        { header: "Product Type", width: 20, key: "purchase_type" },
-        { header: "Payment Method", width: 30, key: "transactionType" },
-        { header: "Type Transaksi", width: 30, key: "type" },
-        { header: "Amount", width: 30, key: "price" },
-        { header: "Status", width: 20, key: "statusPayment" },
-      ];
+    if (response.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No Data Found",
+      });
+    }
 
-      worksheet.eachRow((row) => {
-        row.eachCell((cell) => {
-          cell.alignment = { vertical: "middle", horizontal: "center" };
-        });
+    // ============================================================
+    // WORKBOOK
+    // ============================================================
+
+    const workbook = new ExcelJs.Workbook();
+
+    // ============================================================
+    // SHEET 1 - TRANSACTION
+    // ============================================================
+
+    const transactionWorksheet = workbook.addWorksheet(
+      `Transaction ${moment(startDate).format("YYYY-MM-DD")} - ${moment(
+        endDate,
+      ).format("YYYY-MM-DD")}`,
+    );
+
+    transactionWorksheet.columns = [
+      {
+        header: "No",
+        key: "No",
+        width: 5,
+      },
+      {
+        header: "Transaction Date",
+        key: "dateTransaction",
+        width: 20,
+      },
+      {
+        header: "Transaction Time",
+        key: "timeTransaction",
+        width: 20,
+      },
+      {
+        header: "Transaction Code",
+        key: "trxId",
+        width: 30,
+      },
+      {
+        header: "Transaction Type",
+        key: "transactionType",
+        width: 30,
+      },
+      {
+        header: "Virtual Account",
+        key: "noVirtualAccount",
+        width: 20,
+      },
+      {
+        header: "Account Name",
+        key: "AccountName",
+        width: 20,
+      },
+      {
+        header: "Location",
+        key: "locationName",
+        width: 35,
+      },
+      {
+        header: "Product Name",
+        key: "typePurchase",
+        width: 20,
+      },
+      {
+        header: "Price",
+        key: "amount",
+        width: 15,
+      },
+      {
+        header: "Fee Admin",
+        key: "feeAdmin",
+        width: 15,
+      },
+      {
+        header: "Vehicle Type",
+        key: "vehicle_type",
+        width: 15,
+      },
+      {
+        header: "Start Date",
+        key: "start_date",
+        width: 15,
+      },
+      {
+        header: "End Date",
+        key: "end_date",
+        width: 15,
+      },
+      {
+        header: "Plate Number",
+        key: "plate_number",
+        width: 15,
+      },
+      {
+        header: "No RFID",
+        key: "rfid",
+        width: 15,
+      },
+    ];
+
+    // ============================================================
+    // TRANSACTION HEADER STYLE
+    // ============================================================
+
+    transactionWorksheet.getRow(1).eachCell((cell) => {
+      cell.font = {
+        bold: true,
+        color: {
+          argb: "FFFFFFFF",
+        },
+      };
+
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: {
+          argb: "0070C0",
+        },
+      };
+
+      cell.alignment = {
+        vertical: "middle",
+        horizontal: "center",
+      };
+    });
+
+    transactionWorksheet.getRow(1).height = 25;
+
+    // ============================================================
+    // TRANSACTION DATA
+    // ============================================================
+
+    let totalPrice = 0;
+    let totalFeeAdmin = 0;
+
+    response.forEach((value, index) => {
+      const price = Number(value.price) || 0;
+      const feeAdmin = 5000;
+
+      const user = value.trxHistoryUser;
+
+      const vehicle = user?.VehicleLists?.[0];
+
+      const membershipDetail = vehicle?.MembershipDetails?.[0];
+
+      transactionWorksheet.addRow({
+        No: index + 1,
+
+        dateTransaction: value.updatedAt
+          ? moment(value.updatedAt).tz("Asia/Jakarta").format("YYYY-MM-DD")
+          : "-",
+
+        timeTransaction: value.updatedAt
+          ? moment(value.updatedAt).tz("Asia/Jakarta").format("HH:mm:ss")
+          : "-",
+
+        trxId: value.trxId || "-",
+
+        transactionType: value.transactionType || "-",
+
+        noVirtualAccount: value.virtual_account || "-",
+
+        AccountName: user?.username || "-",
+
+        locationName: value.location_name || "-",
+
+        typePurchase: value.product_name || "-",
+
+        amount: price,
+
+        feeAdmin,
+
+        vehicle_type: value.vehicle_type || "-",
+
+        start_date: membershipDetail?.updated_at
+          ? moment(membershipDetail.updated_at)
+              .tz("Asia/Jakarta")
+              .format("YYYY-MM-DD")
+          : "-",
+
+        end_date: membershipDetail?.end_date
+          ? moment(membershipDetail.end_date)
+              .tz("Asia/Jakarta")
+              .format("YYYY-MM-DD")
+          : "-",
+
+        plate_number: vehicle?.plate_number || "-",
+
+        rfid: vehicle?.rfid || value.rfid || "-",
       });
 
-      for (const [index, value] of result.rows.entries()) {
-        const row = worksheet.addRow({
-          No: index + 1,
-          dateTransaction: value.createdAt
-            ? moment(value.createdAt).format("YYYY-MM-DD")
-            : "-",
-          timeTransaction: value.createdAt
-            ? moment(value.createdAt).format("HH:mm:ss")
-            : "-",
-          trxId: value.trxId || "-",
-          location_name: value.location_name || "-",
-          fullname: value.trxHistoryUser ? value.trxHistoryUser?.fullname : "-",
-          email: value.trxHistoryUser ? value.trxHistoryUser?.email : "-",
-          rfid: value.rfid ? value.rfid : "-",
-          vehicle_type: value.vehicle_type ? value.vehicle_type : "-",
-          virtual_account: value.virtual_account || "-",
-          bank_name:
-            value.payment_trx?.module_name === "BAYARIND_BCA_VIRTUAL_ACCOUNT"
-              ? "BCA_BAYARIND"
-              : "NOBU",
-          product_name: value.product_name || "-",
-          start_date: value.createdAt
-            ? moment(value.createdAt).format("YYYY-MM-DD")
-            : "-",
-          end_date: value.createdAt
-            ? moment(value.createdAt).add(30, "days").format("YYYY-MM-DD")
-            : "-",
-          purchase_type: value.purchase_type || "-",
-          transactionType: value.transactionType || "-",
-          type:
-            value.payment_trx?.app_module === "APP_MEMBERSHIP_B2B"
-              ? "B2B"
-              : value.payment_trx
-                ? "Personal"
-                : "-",
-          price: value.price ? Number(value.price) : "",
-          statusPayment: value.statusPayment || "-",
-        });
+      totalPrice += price;
+      totalFeeAdmin += feeAdmin;
+    });
 
-        worksheet.getRow(1).eachCell((cell) => {
-          cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; // Bold & warna putih
-          cell.fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: "0070C0" }, // Background biru
-          };
-          cell.alignment = { vertical: "middle", horizontal: "center" };
-        });
+    // ============================================================
+    // TRANSACTION TOTAL
+    // ============================================================
+
+    const totalRow = transactionWorksheet.addRow({
+      No: "",
+      dateTransaction: "",
+      timeTransaction: "",
+      trxId: "",
+      transactionType: "",
+      noVirtualAccount: "",
+      AccountName: "",
+      locationName: "",
+      typePurchase: "TOTAL",
+      amount: totalPrice,
+      feeAdmin: totalFeeAdmin,
+      vehicle_type: "",
+      start_date: "",
+      end_date: "",
+      plate_number: "",
+      rfid: "",
+    });
+
+    totalRow.font = {
+      bold: true,
+    };
+
+    totalRow.eachCell((cell) => {
+      cell.alignment = {
+        vertical: "middle",
+        horizontal: "center",
+      };
+    });
+
+    // Number format
+    transactionWorksheet.getColumn("amount").numFmt = "#,##0";
+    transactionWorksheet.getColumn("feeAdmin").numFmt = "#,##0";
+
+    // Freeze header
+    transactionWorksheet.views = [
+      {
+        state: "frozen",
+        ySplit: 1,
+      },
+    ];
+
+    // Auto filter
+    transactionWorksheet.autoFilter = {
+      from: "A1",
+      to: "P1",
+    };
+
+    // ============================================================
+    // SUMMARY DATA
+    // ============================================================
+
+    const locationSummary = {};
+    const productSummary = {};
+    const vehicleSummary = {};
+
+    response.forEach((value) => {
+      const location = value.location_name || "-";
+      const product = value.product_name || "-";
+      const vehicleType = value.vehicle_type || "-";
+
+      const price = Number(value.price) || 0;
+      const feeAdmin = 5000;
+
+      // ----------------------------
+      // LOCATION
+      // ----------------------------
+
+      if (!locationSummary[location]) {
+        locationSummary[location] = {
+          transaction: 0,
+          price: 0,
+          feeAdmin: 0,
+        };
       }
 
-      const fileName = startDate
-        ? `History_transaction_${startDate}_to_${endDate}.xlsx`
-        : `History_transaction_alldate.xlsx`;
+      locationSummary[location].transaction += 1;
+      locationSummary[location].price += price;
+      locationSummary[location].feeAdmin += feeAdmin;
 
-      res.setHeader(
-        "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      );
-      res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
+      // ----------------------------
+      // PRODUCT
+      // ----------------------------
 
-      await workbook.xlsx.write(res);
-      res.end();
-    } else {
-      res.status(400).json({ success: false, message: "Get data failed" });
-    }
+      if (!productSummary[product]) {
+        productSummary[product] = {
+          transaction: 0,
+          price: 0,
+          feeAdmin: 0,
+        };
+      }
+
+      productSummary[product].transaction += 1;
+      productSummary[product].price += price;
+      productSummary[product].feeAdmin += feeAdmin;
+
+      // ----------------------------
+      // VEHICLE
+      // ----------------------------
+
+      if (!vehicleSummary[vehicleType]) {
+        vehicleSummary[vehicleType] = {
+          transaction: 0,
+          price: 0,
+          feeAdmin: 0,
+        };
+      }
+
+      vehicleSummary[vehicleType].transaction += 1;
+      vehicleSummary[vehicleType].price += price;
+      vehicleSummary[vehicleType].feeAdmin += feeAdmin;
+    });
+
+    // ============================================================
+    // SHEET 2 - SUMMARY
+    // ============================================================
+
+    const summaryWorksheet = workbook.addWorksheet("Summary");
+
+    // Column widths
+    summaryWorksheet.getColumn(1).width = 8;
+    summaryWorksheet.getColumn(2).width = 35;
+    summaryWorksheet.getColumn(3).width = 22;
+    summaryWorksheet.getColumn(4).width = 20;
+    summaryWorksheet.getColumn(5).width = 20;
+    summaryWorksheet.getColumn(6).width = 20;
+    summaryWorksheet.getColumn(7).width = 20;
+    summaryWorksheet.getColumn(8).width = 20;
+
+    // ============================================================
+    // SUMMARY TITLE
+    // ============================================================
+
+    summaryWorksheet.mergeCells("A1:H1");
+
+    summaryWorksheet.getCell("A1").value = "MEMBERSHIP TRANSACTION SUMMARY";
+
+    summaryWorksheet.getCell("A1").font = {
+      bold: true,
+      size: 16,
+    };
+
+    summaryWorksheet.getCell("A1").alignment = {
+      horizontal: "center",
+      vertical: "middle",
+    };
+
+    summaryWorksheet.getRow(1).height = 30;
+
+    // ============================================================
+    // PERIOD
+    // ============================================================
+
+    summaryWorksheet.mergeCells("A2:H2");
+
+    summaryWorksheet.getCell("A2").value = `Period: ${moment(startDate).format(
+      "DD MMMM YYYY",
+    )} - ${moment(endDate).format("DD MMMM YYYY")}`;
+
+    summaryWorksheet.getCell("A2").alignment = {
+      horizontal: "center",
+      vertical: "middle",
+    };
+
+    // ============================================================
+    // LOCATION FILTER INFO
+    // ============================================================
+
+    summaryWorksheet.mergeCells("A3:H3");
+
+    summaryWorksheet.getCell("A3").value =
+      locationCode.length > 0
+        ? `Location Filter: ${locationCode.join(", ")}`
+        : "Location Filter: All Locations";
+
+    summaryWorksheet.getCell("A3").alignment = {
+      horizontal: "center",
+      vertical: "middle",
+    };
+
+    // ============================================================
+    // OVERALL SUMMARY
+    // ============================================================
+
+    summaryWorksheet.mergeCells("A5:H5");
+
+    summaryWorksheet.getCell("A5").value = "OVERALL SUMMARY";
+
+    summaryWorksheet.getCell("A5").font = {
+      bold: true,
+      size: 12,
+    };
+
+    summaryWorksheet.getRow(6).values = ["Metric", "Value"];
+
+    summaryWorksheet.getRow(6).font = {
+      bold: true,
+      color: {
+        argb: "FFFFFFFF",
+      },
+    };
+
+    summaryWorksheet.getRow(6).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: {
+        argb: "0070C0",
+      },
+    };
+
+    summaryWorksheet.getRow(7).values = ["Total Transaction", response.length];
+
+    summaryWorksheet.getRow(8).values = ["Total Price", totalPrice];
+
+    summaryWorksheet.getRow(9).values = ["Total Fee Admin", totalFeeAdmin];
+
+    summaryWorksheet.getRow(10).values = [
+      "Grand Total",
+      totalPrice + totalFeeAdmin,
+    ];
+
+    summaryWorksheet.getRow(10).font = {
+      bold: true,
+    };
+
+    summaryWorksheet.getCell("B8").numFmt = "#,##0";
+    summaryWorksheet.getCell("B9").numFmt = "#,##0";
+    summaryWorksheet.getCell("B10").numFmt = "#,##0";
+
+    // ============================================================
+    // SUMMARY BY LOCATION
+    // ============================================================
+
+    let rowIndex = 13;
+
+    summaryWorksheet.mergeCells(`A${rowIndex}:H${rowIndex}`);
+
+    summaryWorksheet.getCell(`A${rowIndex}`).value = "SUMMARY BY LOCATION";
+
+    summaryWorksheet.getCell(`A${rowIndex}`).font = {
+      bold: true,
+      size: 12,
+    };
+
+    rowIndex++;
+
+    summaryWorksheet.getRow(rowIndex).values = [
+      "No",
+      "Location",
+      "Total Transaction",
+      "Total Price",
+      "Fee Admin",
+      "Grand Total",
+    ];
+
+    summaryWorksheet.getRow(rowIndex).font = {
+      bold: true,
+      color: {
+        argb: "FFFFFFFF",
+      },
+    };
+
+    summaryWorksheet.getRow(rowIndex).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: {
+        argb: "0070C0",
+      },
+    };
+
+    const locationHeaderRow = rowIndex;
+
+    rowIndex++;
+
+    let locationTotalTransaction = 0;
+    let locationTotalPrice = 0;
+    let locationTotalFeeAdmin = 0;
+
+    Object.entries(locationSummary).forEach(([location, data], index) => {
+      const grandTotal = data.price + data.feeAdmin;
+
+      summaryWorksheet.getRow(rowIndex).values = [
+        index + 1,
+        location,
+        data.transaction,
+        data.price,
+        data.feeAdmin,
+        grandTotal,
+      ];
+
+      locationTotalTransaction += data.transaction;
+      locationTotalPrice += data.price;
+      locationTotalFeeAdmin += data.feeAdmin;
+
+      rowIndex++;
+    });
+
+    summaryWorksheet.getRow(rowIndex).values = [
+      "",
+      "TOTAL",
+      locationTotalTransaction,
+      locationTotalPrice,
+      locationTotalFeeAdmin,
+      locationTotalPrice + locationTotalFeeAdmin,
+    ];
+
+    summaryWorksheet.getRow(rowIndex).font = {
+      bold: true,
+    };
+
+    const locationTotalRow = rowIndex;
+
+    rowIndex += 3;
+
+    // ============================================================
+    // SUMMARY BY PRODUCT
+    // ============================================================
+
+    summaryWorksheet.mergeCells(`A${rowIndex}:H${rowIndex}`);
+
+    summaryWorksheet.getCell(`A${rowIndex}`).value = "SUMMARY BY PRODUCT";
+
+    summaryWorksheet.getCell(`A${rowIndex}`).font = {
+      bold: true,
+      size: 12,
+    };
+
+    rowIndex++;
+
+    summaryWorksheet.getRow(rowIndex).values = [
+      "No",
+      "Product Name",
+      "Total Transaction",
+      "Total Price",
+      "Fee Admin",
+      "Grand Total",
+    ];
+
+    summaryWorksheet.getRow(rowIndex).font = {
+      bold: true,
+      color: {
+        argb: "FFFFFFFF",
+      },
+    };
+
+    summaryWorksheet.getRow(rowIndex).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: {
+        argb: "0070C0",
+      },
+    };
+
+    rowIndex++;
+
+    let productTotalTransaction = 0;
+    let productTotalPrice = 0;
+    let productTotalFeeAdmin = 0;
+
+    Object.entries(productSummary).forEach(([product, data], index) => {
+      const grandTotal = data.price + data.feeAdmin;
+
+      summaryWorksheet.getRow(rowIndex).values = [
+        index + 1,
+        product,
+        data.transaction,
+        data.price,
+        data.feeAdmin,
+        grandTotal,
+      ];
+
+      productTotalTransaction += data.transaction;
+      productTotalPrice += data.price;
+      productTotalFeeAdmin += data.feeAdmin;
+
+      rowIndex++;
+    });
+
+    summaryWorksheet.getRow(rowIndex).values = [
+      "",
+      "TOTAL",
+      productTotalTransaction,
+      productTotalPrice,
+      productTotalFeeAdmin,
+      productTotalPrice + productTotalFeeAdmin,
+    ];
+
+    summaryWorksheet.getRow(rowIndex).font = {
+      bold: true,
+    };
+
+    rowIndex += 3;
+
+    // ============================================================
+    // SUMMARY BY VEHICLE TYPE
+    // ============================================================
+
+    summaryWorksheet.mergeCells(`A${rowIndex}:H${rowIndex}`);
+
+    summaryWorksheet.getCell(`A${rowIndex}`).value = "SUMMARY BY VEHICLE TYPE";
+
+    summaryWorksheet.getCell(`A${rowIndex}`).font = {
+      bold: true,
+      size: 12,
+    };
+
+    rowIndex++;
+
+    summaryWorksheet.getRow(rowIndex).values = [
+      "No",
+      "Vehicle Type",
+      "Total Transaction",
+      "Total Price",
+      "Fee Admin",
+      "Grand Total",
+    ];
+
+    summaryWorksheet.getRow(rowIndex).font = {
+      bold: true,
+      color: {
+        argb: "FFFFFFFF",
+      },
+    };
+
+    summaryWorksheet.getRow(rowIndex).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: {
+        argb: "0070C0",
+      },
+    };
+
+    rowIndex++;
+
+    let vehicleTotalTransaction = 0;
+    let vehicleTotalPrice = 0;
+    let vehicleTotalFeeAdmin = 0;
+
+    Object.entries(vehicleSummary).forEach(([vehicleType, data], index) => {
+      const grandTotal = data.price + data.feeAdmin;
+
+      summaryWorksheet.getRow(rowIndex).values = [
+        index + 1,
+        vehicleType,
+        data.transaction,
+        data.price,
+        data.feeAdmin,
+        grandTotal,
+      ];
+
+      vehicleTotalTransaction += data.transaction;
+      vehicleTotalPrice += data.price;
+      vehicleTotalFeeAdmin += data.feeAdmin;
+
+      rowIndex++;
+    });
+
+    summaryWorksheet.getRow(rowIndex).values = [
+      "",
+      "TOTAL",
+      vehicleTotalTransaction,
+      vehicleTotalPrice,
+      vehicleTotalFeeAdmin,
+      vehicleTotalPrice + vehicleTotalFeeAdmin,
+    ];
+
+    summaryWorksheet.getRow(rowIndex).font = {
+      bold: true,
+    };
+
+    // ============================================================
+    // SUMMARY FORMAT
+    // ============================================================
+
+    summaryWorksheet.eachRow((row) => {
+      row.eachCell((cell) => {
+        cell.alignment = {
+          vertical: "middle",
+          horizontal: "center",
+        };
+      });
+    });
+
+    // Number format untuk seluruh kolom nominal
+    summaryWorksheet.getColumn(4).numFmt = "#,##0";
+    summaryWorksheet.getColumn(5).numFmt = "#,##0";
+    summaryWorksheet.getColumn(6).numFmt = "#,##0";
+
+    // Freeze
+    summaryWorksheet.views = [
+      {
+        state: "frozen",
+        ySplit: 6,
+      },
+    ];
+
+    // ============================================================
+    // FILE NAME
+    // ============================================================
+
+    const locationName =
+      locationCode.length === 1
+        ? response[0]?.location_name || "ALL"
+        : "ALL_LOCATION";
+
+    const fileName = `Transaction_${locationName}_${moment(startDate).format(
+      "YYYYMMDD",
+    )}_${moment(endDate).format("YYYYMMDD")}.xlsx`;
+
+    // ============================================================
+    // RESPONSE
+    // ============================================================
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+
+    res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
+
+    await workbook.xlsx.write(res);
+
+    res.end();
   } catch (error) {
-    console.log("Error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    console.error(error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message,
+    });
   }
 };
 
@@ -307,11 +1035,11 @@ export const exportHistoryPayment = async (req, res) => {
     const dateCondition =
       startDate && endDate
         ? {
-          updated_at: {
-            [Sequelize.Op.gte]: `${startDate} 00:00:00`,
-            [Sequelize.Op.lt]: `${endDate} 23:59:59`,
-          },
-        }
+            updated_at: {
+              [Sequelize.Op.gte]: `${startDate} 00:00:00`,
+              [Sequelize.Op.lt]: `${endDate} 23:59:59`,
+            },
+          }
         : {};
 
     const result = await PaymentTransaction.findAndCountAll({
@@ -400,7 +1128,7 @@ export const exportHistoryPayment = async (req, res) => {
 
       res.setHeader(
         "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       );
       res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
 
@@ -432,11 +1160,11 @@ export const exportHistoryPaymentB2B = async (req, res) => {
     const dateCondition =
       startDate && endDate
         ? {
-          updated_at: {
-            [Sequelize.Op.gte]: `${startDate} 00:00:00`,
-            [Sequelize.Op.lt]: `${endDate} 23:59:59`,
-          },
-        }
+            updated_at: {
+              [Sequelize.Op.gte]: `${startDate} 00:00:00`,
+              [Sequelize.Op.lt]: `${endDate} 23:59:59`,
+            },
+          }
         : {};
 
     // Ambil data dengan urutan terbaru (DESC) agar jika ada duplikat, yang terbaru yang diambil
@@ -448,7 +1176,7 @@ export const exportHistoryPaymentB2B = async (req, res) => {
         payment_using: "VIRTUAL_ACCOUNT",
         app_module: "APP_MEMBERSHIP_B2B",
       },
-      order: [['updated_at', 'DESC']],
+      order: [["updated_at", "DESC"]],
     });
 
     if (result.count > 0) {
@@ -474,9 +1202,21 @@ export const exportHistoryPaymentB2B = async (req, res) => {
         { header: "Transaction Time", width: 20, key: "timeTransaction" },
         { header: "Transaction Code", width: 30, key: "trx_id" },
         { header: "Invoice Number", width: 30, key: "invoice_number" },
-        { header: "Virtual Account Name", width: 35, key: "virtual_account_name" },
-        { header: "Virtual Account Number", width: 35, key: "virtual_account_number" },
-        { header: "Virtual Account Email", width: 35, key: "virtual_account_email" },
+        {
+          header: "Virtual Account Name",
+          width: 35,
+          key: "virtual_account_name",
+        },
+        {
+          header: "Virtual Account Number",
+          width: 35,
+          key: "virtual_account_number",
+        },
+        {
+          header: "Virtual Account Email",
+          width: 35,
+          key: "virtual_account_email",
+        },
         { header: "Payment Method", width: 30, key: "payment_using" },
         { header: "Product", width: 35, key: "app_module" },
         { header: "Amount", width: 30, key: "paid_amount" },
@@ -526,14 +1266,16 @@ export const exportHistoryPaymentB2B = async (req, res) => {
 
       res.setHeader(
         "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       );
       res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
 
       await workbook.xlsx.write(res);
       res.end();
     } else {
-      res.status(404).json({ success: false, message: "No data found to export" });
+      res
+        .status(404)
+        .json({ success: false, message: "No data found to export" });
     }
   } catch (error) {
     console.error("Export Error:", error);
@@ -560,11 +1302,11 @@ export const exportDataHistoryPointByUser = async (req, res) => {
     const dateCondition =
       startDate && endDate
         ? {
-          createdAt: {
-            [Sequelize.Op.gte]: `${startDate} 00:00:00`,
-            [Sequelize.Op.lt]: `${endDate} 23:59:59`,
-          },
-        }
+            createdAt: {
+              [Sequelize.Op.gte]: `${startDate} 00:00:00`,
+              [Sequelize.Op.lt]: `${endDate} 23:59:59`,
+            },
+          }
         : {};
 
     const transactions = await TransactionHistoryPayment.findAll({
@@ -619,7 +1361,7 @@ export const exportDataHistoryPointByUser = async (req, res) => {
     // Filter berdasarkan search query jika ada
     if (search) {
       history = history.filter((item) =>
-        item.description.toLowerCase().includes(search.toLowerCase())
+        item.description.toLowerCase().includes(search.toLowerCase()),
       );
     }
 
@@ -675,7 +1417,7 @@ export const exportDataHistoryPointByUser = async (req, res) => {
 
       res.setHeader(
         "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       );
       res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
 
@@ -713,11 +1455,11 @@ export const exportHistoryPaymentByUser = async (req, res) => {
     const dateCondition =
       startDate && endDate
         ? {
-          createdAt: {
-            [Sequelize.Op.gte]: `${startDate} 00:00:00`,
-            [Sequelize.Op.lt]: `${endDate} 23:59:59`,
-          },
-        }
+            createdAt: {
+              [Sequelize.Op.gte]: `${startDate} 00:00:00`,
+              [Sequelize.Op.lt]: `${endDate} 23:59:59`,
+            },
+          }
         : {};
 
     const result = await TransactionHistoryPayment.findAndCountAll({
@@ -784,7 +1526,7 @@ export const exportHistoryPaymentByUser = async (req, res) => {
 
       res.setHeader(
         "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       );
       res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
 
@@ -824,11 +1566,11 @@ export const exportDataTransaksiPostById = async (req, res) => {
     const dateCondition =
       startDate && endDate
         ? {
-          createdAt: {
-            [Sequelize.Op.gte]: `${startDate} 00:00:00`,
-            [Sequelize.Op.lt]: `${endDate} 23:59:59`,
-          },
-        }
+            createdAt: {
+              [Sequelize.Op.gte]: `${startDate} 00:00:00`,
+              [Sequelize.Op.lt]: `${endDate} 23:59:59`,
+            },
+          }
         : null;
 
     if (statusMember) {
@@ -884,13 +1626,13 @@ export const exportDataTransaksiPostById = async (req, res) => {
           status_membership: value.status_member || "-",
           in_time: value.gate_in_time
             ? moment(value.gate_in_time)
-              .tz("Asia/Jakarta")
-              .format("YYYY-MM-DD HH:mm:ss")
+                .tz("Asia/Jakarta")
+                .format("YYYY-MM-DD HH:mm:ss")
             : "-",
           out_time: value.gate_out_time
             ? moment(value.gate_out_time)
-              .tz("Asia/Jakarta")
-              .format("YYYY-MM-DD HH:mm:ss")
+                .tz("Asia/Jakarta")
+                .format("YYYY-MM-DD HH:mm:ss")
             : "-",
           tariff: value.tariff || "-",
           status: value.is_close === 1 ? "Out Area Parking" : "In Area Parking",
@@ -907,7 +1649,7 @@ export const exportDataTransaksiPostById = async (req, res) => {
 
       res.setHeader(
         "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       );
       res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
 
@@ -1063,13 +1805,13 @@ export const exportHistoryPoint = async (req, res) => {
             : "-",
           last_topup: value.last_topup_date
             ? moment(value.last_topup_date)
-              .tz("Asia/Jakarta")
-              .format("YYYY-MM-DD HH:mm:ss")
+                .tz("Asia/Jakarta")
+                .format("YYYY-MM-DD HH:mm:ss")
             : "-",
           purchase_date: value.last_purchase_date
             ? moment(value.last_purchase_date)
-              .tz("Asia/Jakarta")
-              .format("YYYY-MM-DD HH:mm:ss")
+                .tz("Asia/Jakarta")
+                .format("YYYY-MM-DD HH:mm:ss")
             : "-",
         });
 
@@ -1091,7 +1833,7 @@ export const exportHistoryPoint = async (req, res) => {
 
       res.setHeader(
         "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       );
       res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
 
@@ -1123,10 +1865,10 @@ export const exportDetailMutationBank = async (req, res) => {
               "CONVERT_TZ",
               Sequelize.col("trxDate"),
               "+00:00",
-              "+07:00"
-            ) // UTC -> WIB
+              "+07:00",
+            ), // UTC -> WIB
           ),
-          date
+          date,
         ),
       ],
     };
@@ -1205,7 +1947,7 @@ export const exportDetailMutationBank = async (req, res) => {
 
       res.setHeader(
         "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       );
       res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
 
@@ -1325,8 +2067,8 @@ export const exportDetailTransaksiLocation = async (req, res) => {
       const workbook = new ExcelJs.Workbook();
       const worksheet = workbook.addWorksheet(
         `Transaction ${moment(startDate).format("YYYY-MM-DD")} - ${moment(
-          endDate
-        ).format("YYYY-MM-DD")}`
+          endDate,
+        ).format("YYYY-MM-DD")}`,
       );
 
       worksheet.columns = [
@@ -1423,12 +2165,12 @@ export const exportDetailTransaksiLocation = async (req, res) => {
       });
 
       const fileName = `Transaction_${locationName}_${moment(startDate).format(
-        "YYYYMMDD"
+        "YYYYMMDD",
       )}_${moment(endDate).format("YYYYMMDD")}.xlsx`;
 
       res.setHeader(
         "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       );
       res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
 
@@ -1500,7 +2242,7 @@ export const exportExcelByMonth = async (req, res) => {
     // isi data ke Excel
     records.forEach((row, index) => {
       const safeRow = Object.fromEntries(
-        Object.entries(row).map(([k, v]) => [k, v ?? "-"])
+        Object.entries(row).map(([k, v]) => [k, v ?? "-"]),
       );
 
       worksheet.addRow({
@@ -1512,11 +2254,11 @@ export const exportExcelByMonth = async (req, res) => {
     // response file
     res.setHeader(
       "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=reconcile-${month}.xlsx`
+      `attachment; filename=reconcile-${month}.xlsx`,
     );
 
     await workbook.xlsx.write(res);

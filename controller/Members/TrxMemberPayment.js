@@ -1,16 +1,13 @@
 import { col, fn, literal, Op, Sequelize } from "sequelize";
-import TransactionHistoryPayment from "../../model/Members/v02/TransactionPaymentHistory.js";
-import User from "../../model/Members/Users.js";
-import PaymentTransaction from "../../model/Members/v02/PaymentHistory.js";
-import moment from "moment/moment.js";
-import ExcelJs from "exceljs";
-import HistoryPost from "../../model/Members/v02/HistoryPost.js";
 import { errorResponse, successResponse } from "../../config/response.js";
-import VehicleList from "../../model/Members/v02/VehicleList.js";
-import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
-import LocationArea from "../../model/Members/v02/LocationMaster.js";
 import MemberTenant from "../../model/Members/MemberTenants.js";
+import User from "../../model/Members/Users.js";
+import HistoryPost from "../../model/Members/v02/HistoryPost.js";
+import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
+import PaymentTransaction from "../../model/Members/v02/PaymentHistory.js";
 import TennantPurchaseHistory from "../../model/Members/v02/TenantPurchaseHistory.js";
+import TransactionHistoryPayment from "../../model/Members/v02/TransactionPaymentHistory.js";
+import VehicleList from "../../model/Members/v02/VehicleList.js";
 
 export const createTransaction = async (req, res) => {
   try {
@@ -128,16 +125,16 @@ export const getTrxStatusPaymentByTrxid = async (req, res) => {
           if (monthsToAdd > 0) {
             const newEndDate = addMonths(
               new Date(membership.end_date),
-              monthsToAdd
+              monthsToAdd,
             );
 
             await MembershipDetail.update(
               { end_date: newEndDate, updated_at: new Date() },
-              { where: { id: membership.id } }
+              { where: { id: membership.id } },
             );
 
             console.log(
-              `Membership ${membership.id} diperpanjang ${monthsToAdd} bulan → end_date baru: ${newEndDate}`
+              `Membership ${membership.id} diperpanjang ${monthsToAdd} bulan → end_date baru: ${newEndDate}`,
             );
           }
         }
@@ -384,15 +381,15 @@ export const getTransactionsTopup = async (req, res) => {
           fn(
             "SUM",
             literal(
-              `CASE WHEN statusPayment = 'PAID' THEN CAST(price AS UNSIGNED) ELSE 0 END`
-            )
+              `CASE WHEN statusPayment = 'PAID' THEN CAST(price AS UNSIGNED) ELSE 0 END`,
+            ),
           ),
           "total_topup",
         ],
         [
           fn(
             "COUNT",
-            literal(`CASE WHEN statusPayment = 'PAID' THEN 1 ELSE NULL END`)
+            literal(`CASE WHEN statusPayment = 'PAID' THEN 1 ELSE NULL END`),
           ),
           "jumlah_topup",
         ],
@@ -502,7 +499,7 @@ export const getTransactionsTopup = async (req, res) => {
         acc.titipan += curr.titipan;
         return acc;
       },
-      { total_topup: 0, membership: 0, casual: 0, titipan: 0 }
+      { total_topup: 0, membership: 0, casual: 0, titipan: 0 },
     );
 
     // Pagination
@@ -561,7 +558,7 @@ export const getPaymentByTrxId = async (req, res) => {
   }
 };
 
-export const getDetailPayment = async (req, res) => { };
+export const getDetailPayment = async (req, res) => {};
 
 //history payment
 export const getPayment = async (req, res) => {
@@ -743,7 +740,7 @@ export const historyUsersById = async (req, res) => {
     // Filter berdasarkan search query jika ada
     if (search) {
       history = history.filter((item) =>
-        item.description.toLowerCase().includes(search.toLowerCase())
+        item.description.toLowerCase().includes(search.toLowerCase()),
       );
     }
 
@@ -774,11 +771,20 @@ export const historyTransactionByLocation = async (req, res) => {
     const { month, year, page = 1, limit = 10, search = "" } = req.query;
 
     const currentDate = new Date();
-    const selectedMonth = month ? parseInt(month) : currentDate.getUTCMonth() + 1;
+    const selectedMonth = month
+      ? parseInt(month)
+      : currentDate.getUTCMonth() + 1;
     const selectedYear = year ? parseInt(year) : currentDate.getUTCFullYear();
 
-    const startDate = new Date(Date.UTC(selectedYear, selectedMonth - 1, 1, 0, 0, 0));
-    const endDate = new Date(Date.UTC(selectedYear, selectedMonth, 0, 23, 59, 59));
+    const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+    const startDate = new Date(
+      Date.UTC(selectedYear, selectedMonth - 1, 1) - WIB_OFFSET_MS,
+    );
+
+    const nextMonth = new Date(
+      Date.UTC(selectedYear, selectedMonth, 1) - WIB_OFFSET_MS,
+    );
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
@@ -794,7 +800,7 @@ export const historyTransactionByLocation = async (req, res) => {
         purchase_type: "MEMBERSHIP",
         statusPayment: "PAID",
         updatedAt: {
-          [Op.between]: [startDate, endDate],
+          [Op.between]: [startDate, nextMonth],
         },
         location_name: {
           [Op.like]: `%${search}%`,
@@ -807,7 +813,7 @@ export const historyTransactionByLocation = async (req, res) => {
     // Struktur data sesuai request
     const result = transactions.reduce((acc, trx) => {
       let existing = acc.find(
-        (item) => item.location_name === trx.location_name
+        (item) => item.location_name === trx.location_name,
       );
 
       if (!existing) {
@@ -848,7 +854,7 @@ export const historyTransactionByLocation = async (req, res) => {
       totalPages: Math.ceil(result.length / parseInt(limit)),
       period: {
         startDate,
-        endDate,
+        nextMonth,
       },
     });
   } catch (error) {
@@ -863,12 +869,18 @@ export const transactionByLocation = async (req, res) => {
     const offset = (page - 1) * limit;
 
     const currentDate = new Date();
-    const selectedMonth = month ? parseInt(month) : currentDate.getUTCMonth() + 1;
+    const selectedMonth = month
+      ? parseInt(month)
+      : currentDate.getUTCMonth() + 1;
     const selectedYear = year ? parseInt(year) : currentDate.getUTCFullYear();
 
-    const startDate = new Date(Date.UTC(selectedYear, selectedMonth - 1, 1, 0, 0, 0));
-    const endDate = new Date(Date.UTC(selectedYear, selectedMonth, 0, 23, 59, 59));
-    console.log(startDate, endDate)
+    const startDate = new Date(
+      Date.UTC(selectedYear, selectedMonth - 1, 1, 0, 0, 0),
+    );
+    const endDate = new Date(
+      Date.UTC(selectedYear, selectedMonth, 0, 23, 59, 59),
+    );
+    console.log(startDate, endDate);
     // bikin filter dasar
     const whereCondition = {
       location_code: req.params.locationCode,
@@ -970,7 +982,7 @@ export const getYearHistory = async (req, res) => {
         [
           Sequelize.fn(
             "DISTINCT",
-            Sequelize.fn("YEAR", Sequelize.col("createdAt"))
+            Sequelize.fn("YEAR", Sequelize.col("createdAt")),
           ),
           "year",
         ],

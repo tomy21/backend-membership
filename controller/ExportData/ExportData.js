@@ -236,6 +236,7 @@ export const exportHistoryTransaction = async (req, res) => {
         "price",
         "product_name",
         "statusPayment",
+        "module_name",
       ],
 
       include: [
@@ -335,6 +336,11 @@ export const exportHistoryTransaction = async (req, res) => {
         width: 30,
       },
       {
+        header: "Bank",
+        key: "bank",
+        width: 15,
+      },
+      {
         header: "Virtual Account",
         key: "noVirtualAccount",
         width: 20,
@@ -430,6 +436,9 @@ export const exportHistoryTransaction = async (req, res) => {
       const price = Number(value.price) || 0;
       const feeAdmin = 5000;
 
+      const bank =
+        value.module_name === "BAYARIND_BCA_VIRTUAL_ACCOUNT" ? "BCA" : "NOBU";
+
       const user = value.trxHistoryUser;
 
       const vehicle = user?.VehicleLists?.[0];
@@ -448,23 +457,15 @@ export const exportHistoryTransaction = async (req, res) => {
           : "-",
 
         trxId: value.trxId || "-",
-
         transactionType: value.transactionType || "-",
-
         noVirtualAccount: value.virtual_account || "-",
-
+        bank,
         AccountName: user?.username || "-",
-
         locationName: value.location_name || "-",
-
         typePurchase: value.product_name || "-",
-
         amount: price,
-
         feeAdmin,
-
         vehicle_type: value.vehicle_type || "-",
-
         start_date: membershipDetail?.updated_at
           ? moment(membershipDetail.updated_at)
               .tz("Asia/Jakarta")

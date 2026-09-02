@@ -2087,7 +2087,7 @@ export const exportDetailTransaksiLocation = async (req, res) => {
       const workbook = new ExcelJs.Workbook();
       const worksheet = workbook.addWorksheet(
         `Transaction ${moment(startDate).format("YYYY-MM-DD")} - ${moment(
-          endDate,
+          nextMonth,
         ).format("YYYY-MM-DD")}`,
       );
 
@@ -2186,7 +2186,7 @@ export const exportDetailTransaksiLocation = async (req, res) => {
 
       const fileName = `Transaction_${locationName}_${moment(startDate).format(
         "YYYYMMDD",
-      )}_${moment(endDate).format("YYYYMMDD")}.xlsx`;
+      )}_${moment(nextMonth).format("YYYYMMDD")}.xlsx`;
 
       res.setHeader(
         "Content-Type",

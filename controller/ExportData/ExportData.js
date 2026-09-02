@@ -236,7 +236,6 @@ export const exportHistoryTransaction = async (req, res) => {
         "price",
         "product_name",
         "statusPayment",
-        "module_name",
       ],
 
       include: [
@@ -334,11 +333,6 @@ export const exportHistoryTransaction = async (req, res) => {
         header: "Transaction Type",
         key: "transactionType",
         width: 30,
-      },
-      {
-        header: "Bank",
-        key: "bank",
-        width: 15,
       },
       {
         header: "Virtual Account",
@@ -459,7 +453,6 @@ export const exportHistoryTransaction = async (req, res) => {
         trxId: value.trxId || "-",
         transactionType: value.transactionType || "-",
         noVirtualAccount: value.virtual_account || "-",
-        bank,
         AccountName: user?.username || "-",
         locationName: value.location_name || "-",
         typePurchase: value.product_name || "-",

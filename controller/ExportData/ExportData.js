@@ -1,4 +1,3 @@
-import { fromZonedTime } from "date-fns-tz";
 import ExcelJs from "exceljs";
 import moment from "moment/moment.js";
 import { col, fn, Op, Sequelize, where } from "sequelize";
@@ -169,14 +168,15 @@ export const exportHistoryTransaction = async (req, res) => {
       });
     }
 
-    const timeZone = "Asia/Jakarta";
+    const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
 
-    const startWIB = new Date(selectedYear, selectedMonth - 1, 1, 0, 0, 0, 0);
+    const startDate = new Date(
+      Date.UTC(selectedYear, selectedMonth - 1, 1) - WIB_OFFSET_MS,
+    );
 
-    const nextMonthWIB = new Date(selectedYear, selectedMonth, 1, 0, 0, 0, 0);
-
-    const startDate = fromZonedTime(startWIB, timeZone);
-    const nextMonth = fromZonedTime(nextMonthWIB, timeZone);
+    const nextMonth = new Date(
+      Date.UTC(selectedYear, selectedMonth, 1) - WIB_OFFSET_MS,
+    );
 
     const endDate = new Date(selectedYear, selectedMonth, 0, 23, 59, 59, 999);
 
@@ -1973,17 +1973,19 @@ export const exportDetailMutationBank = async (req, res) => {
 export const exportDetailTransaksiLocation = async (req, res) => {
   try {
     const { month, year, search } = req.query;
-    const timeZone = "Asia/Jakarta";
     const currentDate = new Date();
     const selectedMonth = month ? parseInt(month) : currentDate.getMonth();
     const selectedYear = year ? parseInt(year) : currentDate.getFullYear();
 
-    const startWIB = new Date(selectedYear, selectedMonth - 1, 1, 0, 0, 0, 0);
+    const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
 
-    const nextMonthWIB = new Date(selectedYear, selectedMonth, 1, 0, 0, 0, 0);
+    const startDate = new Date(
+      Date.UTC(selectedYear, selectedMonth - 1, 1) - WIB_OFFSET_MS,
+    );
 
-    const startDate = fromZonedTime(startWIB, timeZone);
-    const nextMonth = fromZonedTime(nextMonthWIB, timeZone);
+    const nextMonth = new Date(
+      Date.UTC(selectedYear, selectedMonth, 1) - WIB_OFFSET_MS,
+    );
 
     // bikin filter dasar
     const whereCondition = {

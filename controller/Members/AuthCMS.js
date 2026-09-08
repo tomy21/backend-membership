@@ -1,18 +1,18 @@
-import { Op, fn, literal, Sequelize } from "sequelize";
+import bcrypt from "bcryptjs/dist/bcrypt.js";
+import CryptoJS from "crypto-js";
+import dotenv from "dotenv";
+import { fn, literal, Op, Sequelize } from "sequelize";
 import {
   createSendToken,
   createTokenAplikasi,
 } from "../../config/ConfigToken.js";
 import { sendEmailRegister } from "../../config/EmailService.js";
-import UserCMS from "../../model/Members/v02/UserCMS.js";
-import bcrypt from "bcryptjs/dist/bcrypt.js";
-import { MemberUserRole } from "../../model/Master/RoleModel.js";
-import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
-import VehicleList from "../../model/Members/v02/VehicleList.js";
-import User from "../../model/Members/Users.js";
 import { errorResponse, successResponse } from "../../config/response.js";
-import CryptoJS from "crypto-js";
-import dotenv from "dotenv";
+import { MemberUserRole } from "../../model/Master/RoleModel.js";
+import User from "../../model/Members/Users.js";
+import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
+import UserCMS from "../../model/Members/v02/UserCMS.js";
+import VehicleList from "../../model/Members/v02/VehicleList.js";
 dotenv.config({ path: ".env" });
 
 const secret_key = process.env.SECRET_KEY;
@@ -283,7 +283,7 @@ export const registerCMS = async (req, res) => {
     await newUser.save({ validate: false });
 
     const activationURL = `${req.protocol}://${req.get(
-      "host"
+      "host",
     )}/v01/member/api/auth/activate-account-cms/${activationToken}`;
 
     // Kirim email aktivasi
@@ -485,13 +485,13 @@ export const getUserCMS = async (req, res) => {
       search.trim() === ""
         ? {} // Jika tidak ada search, ambil semua
         : {
-          [Op.or]: [
-            { fullname: { [Op.like]: `%${search}%` } },
-            { email: { [Op.like]: `%${search}%` } },
-            { username: { [Op.like]: `%${search}%` } },
-            { phone_number: { [Op.like]: `%${search}%` } },
-          ],
-        };
+            [Op.or]: [
+              { fullname: { [Op.like]: `%${search}%` } },
+              { email: { [Op.like]: `%${search}%` } },
+              { username: { [Op.like]: `%${search}%` } },
+              { phone_number: { [Op.like]: `%${search}%` } },
+            ],
+          };
     const users = await UserCMS.findAndCountAll({
       where: whereCondition,
       attributes: [
@@ -636,6 +636,7 @@ export const getAllMembership = async (req, res) => {
       include: [
         {
           model: MembershipDetail,
+          as: "membershipDetail",
           attributes: [
             "id",
             "location_name",
@@ -643,7 +644,7 @@ export const getAllMembership = async (req, res) => {
             "end_date",
             [
               Sequelize.literal(
-                "IF(`customer_membership_detail`.`end_date` >= CURDATE(), 1, 0)"
+                "IF(`customer_membership_detail`.`end_date` >= CURDATE(), 1, 0)",
               ),
               "isActive",
             ],
@@ -833,7 +834,7 @@ export const requestResetPassword = async (req, res) => {
       },
       {
         where: { id: user.id }, // atau pakai email kalau lebih aman
-      }
+      },
     );
 
     const activationURL = `${referralUrl}/change-password-admin?token=${token}`;

@@ -1,18 +1,15 @@
-import User from "../../model/Members/Users.js";
-import nodemailer from "nodemailer";
+import bcrypt from "bcryptjs/dist/bcrypt.js";
 import crypto from "crypto";
 import { Op, Sequelize } from "sequelize";
-import { v4 as uuidv4 } from "uuid";
-import { errorResponse, successResponse } from "../../config/response.js";
-import bcrypt from "bcryptjs/dist/bcrypt.js";
-import UserCMS from "../../model/Members/v02/UserCMS.js";
-import { sendEmailRegister } from "../../config/EmailService.js";
 import { createSendToken } from "../../config/ConfigToken.js";
-import VehicleList from "../../model/Members/v02/VehicleList.js";
+import { sendEmailRegister } from "../../config/EmailService.js";
+import User from "../../model/Members/Users.js";
 import MembershipDetail from "../../model/Members/v02/MembershipDetail.js";
+import UserCMS from "../../model/Members/v02/UserCMS.js";
+import VehicleList from "../../model/Members/v02/VehicleList.js";
 
-import dotenv from "dotenv";
 import CryptoJS from "crypto-js";
+import dotenv from "dotenv";
 import LocationArea from "../../model/Members/v02/LocationMaster.js";
 dotenv.config({ path: ".env" });
 
@@ -509,7 +506,8 @@ export const register = async (req, res) => {
     const activationURL = `${URL_MEMBERSHIP_BACKEND}/v01/member/api/auth/activate/${activationToken}?referralUrl=${URL_MEMBERSHIP}`;
 
     const to = newUser.email;
-    const subject = "Selamat Datang di SKY PARKING - Aktifkan Akun Membership Anda";
+    const subject =
+      "Selamat Datang di SKY PARKING - Aktifkan Akun Membership Anda";
     const html = `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 0; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; background-color: #ffffff;">
       
@@ -624,7 +622,6 @@ export const registerEncrypt = async (req, res) => {
       customer_no: customerNo, // Include the generated customer number
     };
 
-
     const newUser = await User.create(payloadData, {
       validate: false,
     });
@@ -637,7 +634,8 @@ export const registerEncrypt = async (req, res) => {
     const activationURL = `${URL_MEMBERSHIP_BACKEND}/v01/member/api/auth/activate/${activationToken}?referralUrl=${URL_MEMBERSHIP}`;
 
     const to = newUser.email;
-    const subject = "Selamat Datang di SKY PARKING - Aktifkan Akun Membership Anda";
+    const subject =
+      "Selamat Datang di SKY PARKING - Aktifkan Akun Membership Anda";
     const html = `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 0; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; background-color: #ffffff;">
       
@@ -796,14 +794,10 @@ export const activateAccountCMS = async (req, res) => {
 
 export const getUserByUsername = async (req, res) => {
   try {
-    const username = req.params.username
+    const username = req.params.username;
     const result = await User.findOne({
       where: { username: username },
-      attributes: [
-        "id",
-        "fullname",
-        "email",
-      ],
+      attributes: ["id", "fullname", "email"],
       // include: [
       //   {
       //     model: VehicleList,
@@ -868,6 +862,7 @@ export const getUserById = async (req, res) => {
           include: [
             {
               model: MembershipDetail,
+              as: "membershipDetail",
               where: { is_active: 1 },
               attributes: ["is_active", "location_id"],
             },
@@ -912,6 +907,7 @@ export const getCardDetail = async (req, res) => {
       include: [
         {
           model: MembershipDetail,
+          as: "membershipDetail",
           attributes: ["is_active", "location_id"],
         },
       ],
@@ -1059,8 +1055,8 @@ export const getAllCardOrPlat = async (req, res) => {
       whereCondition = {
         [Op.or]: [
           { rfid: { [Op.like]: `%${search}%` } },
-          { plate_number: { [Op.like]: `%${search}%` } }
-        ]
+          { plate_number: { [Op.like]: `%${search}%` } },
+        ],
       };
     }
 
@@ -1077,10 +1073,15 @@ export const getAllCardOrPlat = async (req, res) => {
       include: [
         {
           model: MembershipDetail,
+          as: "membershipDetail",
           attributes: ["is_active", "location_id", "updated_at", "end_date"],
           include: [
-            { model: LocationArea, as: "locationArea", attributes: ["location_name"] }
-          ]
+            {
+              model: LocationArea,
+              as: "locationArea",
+              attributes: ["location_name"],
+            },
+          ],
         },
       ],
     });

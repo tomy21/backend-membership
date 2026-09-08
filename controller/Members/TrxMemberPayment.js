@@ -934,6 +934,7 @@ export const transactionByLocation = async (req, res) => {
           include: [
             {
               model: VehicleList,
+              as: "vehicles",
             },
           ],
         },

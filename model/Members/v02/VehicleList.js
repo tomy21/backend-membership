@@ -61,15 +61,15 @@ const VehicleList = db.define(
 );
 
 VehicleList.belongsTo(MembershipDetail, {
-  as: "membershipDetail",
   foreignKey: "member_customer_no",
   targetKey: "member_customer_no",
+  as: "membershipDetail",
 });
 
 MembershipDetail.hasMany(VehicleList, {
-  as: "vehicles",
   foreignKey: "member_customer_no",
   sourceKey: "member_customer_no",
+  as: "vehicles",
 });
 
 // VehicleList.belongsTo(User, {

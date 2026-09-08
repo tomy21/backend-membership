@@ -2115,39 +2115,117 @@ export const exportDetailMutationBank = async (req, res) => {
 
 export const exportDetailTransaksiLocation = async (req, res) => {
   try {
-    const { month, year, search } = req.query;
-    const currentDate = new Date();
-    const selectedMonth = month ? parseInt(month) : currentDate.getMonth();
-    const selectedYear = year ? parseInt(year) : currentDate.getFullYear();
+    const { month, year, search = "" } = req.query;
 
+    const currentDate = new Date();
+
+    // month dari frontend menggunakan 1 - 12
+    const selectedMonth = month
+      ? parseInt(month, 10)
+      : currentDate.getUTCMonth() + 1;
+
+    const selectedYear = year
+      ? parseInt(year, 10)
+      : currentDate.getUTCFullYear();
+
+    if (
+      selectedMonth < 1 ||
+      selectedMonth > 12 ||
+      Number.isNaN(selectedMonth) ||
+      Number.isNaN(selectedYear)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid month or year",
+      });
+    }
+
+    /**
+     * Database menyimpan updatedAt dalam UTC.
+     *
+     * Kita ingin mengambil transaksi berdasarkan bulan WIB.
+     *
+     * Contoh:
+     * September 2026 WIB
+     *
+     * start:
+     * 2026-08-31 17:00:00 UTC
+     *
+     * next month:
+     * 2026-09-30 17:00:00 UTC
+     *
+     * Gunakan end exclusive supaya tidak ada masalah millisecond.
+     */
     const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
 
     const startDate = new Date(
-      Date.UTC(selectedYear, selectedMonth - 1, 1) - WIB_OFFSET_MS,
+      Date.UTC(selectedYear, selectedMonth - 1, 1, 0, 0, 0, 0) - WIB_OFFSET_MS,
     );
 
     const nextMonth = new Date(
-      Date.UTC(selectedYear, selectedMonth, 1) - WIB_OFFSET_MS,
+      Date.UTC(selectedYear, selectedMonth, 1, 0, 0, 0, 0) - WIB_OFFSET_MS,
     );
 
-    // bikin filter dasar
+    console.log("Export transaction:");
+    console.log("Start:", startDate);
+    console.log("Next Month:", nextMonth);
+
+    /**
+     * Filter dasar
+     */
     const whereCondition = {
       location_code: req.params.locationCode,
       purchase_type: "MEMBERSHIP",
       statusPayment: "PAID",
-      updatedAt: { [Op.between]: [startDate, nextMonth] },
+      updatedAt: {
+        [Op.gte]: startDate,
+        [Op.lt]: nextMonth,
+      },
     };
 
-    // filter search
-    if (search) {
+    /**
+     * Search
+     *
+     * location_name
+     * atau
+     * username/fullname user
+     */
+    if (search?.trim()) {
+      const keyword = search.trim();
+
       whereCondition[Op.or] = [
-        { location_name: { [Op.like]: `%${search}%` } },
-        { "$trxHistoryUser.fullname$": { [Op.like]: `%${search}%` } },
+        {
+          location_name: {
+            [Op.like]: `%${keyword}%`,
+          },
+        },
+        {
+          "$trxHistoryUser.fullname$": {
+            [Op.like]: `%${keyword}%`,
+          },
+        },
+        {
+          "$trxHistoryUser.username$": {
+            [Op.like]: `%${keyword}%`,
+          },
+        },
       ];
     }
 
+    /**
+     * Ambil data transaksi
+     *
+     * Struktur association sekarang:
+     *
+     * TransactionHistoryPayment
+     *   ├── membershipDetail
+     *   │     └── vehicles
+     *   │
+     *   └── trxHistoryUser
+     */
     const response = await TransactionHistoryPayment.findAll({
       where: whereCondition,
+
       attributes: [
         ["id", "trx_history_id"],
         "trxId",
@@ -2162,181 +2240,593 @@ export const exportDetailTransaksiLocation = async (req, res) => {
         "product_name",
         "statusPayment",
       ],
+
       include: [
+        {
+          model: MembershipDetail,
+          as: "membershipDetail",
+          attributes: [
+            ["id", "membership_detail_id"],
+            "member_customer_no",
+            "updated_at",
+            "end_date",
+          ],
+          include: [
+            {
+              model: VehicleList,
+              as: "vehicles",
+              attributes: [
+                ["id", "vehicle_id"],
+                "rfid",
+                "vehicle_type",
+                "plate_number",
+              ],
+            },
+          ],
+        },
+
         {
           model: User,
           as: "trxHistoryUser",
           attributes: [
-            ["id", "user_id"], // 👈 kasih alias biar gak bentrok
+            ["id", "user_id"],
             "fullname",
             "email",
             "points",
             "username",
           ],
-          include: [
-            {
-              model: VehicleList,
-              attributes: [
-                ["id", "vehicle_id"], // alias unik
-                "rfid",
-                "vehicle_type",
-                "plate_number",
-              ],
-              include: [
-                {
-                  model: MembershipDetail,
-                  attributes: [
-                    ["id", "membership_detail_id"], // alias unik
-                    "updated_at",
-                    "end_date",
-                  ],
-                },
-              ],
-            },
-          ],
         },
-        // {
-        //   model: MembershipDetail,
-        //   as: "membershipDetail",
-        //   attributes: [
-        //     ["id", "membership_detail_id"], // alias unik
-        //     "updated_at",
-        //     "end_date",
-        //   ],
-        //   include: [
-        //     {
-        //       model: VehicleList,
-        //       attributes: [
-        //         ["id", "vehicle_id"], // alias unik
-        //         "rfid",
-        //         "vehicle_type",
-        //         "plate_number",
-        //       ],
-        //     },
-        //   ],
-        // },
       ],
+
       order: [["updatedAt", "DESC"]],
     });
 
-    if (response.length > 0) {
-      const workbook = new ExcelJs.Workbook();
-      const worksheet = workbook.addWorksheet(
-        `Transaction ${moment(startDate).format("YYYY-MM-DD")} - ${moment(
-          nextMonth,
-        ).format("YYYY-MM-DD")}`,
-      );
-
-      worksheet.columns = [
-        { header: "No", key: "No", width: 5 },
-        { header: "Transaction Date", width: 20, key: "dateTransaction" },
-        { header: "Transaction Time", width: 20, key: "timeTransaction" },
-        { header: "Transaction Code", width: 30, key: "trxId" },
-        { header: "Transaction Type", width: 30, key: "transactionType" },
-        { header: "Virtual Account", width: 20, key: "noVirtualAccount" },
-        { header: "Account Name", width: 20, key: "AccountName" },
-        { header: "Location", width: 35, key: "locationName" },
-        { header: "Product Name", width: 20, key: "typePurchase" },
-        { header: "Price", width: 15, key: "amount" },
-        { header: "Fee Admin", width: 15, key: "feeAdmin" },
-        { header: "Vehicle Type", width: 15, key: "vehicle_type" },
-        { header: "Start Date", width: 15, key: "start_date" },
-        { header: "End Date", width: 15, key: "end_date" },
-        { header: "Plate Number", width: 15, key: "plate_number" },
-        { header: "No RFID", width: 15, key: "rfid" },
-      ];
-
-      worksheet.getRow(1).eachCell((cell) => {
-        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
-        cell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: "0070C0" },
-        };
-        cell.alignment = { vertical: "middle", horizontal: "center" };
+    /**
+     * Tidak ada data
+     */
+    if (response.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No Data Found",
       });
-
-      let totalPrice = 0;
-      let locationName = "";
-
-      response.forEach((value, index) => {
-        const price = Number(value.price) || 0;
-
-        worksheet.addRow({
-          No: index + 1,
-          dateTransaction: value.updatedAt
-            ? moment(value.updatedAt).tz("Asia/Jakarta").format("YYYY-MM-DD")
-            : "-",
-          timeTransaction: value.updatedAt
-            ? moment(value.updatedAt).tz("Asia/Jakarta").format("HH:mm:ss")
-            : "-",
-          trxId: value.trxId || "-",
-          transactionType: value.transactionType || "-",
-          noVirtualAccount: value.virtual_account || "-",
-          AccountName: value.trxHistoryUser.username || "-",
-          locationName: value.location_name || "-",
-          typePurchase: value.product_name || "-",
-          amount: price,
-          feeAdmin: 5000,
-          vehicle_type: value.vehicle_type || "-",
-          start_date:
-            value.trxHistoryUser?.customer_memberships?.[0]
-              ?.customer_membership_detail?.updated_at || "-",
-          end_date:
-            value.trxHistoryUser?.customer_memberships?.[0]
-              ?.customer_membership_detail?.end_date || "-",
-          plate_number:
-            value.membershipDetail?.customer_memberships[0]?.plate_number ||
-            "-",
-          rfid: value?.trxHistoryUser?.customer_memberships?.[0].rfid || "-",
-        });
-
-        locationName = value.location_name || "-";
-        totalPrice += price;
-      });
-
-      // Tambahin row total
-      const totalRow = worksheet.addRow({
-        No: "",
-        dateTransaction: "",
-        timeTransaction: "",
-        trxId: "",
-        transactionType: "",
-        noVirtualAccount: "",
-        AccountName: "",
-        locationName: "",
-        typePurchase: "",
-        amount: "",
-        feeAdmin: "",
-        vehicle_type: "",
-        start_date: "",
-        end_date: "",
-        plate_number: "",
-        rfid: "",
-      });
-
-      totalRow.font = { bold: true };
-      totalRow.eachCell((cell) => {
-        cell.alignment = { vertical: "middle", horizontal: "center" };
-      });
-
-      const fileName = `Transaction_${locationName}_${moment(startDate).format(
-        "YYYYMMDD",
-      )}_${moment(nextMonth).format("YYYYMMDD")}.xlsx`;
-
-      res.setHeader(
-        "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      );
-      res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
-
-      await workbook.xlsx.write(res);
-      res.end();
-    } else {
-      res.status(404).json({ success: false, message: "No Data Found" });
     }
+
+    /**
+     * Helper untuk memastikan data menjadi TEXT.
+     *
+     * Penting untuk:
+     * - Transaction Code
+     * - Virtual Account
+     * - RFID
+     * - Plate Number
+     *
+     * Supaya Excel tidak mengubahnya menjadi:
+     *
+     * 8.99986E+15
+     */
+    const toText = (value) => {
+      if (value === null || value === undefined || value === "") {
+        return "-";
+      }
+
+      return String(value);
+    };
+
+    /**
+     * Helper tanggal
+     */
+    const formatDate = (value) => {
+      if (!value) {
+        return "-";
+      }
+
+      return moment(value).tz("Asia/Jakarta").format("YYYY-MM-DD");
+    };
+
+    const formatTime = (value) => {
+      if (!value) {
+        return "-";
+      }
+
+      return moment(value).tz("Asia/Jakarta").format("HH:mm:ss");
+    };
+
+    /**
+     * Workbook
+     */
+    const workbook = new ExcelJs.Workbook();
+
+    workbook.creator = "SKY Membership";
+    workbook.created = new Date();
+    workbook.modified = new Date();
+
+    const worksheet = workbook.addWorksheet(
+      `Transaction ${moment(startDate).tz("Asia/Jakarta").format("YYYY-MM-DD")} - ${moment(
+        nextMonth,
+      )
+        .tz("Asia/Jakarta")
+        .subtract(1, "day")
+        .format("YYYY-MM-DD")}`,
+    );
+
+    /**
+     * Columns
+     */
+    worksheet.columns = [
+      {
+        header: "No",
+        key: "No",
+        width: 6,
+      },
+      {
+        header: "Transaction Date",
+        key: "dateTransaction",
+        width: 18,
+      },
+      {
+        header: "Transaction Time",
+        key: "timeTransaction",
+        width: 16,
+      },
+      {
+        header: "Transaction Code",
+        key: "trxId",
+        width: 28,
+      },
+      {
+        header: "Transaction Type",
+        key: "transactionType",
+        width: 22,
+      },
+      {
+        header: "Virtual Account",
+        key: "noVirtualAccount",
+        width: 22,
+      },
+      {
+        header: "Account Name",
+        key: "AccountName",
+        width: 25,
+      },
+      {
+        header: "Location",
+        key: "locationName",
+        width: 35,
+      },
+      {
+        header: "Bank",
+        key: "bank",
+        width: 12,
+      },
+      {
+        header: "Product Name",
+        key: "typePurchase",
+        width: 22,
+      },
+      {
+        header: "Price",
+        key: "amount",
+        width: 16,
+      },
+      {
+        header: "Fee Admin",
+        key: "feeAdmin",
+        width: 16,
+      },
+      {
+        header: "Vehicle Type",
+        key: "vehicle_type",
+        width: 16,
+      },
+      {
+        header: "Start Date",
+        key: "start_date",
+        width: 16,
+      },
+      {
+        header: "End Date",
+        key: "end_date",
+        width: 16,
+      },
+      {
+        header: "Plate Number",
+        key: "plate_number",
+        width: 18,
+      },
+      {
+        header: "No RFID",
+        key: "rfid",
+        width: 22,
+      },
+    ];
+
+    /**
+     * Header style
+     */
+    const headerRow = worksheet.getRow(1);
+
+    headerRow.height = 24;
+
+    headerRow.eachCell((cell) => {
+      cell.font = {
+        bold: true,
+        color: {
+          argb: "FFFFFFFF",
+        },
+      };
+
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: {
+          argb: "0070C0",
+        },
+      };
+
+      cell.alignment = {
+        vertical: "middle",
+        horizontal: "center",
+        wrapText: true,
+      };
+
+      cell.border = {
+        top: {
+          style: "thin",
+          color: {
+            argb: "FFFFFFFF",
+          },
+        },
+        bottom: {
+          style: "thin",
+          color: {
+            argb: "FFFFFFFF",
+          },
+        },
+        left: {
+          style: "thin",
+          color: {
+            argb: "FFFFFFFF",
+          },
+        },
+        right: {
+          style: "thin",
+          color: {
+            argb: "FFFFFFFF",
+          },
+        },
+      };
+    });
+
+    /**
+     * Freeze header
+     */
+    worksheet.views = [
+      {
+        state: "frozen",
+        ySplit: 1,
+      },
+    ];
+
+    /**
+     * Autofilter
+     */
+    worksheet.autoFilter = {
+      from: "A1",
+      to: "Q1",
+    };
+
+    let totalPrice = 0;
+    let totalFeeAdmin = 0;
+    let locationName = "";
+
+    /**
+     * Data rows
+     */
+    response.forEach((value, index) => {
+      const price = Number(value.price) || 0;
+
+      const feeAdmin = 5000;
+
+      /**
+       * Membership detail
+       */
+      const membershipDetail = value.membershipDetail;
+
+      /**
+       * Karena MembershipDetail.hasMany(VehicleList),
+       * hasilnya adalah array:
+       *
+       * membershipDetail.vehicles
+       */
+      const vehicles = membershipDetail?.vehicles || [];
+
+      /**
+       * Cari kendaraan yang paling cocok.
+       *
+       * Prioritas:
+       *
+       * 1. RFID sama
+       * 2. Vehicle type sama
+       * 3. kendaraan pertama
+       */
+      const vehicle =
+        vehicles.find(
+          (item) =>
+            value.rfid && item.rfid && String(item.rfid) === String(value.rfid),
+        ) ||
+        vehicles.find(
+          (item) =>
+            value.vehicle_type &&
+            item.vehicle_type &&
+            String(item.vehicle_type).toUpperCase() ===
+              String(value.vehicle_type).toUpperCase(),
+        ) ||
+        vehicles[0];
+
+      const plateNumber = vehicle?.plate_number || "-";
+
+      const vehicleRfid = vehicle?.rfid || value.rfid || "-";
+
+      const vehicleType = vehicle?.vehicle_type || value.vehicle_type || "-";
+
+      const startDateMembership = membershipDetail?.updated_at
+        ? formatDate(membershipDetail.updated_at)
+        : "-";
+
+      const endDateMembership = membershipDetail?.end_date
+        ? formatDate(membershipDetail.end_date)
+        : "-";
+
+      const accountName =
+        value.trxHistoryUser?.username || value.trxHistoryUser?.fullname || "-";
+
+      /**
+       * Bank dari Virtual Account
+       */
+      let bank = "-";
+
+      const virtualAccount = toText(value.virtual_account);
+
+      if (virtualAccount.startsWith("899986")) {
+        bank = "NOBU";
+      } else if (virtualAccount.startsWith("384689")) {
+        bank = "BCA";
+      }
+
+      worksheet.addRow({
+        No: index + 1,
+
+        dateTransaction: formatDate(value.updatedAt),
+
+        timeTransaction: formatTime(value.updatedAt),
+
+        /**
+         * FORCE TEXT
+         */
+        trxId: toText(value.trxId),
+
+        transactionType: toText(value.transactionType),
+
+        /**
+         * FORCE TEXT
+         */
+        noVirtualAccount: virtualAccount,
+
+        AccountName: toText(accountName),
+
+        locationName: toText(value.location_name),
+
+        bank,
+
+        typePurchase: toText(value.product_name),
+
+        amount: price,
+
+        feeAdmin,
+
+        vehicle_type: toText(vehicleType),
+
+        start_date: startDateMembership,
+
+        end_date: endDateMembership,
+
+        /**
+         * FORCE TEXT
+         */
+        plate_number: toText(plateNumber),
+
+        /**
+         * FORCE TEXT
+         */
+        rfid: toText(vehicleRfid),
+      });
+
+      locationName = value.location_name || "-";
+
+      totalPrice += price;
+      totalFeeAdmin += feeAdmin;
+    });
+
+    /**
+     * Format angka currency
+     */
+    const dataStartRow = 2;
+    const dataEndRow = worksheet.lastRow.number;
+
+    for (let rowNumber = dataStartRow; rowNumber <= dataEndRow; rowNumber++) {
+      const row = worksheet.getRow(rowNumber);
+
+      /**
+       * Price
+       */
+      row.getCell("amount").numFmt = "#,##0";
+
+      /**
+       * Fee Admin
+       */
+      row.getCell("feeAdmin").numFmt = "#,##0";
+
+      /**
+       * Text columns
+       *
+       * @ = Text format Excel
+       */
+      row.getCell("trxId").numFmt = "@";
+      row.getCell("noVirtualAccount").numFmt = "@";
+      row.getCell("plate_number").numFmt = "@";
+      row.getCell("rfid").numFmt = "@";
+
+      row.alignment = {
+        vertical: "middle",
+      };
+
+      /**
+       * Center beberapa kolom
+       */
+      row.getCell("No").alignment = {
+        vertical: "middle",
+        horizontal: "center",
+      };
+
+      row.getCell("dateTransaction").alignment = {
+        vertical: "middle",
+        horizontal: "center",
+      };
+
+      row.getCell("timeTransaction").alignment = {
+        vertical: "middle",
+        horizontal: "center",
+      };
+
+      row.getCell("transactionType").alignment = {
+        vertical: "middle",
+        horizontal: "center",
+      };
+
+      row.getCell("bank").alignment = {
+        vertical: "middle",
+        horizontal: "center",
+      };
+
+      row.getCell("vehicle_type").alignment = {
+        vertical: "middle",
+        horizontal: "center",
+      };
+    }
+
+    /**
+     * Total row
+     */
+    const totalRow = worksheet.addRow({
+      No: "",
+      dateTransaction: "",
+      timeTransaction: "",
+      trxId: "",
+      transactionType: "",
+      noVirtualAccount: "",
+      AccountName: "",
+      locationName: "TOTAL",
+      bank: "",
+      typePurchase: "",
+      amount: totalPrice,
+      feeAdmin: totalFeeAdmin,
+      vehicle_type: "",
+      start_date: "",
+      end_date: "",
+      plate_number: "",
+      rfid: "",
+    });
+
+    totalRow.font = {
+      bold: true,
+    };
+
+    totalRow.height = 24;
+
+    totalRow.eachCell((cell) => {
+      cell.alignment = {
+        vertical: "middle",
+        horizontal: "center",
+      };
+
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: {
+          argb: "E2F0D9",
+        },
+      };
+    });
+
+    totalRow.getCell("amount").numFmt = "#,##0";
+    totalRow.getCell("feeAdmin").numFmt = "#,##0";
+
+    /**
+     * Border seluruh data
+     */
+    worksheet.eachRow((row) => {
+      row.eachCell((cell) => {
+        cell.border = {
+          top: {
+            style: "thin",
+            color: {
+              argb: "D9D9D9",
+            },
+          },
+          bottom: {
+            style: "thin",
+            color: {
+              argb: "D9D9D9",
+            },
+          },
+          left: {
+            style: "thin",
+            color: {
+              argb: "D9D9D9",
+            },
+          },
+          right: {
+            style: "thin",
+            color: {
+              argb: "D9D9D9",
+            },
+          },
+        };
+      });
+    });
+
+    /**
+     * Nama file
+     */
+    const safeLocationName = String(locationName || "Location")
+      .replace(/[\\/:*?"<>|]/g, "_")
+      .replace(/\s+/g, "_");
+
+    const periodStart = moment(startDate).tz("Asia/Jakarta").format("YYYYMMDD");
+
+    const periodEnd = moment(nextMonth)
+      .tz("Asia/Jakarta")
+      .subtract(1, "day")
+      .format("YYYYMMDD");
+
+    const fileName = `Transaction_${safeLocationName}_${periodStart}_${periodEnd}.xlsx`;
+
+    /**
+     * Response
+     */
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+
+    await workbook.xlsx.write(res);
+
+    res.end();
   } catch (error) {
-    console.error(error);
+    console.error("exportDetailTransaksiLocation error:", error);
+
     return res.status(500).json({
       success: false,
       message: "Internal server error",

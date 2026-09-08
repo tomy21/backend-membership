@@ -144,11 +144,11 @@ export const exportHistoryTransaction = async (req, res) => {
     // DATE FILTER
     // ============================================================
 
-    const currentDate = new Date();
+    const currentDate = moment.tz("Asia/Jakarta");
 
-    const selectedMonth = month ? parseInt(month, 10) : currentDate.getMonth();
+    const selectedMonth = month ? parseInt(month, 10) : currentDate.month() + 1;
 
-    const selectedYear = year ? parseInt(year, 10) : currentDate.getFullYear();
+    const selectedYear = year ? parseInt(year, 10) : currentDate.year();
 
     if (
       Number.isNaN(selectedMonth) ||
@@ -168,17 +168,33 @@ export const exportHistoryTransaction = async (req, res) => {
       });
     }
 
-    const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
+    const startDate = moment
+      .tz(
+        {
+          year: selectedYear,
+          month: selectedMonth - 1,
+          day: 1,
+        },
+        "Asia/Jakarta",
+      )
+      .startOf("day");
 
-    const startDate = new Date(
-      Date.UTC(selectedYear, selectedMonth - 1, 1) - WIB_OFFSET_MS,
-    );
+    const nextMonth = startDate.clone().add(1, "month").startOf("month");
 
-    const nextMonth = new Date(
-      Date.UTC(selectedYear, selectedMonth, 1) - WIB_OFFSET_MS,
-    );
+    const endDate = nextMonth.clone().subtract(1, "millisecond");
 
-    const endDate = new Date(selectedYear, selectedMonth, 0, 23, 59, 59, 999);
+    console.log("========================================");
+    console.log("EXPORT HISTORY TRANSACTION");
+    console.log("========================================");
+    console.log("month:", month);
+    console.log("year:", year);
+    console.log("selectedMonth:", selectedMonth);
+    console.log("selectedYear:", selectedYear);
+    console.log("startDate:", startDate.format("YYYY-MM-DD HH:mm:ss Z"));
+    console.log("nextMonth:", nextMonth.format("YYYY-MM-DD HH:mm:ss Z"));
+    console.log("endDate:", endDate.format("YYYY-MM-DD HH:mm:ss Z"));
+    console.log("locationCode:", locationCode);
+    console.log("search:", search);
 
     // ============================================================
     // WHERE CONDITION
@@ -188,19 +204,25 @@ export const exportHistoryTransaction = async (req, res) => {
       purchase_type: "MEMBERSHIP",
       statusPayment: "PAID",
       updatedAt: {
-        [Op.gte]: startDate,
-        [Op.lt]: nextMonth,
+        [Op.gte]: startDate.toDate(),
+        [Op.lt]: nextMonth.toDate(),
       },
     };
 
-    // Filter location
+    // ============================================================
+    // FILTER LOCATION
+    // ============================================================
+
     if (locationCode.length > 0) {
       whereCondition.location_code = {
         [Op.in]: locationCode,
       };
     }
 
-    // Filter search
+    // ============================================================
+    // FILTER SEARCH
+    // ============================================================
+
     if (search) {
       whereCondition[Op.or] = [
         {
@@ -265,11 +287,13 @@ export const exportHistoryTransaction = async (req, res) => {
                 "rfid",
                 "vehicle_type",
                 "plate_number",
+                "member_customer_no",
               ],
 
               include: [
                 {
                   model: MembershipDetail,
+                  as: "membershipDetail",
 
                   attributes: [
                     ["id", "membership_detail_id"],
@@ -285,6 +309,37 @@ export const exportHistoryTransaction = async (req, res) => {
 
       order: [["updatedAt", "DESC"]],
     });
+
+    // ============================================================
+    // DEBUG RESPONSE
+    // ============================================================
+
+    console.log("========================================");
+    console.log("TOTAL DATA:", response.length);
+    console.log("========================================");
+
+    if (response.length > 0) {
+      const firstData = response[0];
+
+      console.dir(
+        {
+          trxId: firstData.trxId,
+          user: firstData.trxHistoryUser?.toJSON?.(),
+          customerMemberships:
+            firstData.trxHistoryUser?.customer_memberships?.map((vehicle) => ({
+              vehicle_id: vehicle.vehicle_id,
+              rfid: vehicle.rfid,
+              vehicle_type: vehicle.vehicle_type,
+              plate_number: vehicle.plate_number,
+              member_customer_no: vehicle.member_customer_no,
+              membershipDetail: vehicle.membershipDetail?.toJSON?.(),
+            })),
+        },
+        {
+          depth: null,
+        },
+      );
+    }
 
     // ============================================================
     // NO DATA
@@ -308,9 +363,7 @@ export const exportHistoryTransaction = async (req, res) => {
     // ============================================================
 
     const transactionWorksheet = workbook.addWorksheet(
-      `Transaction ${moment(startDate).format("YYYY-MM-DD")} - ${moment(
-        endDate,
-      ).format("YYYY-MM-DD")}`,
+      `Transaction ${startDate.format("MM")}-${startDate.format("YYYY")}`,
     );
 
     transactionWorksheet.columns = [
@@ -447,9 +500,25 @@ export const exportHistoryTransaction = async (req, res) => {
 
       const user = value.trxHistoryUser;
 
-      const vehicle = user?.VehicleLists?.[0];
+      // ==========================================================
+      // CUSTOMER MEMBERSHIP
+      // ==========================================================
 
-      const membershipDetail = vehicle?.MembershipDetails?.[0];
+      const customerMemberships = user?.customer_memberships ?? [];
+
+      // Ambil kendaraan pertama
+      const vehicle = customerMemberships[0];
+
+      // membershipDetail adalah OBJECT
+      const membershipDetail = vehicle?.membershipDetail;
+
+      console.log("========================================");
+      console.log("TRANSACTION:", value.trxId);
+      console.log("PLATE:", vehicle?.plate_number);
+      console.log("RFID:", vehicle?.rfid);
+      console.log("MEMBER CUSTOMER NO:", vehicle?.member_customer_no);
+      console.log("MEMBERSHIP DETAIL:", membershipDetail?.toJSON?.());
+      console.log("========================================");
 
       transactionWorksheet.addRow({
         No: index + 1,
@@ -463,15 +532,25 @@ export const exportHistoryTransaction = async (req, res) => {
           : "-",
 
         trxId: value.trxId || "-",
+
         transactionType: value.transactionType || "-",
+
         noVirtualAccount: value.virtual_account || "-",
-        AccountName: user?.username || "-",
+
+        AccountName: user?.username || user?.fullname || "-",
+
         locationName: value.location_name || "-",
+
         bank,
+
         typePurchase: value.product_name || "-",
+
         amount: price,
+
         feeAdmin,
-        vehicle_type: value.vehicle_type || "-",
+
+        vehicle_type: vehicle?.vehicle_type || value.vehicle_type || "-",
+
         start_date: membershipDetail?.updated_at
           ? moment(membershipDetail.updated_at)
               .tz("Asia/Jakarta")
@@ -506,6 +585,7 @@ export const exportHistoryTransaction = async (req, res) => {
       noVirtualAccount: "",
       AccountName: "",
       locationName: "",
+      bank: "",
       typePurchase: "TOTAL",
       amount: totalPrice,
       feeAdmin: totalFeeAdmin,
@@ -527,11 +607,18 @@ export const exportHistoryTransaction = async (req, res) => {
       };
     });
 
-    // Number format
+    // ============================================================
+    // NUMBER FORMAT
+    // ============================================================
+
     transactionWorksheet.getColumn("amount").numFmt = "#,##0";
+
     transactionWorksheet.getColumn("feeAdmin").numFmt = "#,##0";
 
-    // Freeze header
+    // ============================================================
+    // FREEZE HEADER
+    // ============================================================
+
     transactionWorksheet.views = [
       {
         state: "frozen",
@@ -539,10 +626,13 @@ export const exportHistoryTransaction = async (req, res) => {
       },
     ];
 
-    // Auto filter
+    // ============================================================
+    // AUTO FILTER
+    // ============================================================
+
     transactionWorksheet.autoFilter = {
       from: "A1",
-      to: "P1",
+      to: "Q1",
     };
 
     // ============================================================
@@ -555,15 +645,18 @@ export const exportHistoryTransaction = async (req, res) => {
 
     response.forEach((value) => {
       const location = value.location_name || "-";
+
       const product = value.product_name || "-";
+
       const vehicleType = value.vehicle_type || "-";
 
       const price = Number(value.price) || 0;
+
       const feeAdmin = 5000;
 
-      // ----------------------------
+      // ==========================================================
       // LOCATION
-      // ----------------------------
+      // ==========================================================
 
       if (!locationSummary[location]) {
         locationSummary[location] = {
@@ -577,9 +670,9 @@ export const exportHistoryTransaction = async (req, res) => {
       locationSummary[location].price += price;
       locationSummary[location].feeAdmin += feeAdmin;
 
-      // ----------------------------
+      // ==========================================================
       // PRODUCT
-      // ----------------------------
+      // ==========================================================
 
       if (!productSummary[product]) {
         productSummary[product] = {
@@ -593,9 +686,9 @@ export const exportHistoryTransaction = async (req, res) => {
       productSummary[product].price += price;
       productSummary[product].feeAdmin += feeAdmin;
 
-      // ----------------------------
+      // ==========================================================
       // VEHICLE
-      // ----------------------------
+      // ==========================================================
 
       if (!vehicleSummary[vehicleType]) {
         vehicleSummary[vehicleType] = {
@@ -616,7 +709,10 @@ export const exportHistoryTransaction = async (req, res) => {
 
     const summaryWorksheet = workbook.addWorksheet("Summary");
 
-    // Column widths
+    // ============================================================
+    // COLUMN WIDTH
+    // ============================================================
+
     summaryWorksheet.getColumn(1).width = 8;
     summaryWorksheet.getColumn(2).width = 35;
     summaryWorksheet.getColumn(3).width = 22;
@@ -652,9 +748,9 @@ export const exportHistoryTransaction = async (req, res) => {
 
     summaryWorksheet.mergeCells("A2:H2");
 
-    summaryWorksheet.getCell("A2").value = `Period: ${moment(startDate).format(
+    summaryWorksheet.getCell("A2").value = `Period: ${startDate.format(
       "DD MMMM YYYY",
-    )} - ${moment(endDate).format("DD MMMM YYYY")}`;
+    )} - ${endDate.format("DD MMMM YYYY")}`;
 
     summaryWorksheet.getCell("A2").alignment = {
       horizontal: "center",
@@ -723,7 +819,9 @@ export const exportHistoryTransaction = async (req, res) => {
     };
 
     summaryWorksheet.getCell("B8").numFmt = "#,##0";
+
     summaryWorksheet.getCell("B9").numFmt = "#,##0";
+
     summaryWorksheet.getCell("B10").numFmt = "#,##0";
 
     // ============================================================
@@ -767,8 +865,6 @@ export const exportHistoryTransaction = async (req, res) => {
       },
     };
 
-    const locationHeaderRow = rowIndex;
-
     rowIndex++;
 
     let locationTotalTransaction = 0;
@@ -788,7 +884,9 @@ export const exportHistoryTransaction = async (req, res) => {
       ];
 
       locationTotalTransaction += data.transaction;
+
       locationTotalPrice += data.price;
+
       locationTotalFeeAdmin += data.feeAdmin;
 
       rowIndex++;
@@ -806,8 +904,6 @@ export const exportHistoryTransaction = async (req, res) => {
     summaryWorksheet.getRow(rowIndex).font = {
       bold: true,
     };
-
-    const locationTotalRow = rowIndex;
 
     rowIndex += 3;
 
@@ -869,7 +965,9 @@ export const exportHistoryTransaction = async (req, res) => {
       ];
 
       productTotalTransaction += data.transaction;
+
       productTotalPrice += data.price;
+
       productTotalFeeAdmin += data.feeAdmin;
 
       rowIndex++;
@@ -948,7 +1046,9 @@ export const exportHistoryTransaction = async (req, res) => {
       ];
 
       vehicleTotalTransaction += data.transaction;
+
       vehicleTotalPrice += data.price;
+
       vehicleTotalFeeAdmin += data.feeAdmin;
 
       rowIndex++;
@@ -980,12 +1080,16 @@ export const exportHistoryTransaction = async (req, res) => {
       });
     });
 
-    // Number format untuk seluruh kolom nominal
     summaryWorksheet.getColumn(4).numFmt = "#,##0";
+
     summaryWorksheet.getColumn(5).numFmt = "#,##0";
+
     summaryWorksheet.getColumn(6).numFmt = "#,##0";
 
-    // Freeze
+    // ============================================================
+    // FREEZE SUMMARY
+    // ============================================================
+
     summaryWorksheet.views = [
       {
         state: "frozen",
@@ -1002,9 +1106,14 @@ export const exportHistoryTransaction = async (req, res) => {
         ? response[0]?.location_name || "ALL"
         : "ALL_LOCATION";
 
-    const fileName = `Transaction_${locationName}_${moment(startDate).format(
-      "YYYYMMDD",
-    )}_${moment(endDate).format("YYYYMMDD")}.xlsx`;
+    const safeLocationName = locationName
+      .replace(/[<>:"/\\|?*]/g, "_")
+      .replace(/\s+/g, "_");
+
+    const fileName =
+      `Transaction_${safeLocationName}_` +
+      `${startDate.format("YYYYMMDD")}_` +
+      `${endDate.format("YYYYMMDD")}.xlsx`;
 
     // ============================================================
     // RESPONSE
@@ -1015,13 +1124,13 @@ export const exportHistoryTransaction = async (req, res) => {
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
 
-    res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
 
     await workbook.xlsx.write(res);
 
     res.end();
   } catch (error) {
-    console.error(error);
+    console.error("Export History Transaction Error:", error);
 
     return res.status(500).json({
       success: false,
@@ -1038,121 +1147,148 @@ export const exportHistoryPayment = async (req, res) => {
   const startDate = req.query.startDate;
   const endDate = req.query.endDate;
 
+  console.log("=== EXPORT PAYMENT ===");
+  console.log("startDate:", startDate);
+  console.log("endDate:", endDate);
+  console.log("query:", req.query);
+
   try {
-    const whereClause = {};
+    const whereClause = {
+      status_transaction: "COMPLETED",
+      payment_using: "VIRTUAL_ACCOUNT",
+      app_module: "APP_MEMBERSHIP",
+    };
 
     if (locationCode.length > 0) {
-      whereClause.location_code = { [Op.in]: locationCode };
+      whereClause.location_code = {
+        [Op.in]: locationCode,
+      };
     }
 
-    const dateCondition =
-      startDate && endDate
-        ? {
-            updated_at: {
-              [Sequelize.Op.gte]: `${startDate} 00:00:00`,
-              [Sequelize.Op.lt]: `${endDate} 23:59:59`,
-            },
-          }
-        : {};
+    if (startDate && endDate) {
+      const start = moment.tz(startDate, "YYYY-MM-DD", "Asia/Jakarta");
+
+      const end = moment
+        .tz(endDate, "YYYY-MM-DD", "Asia/Jakarta")
+        .add(1, "day");
+
+      whereClause.created_at = {
+        [Op.gte]: start.toDate(),
+        [Op.lt]: end.toDate(),
+      };
+    }
 
     const result = await PaymentTransaction.findAndCountAll({
-      where: {
-        ...whereClause,
-        ...dateCondition,
-        status_transaction: "COMPLETED",
-        payment_using: "VIRTUAL_ACCOUNT",
-        app_module: "APP_MEMBERSHIP",
-      },
+      where: whereClause,
+      order: [["created_at", "ASC"]],
     });
 
-    if (result.count > 0) {
-      const workbook = new ExcelJs.Workbook();
-      const worksheet = workbook.addWorksheet("Transaction Membership");
+    if (result.count === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Get data failed",
+      });
+    }
 
-      worksheet.columns = [
-        { header: "No", key: "No", width: 5 },
-        { header: "Transaction Date", width: 20, key: "dateTransaction" },
-        { header: "Transaction Time", width: 20, key: "timeTransaction" },
+    const workbook = new ExcelJs.Workbook();
+    const worksheet = workbook.addWorksheet("Transaction Membership");
 
-        { header: "Transaction Code", width: 30, key: "trx_id" },
-        { header: "Invoice Number", width: 30, key: "invoice_number" },
-        {
-          header: "Virtual Account Name",
-          width: 35,
-          key: "virtual_account_name",
-        },
-        {
-          header: "Virtual Account Number",
-          width: 35,
-          key: "virtual_account_number",
-        },
-        {
-          header: "Virtual Account Email",
-          width: 35,
-          key: "virtual_account_email",
-        },
-        { header: "Payment Method", width: 30, key: "payment_using" },
-        { header: "Product", width: 35, key: "app_module" },
-        { header: "Amount", width: 30, key: "paid_amount" },
-        { header: "Status", width: 20, key: "status_transaction" },
-      ];
+    worksheet.columns = [
+      { header: "No", key: "No", width: 5 },
+      { header: "Transaction Date", key: "dateTransaction", width: 20 },
+      { header: "Transaction Time", key: "timeTransaction", width: 20 },
+      { header: "Transaction Code", key: "trx_id", width: 30 },
+      { header: "Invoice Number", key: "invoice_number", width: 30 },
+      {
+        header: "Virtual Account Name",
+        key: "virtual_account_name",
+        width: 35,
+      },
+      {
+        header: "Virtual Account Number",
+        key: "virtual_account_number",
+        width: 35,
+      },
+      {
+        header: "Virtual Account Email",
+        key: "virtual_account_email",
+        width: 35,
+      },
+      { header: "Payment Method", key: "payment_using", width: 30 },
+      { header: "Product", key: "app_module", width: 35 },
+      { header: "Amount", key: "paid_amount", width: 30 },
+      { header: "Status", key: "status_transaction", width: 20 },
+    ];
 
-      worksheet.getRow(1).eachCell((cell) => {
-        cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; // Bold & warna putih
-        cell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: "0070C0" }, // Background biru
-        };
-        cell.alignment = { vertical: "middle", horizontal: "center" };
+    worksheet.getRow(1).eachCell((cell) => {
+      cell.font = {
+        bold: true,
+        color: { argb: "FFFFFFFF" },
+      };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "0070C0" },
+      };
+      cell.alignment = {
+        vertical: "middle",
+        horizontal: "center",
+      };
+    });
+
+    for (const [index, value] of result.rows.entries()) {
+      const transactionDate = value.created_at
+        ? moment(value.created_at).tz("Asia/Jakarta")
+        : null;
+
+      const row = worksheet.addRow({
+        No: index + 1,
+        dateTransaction: transactionDate
+          ? transactionDate.format("YYYY-MM-DD")
+          : "-",
+        timeTransaction: transactionDate
+          ? transactionDate.format("HH:mm:ss")
+          : "-",
+        trx_id: value.trx_id || "-",
+        invoice_number: value.invoice_number || "-",
+        virtual_account_name: value.virtual_account_name || "-",
+        virtual_account_number: value.virtual_account_number || "-",
+        virtual_account_email: value.virtual_account_email || "-",
+        payment_using: value.payment_using || "-",
+        app_module: value.app_module || "-",
+        paid_amount: value.paid_amount || "-",
+        status_transaction: value.status_transaction || "-",
       });
 
-      for (const [index, value] of result.rows.entries()) {
-        const row = worksheet.addRow({
-          No: index + 1,
-          dateTransaction: value.created_at
-            ? moment(value.created_at).tz("Asia/Jakarta").format("YYYY-MM-DD")
-            : "-",
-          timeTransaction: value.created_at
-            ? moment(value.created_at).tz("Asia/Jakarta").format("HH:mm:ss")
-            : "-",
-
-          trx_id: value.trx_id || "-",
-          invoice_number: value.invoice_number || "-",
-          virtual_account_name: value.virtual_account_name || "-",
-          virtual_account_number: value.virtual_account_number || "-",
-          virtual_account_email: value.virtual_account_email || "-",
-          payment_using: value.payment_using || "-",
-          app_module: value.app_module || "-",
-
-          purchase_type: value.transactionType || "-",
-          paid_amount: value.paid_amount || "-",
-          status_transaction: value.status_transaction || "-",
-        });
-
-        row.eachCell((cell) => {
-          cell.alignment = { vertical: "middle", horizontal: "center" };
-        });
-      }
-
-      const fileName = startDate
-        ? `History_Payment_${startDate}_to_${endDate}.xlsx`
-        : `History_Payment_alldate.xlsx`;
-
-      res.setHeader(
-        "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      );
-      res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
-
-      await workbook.xlsx.write(res);
-      res.end();
-    } else {
-      res.status(400).json({ success: false, message: "Get data failed" });
+      row.eachCell((cell) => {
+        cell.alignment = {
+          vertical: "middle",
+          horizontal: "center",
+        };
+      });
     }
+
+    const fileName =
+      startDate && endDate
+        ? `History_Payment_${startDate}_to_${endDate}.xlsx`
+        : "History_Payment_alldate.xlsx";
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+
+    res.setHeader("Content-Disposition", `attachment; filename=${fileName}`);
+
+    await workbook.xlsx.write(res);
+    res.end();
   } catch (error) {
-    console.log("Error:", error);
-    res.status(500).json({ success: false, message: "Server error" });
+    console.error("Error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
   }
 };
 

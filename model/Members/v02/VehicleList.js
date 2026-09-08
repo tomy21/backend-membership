@@ -1,7 +1,6 @@
 import { DataTypes, Sequelize } from "sequelize";
 import { db } from "../../../config/dbConfig.js";
 import MembershipDetail from "./MembershipDetail.js";
-import User from "../Users.js";
 
 const VehicleList = db.define(
   "customer_membership",
@@ -58,15 +57,17 @@ const VehicleList = db.define(
   {
     tableName: "customer_membership",
     timestamps: false,
-  }
+  },
 );
 
 VehicleList.belongsTo(MembershipDetail, {
+  as: "membershipDetail",
   foreignKey: "member_customer_no",
   targetKey: "member_customer_no",
 });
 
 MembershipDetail.hasMany(VehicleList, {
+  as: "vehicles",
   foreignKey: "member_customer_no",
   sourceKey: "member_customer_no",
 });

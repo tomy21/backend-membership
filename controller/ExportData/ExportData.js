@@ -1335,8 +1335,8 @@ export const exportHistoryPaymentB2B = async (req, res) => {
 
       worksheet.columns = [
         { header: "No", key: "No", width: 5 },
-        { header: "Transaction Date", width: 20, key: "dateTransaction" },
-        { header: "Transaction Time", width: 20, key: "timeTransaction" },
+        { header: "Date", width: 20, key: "dateTransaction" },
+        { header: "Time", width: 20, key: "timeTransaction" },
         { header: "Transaction Code", width: 30, key: "trx_id" },
         { header: "Invoice Number", width: 30, key: "invoice_number" },
         {
@@ -1375,11 +1375,11 @@ export const exportHistoryPaymentB2B = async (req, res) => {
       for (const [index, value] of uniqueRows.entries()) {
         const row = worksheet.addRow({
           No: index + 1,
-          dateTransaction: value.created_at
-            ? moment(value.created_at).tz("Asia/Jakarta").format("YYYY-MM-DD")
+          dateTransaction: value.updated_at
+            ? moment(value.updated_at).tz("Asia/Jakarta").format("YYYY-MM-DD")
             : "-",
-          timeTransaction: value.created_at
-            ? moment(value.created_at).tz("Asia/Jakarta").format("HH:mm:ss")
+          timeTransaction: value.updated_at
+            ? moment(value.updated_at).tz("Asia/Jakarta").format("HH:mm:ss")
             : "-",
           trx_id: value.trx_id || "-",
           invoice_number: value.invoice_number || "-",

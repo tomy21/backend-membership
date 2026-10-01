@@ -2575,9 +2575,9 @@ export const exportDetailTransaksiLocation = async (req, res) => {
 
       const virtualAccount = toText(value.virtual_account);
 
-      if (virtualAccount.startsWith("899986")) {
+      if (virtualAccount.startsWith("8999")) {
         bank = "NOBU";
-      } else if (virtualAccount.startsWith("384689")) {
+      } else if (virtualAccount.startsWith("3846")) {
         bank = "BCA";
       }
 

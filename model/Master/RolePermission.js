@@ -1,7 +1,7 @@
-import { DataTypes, Sequelize } from "sequelize";
+import { DataTypes } from "sequelize";
 import { db } from "../../config/dbConfig.js";
-import { MemberUserRole } from "./RoleModel.js";
 import { MenuModels } from "./MenuModels.js";
+import { MemberUserRole } from "./RoleModel.js";
 
 export const RolePermission = db.define(
   "membershipRolePermission",
@@ -49,7 +49,7 @@ export const RolePermission = db.define(
   {
     tableName: "membershipRolePermission",
     timestamps: false,
-  }
+  },
 );
 
 MemberUserRole.hasMany(RolePermission, {

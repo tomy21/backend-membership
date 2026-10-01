@@ -1,36 +1,34 @@
-import express from "express";
-import cookieParser from "cookie-parser";
 import bodyParser from "body-parser";
+import cookieParser from "cookie-parser";
 import cors from "cors";
+import express from "express";
 import path from "path";
 import authRoutes from "./route/Members/authRoute.js";
 import ProductMemberRoute from "./route/Members/Master/ProductMasterRoute.js";
 import TrxMemberPayment from "./route/Members/TrxMemberPayments.js";
 
+import ExportSummary from "./route/Members/Export/ExportData.js";
+import LocationMembers from "./route/Members/LocationMaster.js";
+import Provider from "./route/Members/Master/Provider.js";
 import MemberHistoryPost from "./route/Members/MemberHistoryPost.js";
 import MemberHistoryTrx from "./route/Members/MemberHistoryTransaction.js";
-import LocationMembers from "./route/Members/LocationMaster.js";
 import vehicleList from "./route/Members/VehicleListRoute.js";
-import Provider from "./route/Members/Master/Provider.js";
-import ExportSummary from "./route/Members/Export/ExportData.js";
 
 import CMSRoute from "./route/CMS/Auth.js";
-import RolePermission from "./route/CMS/RolePermission.js";
-import Menu from "./route/CMS/MenuRoute.js";
 import Dashboard from "./route/CMS/DashboardRoute.js";
 import ExportData from "./route/CMS/ExportDataRoute.js";
-import NotificationRoute from "./route/Members/NotificationRoute.js";
-import UploadMember from "./route/CMS/UploadMember.js";
 import HistoryPoints from "./route/CMS/HistoryPoints.js";
+import Menu from "./route/CMS/MenuRoute.js";
 import Reconsiliasi from "./route/CMS/reconsiliasi.js";
+import RolePermission from "./route/CMS/RolePermission.js";
+import UploadMember from "./route/CMS/UploadMember.js";
 import MemberTenantRoute from "./route/Members/MemberTenants.js";
+import NotificationRoute from "./route/Members/NotificationRoute.js";
 
-import authAplikasi from "./route/aplikasi/auth.js"
-import transaksiAplikasi from "./route/aplikasi/transaksi.js"
+import authAplikasi from "./route/aplikasi/auth.js";
+import transaksiAplikasi from "./route/aplikasi/transaksi.js";
 
-import TennantRouteAuth from "./route/Members/MemberTenants.js"
-
-
+import TennantRouteAuth from "./route/Members/MemberTenants.js";
 
 // import scheduleMembershipReminder from "./jobs/MembershipReminder.js";`
 
@@ -48,7 +46,7 @@ app.use(
       "https://inject.skyparking.online",
       "https://membership.skyparking.online",
     ],
-  })
+  }),
 );
 
 // scheduleMembershipReminder();
@@ -84,7 +82,6 @@ app.use("/v01/member/api", MemberTenantRoute);
 
 //tennant
 app.use("/v01/tennant/api/auth", TennantRouteAuth);
-
 
 //aplikasi
 app.use("/v01/aplikasi/api", authAplikasi);

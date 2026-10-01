@@ -1,6 +1,5 @@
-import { DataTypes, Sequelize } from "sequelize";
+import { DataTypes } from "sequelize";
 import { db } from "../../config/dbConfig.js";
-import { RolePermission } from "./RolePermission.js";
 
 export const MenuModels = db.define(
   "membershipMenuCMS",
@@ -64,7 +63,7 @@ export const MenuModels = db.define(
     deletedAt: "deleted_at",
     createdAt: "created_at",
     updatedAt: "updated_at",
-  }
+  },
 );
 
 // MenuModels.hasMany(RolePermission, {

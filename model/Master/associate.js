@@ -24,4 +24,4 @@ MemberUserRole.hasMany(RolePermission, {
   foreignKey: "role_id",
 });
 
-export { MenuModels, RolePermission, MemberUserRole };
+export { MemberUserRole, MenuModels, RolePermission };

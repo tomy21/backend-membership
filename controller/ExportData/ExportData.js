@@ -138,60 +138,48 @@ export const exportHistoryTransaction = async (req, res) => {
       ? JSON.parse(req.query.locationCode)
       : [];
 
-    const { month, year, search } = req.query;
+    // const { month, year, search } = req.query;
 
     // ============================================================
     // DATE FILTER
     // ============================================================
+    const {
+      startDate: startDateParam,
+      endDate: endDateParam,
+      search,
+    } = req.query;
 
-    const currentDate = moment.tz("Asia/Jakarta");
+    const startDate = startDateParam
+      ? moment.tz(startDateParam, "YYYY-MM-DD", "Asia/Jakarta").startOf("day")
+      : moment.tz("Asia/Jakarta").startOf("month");
 
-    const selectedMonth = month ? parseInt(month, 10) : currentDate.month() + 1;
+    const endDate = endDateParam
+      ? moment.tz(endDateParam, "YYYY-MM-DD", "Asia/Jakarta").endOf("day")
+      : moment.tz("Asia/Jakarta").endOf("month");
 
-    const selectedYear = year ? parseInt(year, 10) : currentDate.year();
-
-    if (
-      Number.isNaN(selectedMonth) ||
-      selectedMonth < 1 ||
-      selectedMonth > 12
-    ) {
+    if (!startDate.isValid() || !endDate.isValid()) {
       return res.status(400).json({
         success: false,
-        message: "Invalid month",
+        message: "Invalid startDate or endDate",
       });
     }
 
-    if (Number.isNaN(selectedYear)) {
+    if (startDate.isAfter(endDate)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid year",
+        message: "startDate cannot be greater than endDate",
       });
     }
-
-    const startDate = moment
-      .tz(
-        {
-          year: selectedYear,
-          month: selectedMonth - 1,
-          day: 1,
-        },
-        "Asia/Jakarta",
-      )
-      .startOf("day");
-
-    const nextMonth = startDate.clone().add(1, "month").startOf("month");
-
-    const endDate = nextMonth.clone().subtract(1, "millisecond");
 
     console.log("========================================");
     console.log("EXPORT HISTORY TRANSACTION");
     console.log("========================================");
-    console.log("month:", month);
-    console.log("year:", year);
-    console.log("selectedMonth:", selectedMonth);
-    console.log("selectedYear:", selectedYear);
+    // console.log("month:", month);
+    // console.log("year:", year);
+    // console.log("selectedMonth:", selectedMonth);
+    // console.log("selectedYear:", selectedYear);
     console.log("startDate:", startDate.format("YYYY-MM-DD HH:mm:ss Z"));
-    console.log("nextMonth:", nextMonth.format("YYYY-MM-DD HH:mm:ss Z"));
+    // console.log("nextMonth:", nextMonth.format("YYYY-MM-DD HH:mm:ss Z"));
     console.log("endDate:", endDate.format("YYYY-MM-DD HH:mm:ss Z"));
     console.log("locationCode:", locationCode);
     console.log("search:", search);
@@ -205,7 +193,7 @@ export const exportHistoryTransaction = async (req, res) => {
       statusPayment: "PAID",
       updatedAt: {
         [Op.gte]: startDate.toDate(),
-        [Op.lt]: nextMonth.toDate(),
+        [Op.lte]: endDate.toDate(),
       },
     };
 

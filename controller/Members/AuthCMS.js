@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs/dist/bcrypt.js";
 import CryptoJS from "crypto-js";
 import dotenv from "dotenv";
+import ExcelJs from "exceljs";
 import { fn, literal, Op, Sequelize } from "sequelize";
 import {
   createSendToken,
@@ -604,95 +605,251 @@ export const logoutCMS = (req, res) => {
 
 export const getAllMembership = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+
+    const limit = Math.max(parseInt(req.query.limit, 10) || 20, 1);
+
     const offset = (page - 1) * limit;
 
-    const search = req.query.search || "";
+    const search = req.query.search?.trim() || "";
 
-    // bikin kondisi search global
-    const searchCondition = search
-      ? Sequelize.literal(`
-      (
-        Member_Customer.fullname LIKE '%${search}%' OR
-        Member_Customer.email LIKE '%${search}%' OR
-        Member_Customer.username LIKE '%${search}%' OR
-        customer_membership_detail.location_name LIKE '%${search}%' OR
-        customer_membership.rfid LIKE '%${search}%' OR
-        customer_membership.plate_number LIKE '%${search}%'
-      )
-    `)
-      : {};
+    const status = req.query.status?.trim().toLowerCase() || "";
 
-    // hitung total
-    const totalUsers = await VehicleList.count({
-      where: searchCondition,
-      include: [{ model: MembershipDetail }, { model: User }],
-    });
+    const location = req.query.location?.trim() || "";
 
-    // ambil data
-    const rows = await VehicleList.findAll({
-      where: searchCondition,
-      include: [
+    console.log("========================================");
+    console.log("GET ALL MEMBERSHIP");
+    console.log("========================================");
+    console.log("page:", page);
+    console.log("limit:", limit);
+    console.log("search:", search);
+    console.log("status:", status);
+    console.log("location:", location);
+    console.log("========================================");
+
+    /*
+     * ========================================
+     * VEHICLE WHERE
+     * ========================================
+     */
+    const where = {};
+
+    /*
+     * ========================================
+     * SEARCH
+     * ========================================
+     *
+     * Search:
+     * - RFID
+     * - Plate Number
+     * - Customer Number
+     * - Customer Name
+     * - Customer Email
+     * - Customer Username
+     * - Location Name
+     */
+    if (search) {
+      where[Op.or] = [
         {
-          model: MembershipDetail,
-          as: "membershipDetail",
-          attributes: [
-            "id",
-            "location_name",
-            "start_date",
-            "end_date",
-            [
-              Sequelize.literal(
-                "IF(`customer_membership_detail`.`end_date` >= CURDATE(), 1, 0)",
-              ),
-              "isActive",
-            ],
-          ],
+          rfid: {
+            [Op.like]: `%${search}%`,
+          },
         },
         {
-          model: User,
-          attributes: [
-            "fullname",
-            "email",
-            "points",
-            "phone_number",
-            "username",
-            "created_at",
-          ],
+          plate_number: {
+            [Op.like]: `%${search}%`,
+          },
         },
-      ],
+        {
+          member_customer_no: {
+            [Op.like]: `%${search}%`,
+          },
+        },
+        {
+          "$Member_Customer.fullname$": {
+            [Op.like]: `%${search}%`,
+          },
+        },
+        {
+          "$Member_Customer.email$": {
+            [Op.like]: `%${search}%`,
+          },
+        },
+        {
+          "$Member_Customer.username$": {
+            [Op.like]: `%${search}%`,
+          },
+        },
+        {
+          "$membershipDetail.location_name$": {
+            [Op.like]: `%${search}%`,
+          },
+        },
+      ];
+    }
+
+    /*
+     * ========================================
+     * MEMBERSHIP FILTER
+     * ========================================
+     *
+     * Status TIDAK menggunakan is_active.
+     *
+     * Active:
+     * end_date >= CURRENT_TIMESTAMP
+     *
+     * Inactive:
+     * end_date < CURRENT_TIMESTAMP
+     */
+    const membershipWhere = {};
+
+    if (status === "active") {
+      membershipWhere.end_date = {
+        [Op.gte]: Sequelize.literal("CURRENT_TIMESTAMP"),
+      };
+    }
+
+    if (status === "inactive") {
+      membershipWhere.end_date = {
+        [Op.lt]: Sequelize.literal("CURRENT_TIMESTAMP"),
+      };
+    }
+
+    /*
+     * Filter Location
+     */
+    if (location) {
+      membershipWhere.location_id = location;
+    }
+
+    console.log("[membershipWhere]", membershipWhere);
+
+    /*
+     * ========================================
+     * MEMBERSHIP INCLUDE
+     * ========================================
+     *
+     * required = true jika ada filter
+     * status/location.
+     *
+     * Artinya kalau user memilih:
+     *
+     * status=active
+     *
+     * hanya membership yang memenuhi:
+     *
+     * end_date >= CURRENT_TIMESTAMP
+     *
+     * yang diambil.
+     */
+    const membershipInclude = {
+      model: MembershipDetail,
+      as: "membershipDetail",
       attributes: [
         "id",
-        "cust_id",
-        "member_customer_no",
-        "rfid",
-        "vehicle_type",
-        "plate_number",
+        "location_id",
+        "location_name",
+        "start_date",
+        "end_date",
+        "is_active",
+        "is_used",
       ],
+      required: Object.keys(membershipWhere).length > 0,
+    };
+
+    if (Object.keys(membershipWhere).length > 0) {
+      membershipInclude.where = membershipWhere;
+    }
+
+    /*
+     * ========================================
+     * USER INCLUDE
+     * ========================================
+     */
+    const userInclude = {
+      model: User,
+      as: "Member_Customer",
+      attributes: [
+        "id",
+        "fullname",
+        "email",
+        "points",
+        "phone_number",
+        "username",
+        "created_at",
+      ],
+      required: false,
+    };
+
+    /*
+     * ========================================
+     * QUERY
+     * ========================================
+     */
+    const { count, rows } = await VehicleList.findAndCountAll({
+      where,
+
+      include: [membershipInclude, userInclude],
+
+      distinct: true,
+      col: "id",
+
       limit,
       offset,
+
       order: [["updatedAt", "DESC"]],
     });
 
-    // ubah isActive ke boolean
-    const rowsWithActive = rows.map((v) => {
-      if (v.MembershipDetail) {
-        v.MembershipDetail.dataValues.isActive =
-          v.MembershipDetail.dataValues.isActive === 1;
+    /*
+     * ========================================
+     * FORMAT RESPONSE
+     * ========================================
+     *
+     * Status dihitung berdasarkan end_date.
+     *
+     * Tidak menggunakan is_active.
+     */
+    const now = new Date();
+
+    const data = rows.map((row) => {
+      const item = row.toJSON();
+
+      const membership = item.membershipDetail;
+
+      if (membership?.end_date) {
+        const endDate = new Date(membership.end_date);
+
+        const isActive = endDate >= now;
+
+        membership.isActive = isActive;
+
+        membership.status = isActive ? "active" : "inactive";
+      } else {
+        item.membershipDetail = null;
+        item.isActive = false;
+        item.status = "inactive";
       }
-      return v;
+
+      return item;
     });
 
-    res.status(200).json({
-      total: totalUsers,
-      totalPages: Math.ceil(totalUsers / limit),
+    /*
+     * ========================================
+     * RESPONSE
+     * ========================================
+     */
+    return res.status(200).json({
+      total: count,
+      totalPages: Math.ceil(count / limit),
       currentPage: page,
-      data: rowsWithActive,
+      data,
     });
   } catch (error) {
     console.error("Error in getAllMembership:", error);
-    res.status(500).json({ error: error.message });
+
+    return res.status(500).json({
+      error: error.message,
+    });
   }
 };
 
@@ -929,6 +1086,511 @@ export const changePasswordByToken = async (req, res) => {
     res.status(400).json({
       statusCode: 400,
       message: error.message,
+    });
+  }
+};
+
+export const exportMembership = async (req, res) => {
+  try {
+    const search = req.query.search?.trim() || "";
+
+    const status = req.query.status?.trim().toLowerCase() || "";
+
+    const location = req.query.location?.trim() || "";
+
+    console.log("========================================");
+    console.log("EXPORT MEMBERSHIP");
+    console.log("========================================");
+    console.log("search:", search);
+    console.log("status:", status);
+    console.log("location:", location);
+    console.log("========================================");
+
+    /*
+     * ========================================
+     * VEHICLE WHERE
+     * ========================================
+     */
+    const where = {};
+
+    /*
+     * ========================================
+     * SEARCH
+     * ========================================
+     */
+    if (search) {
+      where[Op.or] = [
+        {
+          rfid: {
+            [Op.like]: `%${search}%`,
+          },
+        },
+        {
+          plate_number: {
+            [Op.like]: `%${search}%`,
+          },
+        },
+        {
+          member_customer_no: {
+            [Op.like]: `%${search}%`,
+          },
+        },
+        {
+          "$Member_Customer.fullname$": {
+            [Op.like]: `%${search}%`,
+          },
+        },
+        {
+          "$Member_Customer.email$": {
+            [Op.like]: `%${search}%`,
+          },
+        },
+        {
+          "$Member_Customer.username$": {
+            [Op.like]: `%${search}%`,
+          },
+        },
+        {
+          "$membershipDetail.location_name$": {
+            [Op.like]: `%${search}%`,
+          },
+        },
+      ];
+    }
+
+    /*
+     * ========================================
+     * MEMBERSHIP FILTER
+     * ========================================
+     *
+     * Active:
+     * end_date >= sekarang
+     *
+     * Inactive:
+     * end_date < sekarang
+     */
+    const membershipWhere = {};
+
+    if (status === "active") {
+      membershipWhere.end_date = {
+        [Op.gte]: Sequelize.literal("CURRENT_TIMESTAMP"),
+      };
+    }
+
+    if (status === "inactive") {
+      membershipWhere.end_date = {
+        [Op.lt]: Sequelize.literal("CURRENT_TIMESTAMP"),
+      };
+    }
+
+    /*
+     * ========================================
+     * LOCATION FILTER
+     * ========================================
+     */
+    if (location) {
+      membershipWhere.location_id = location;
+    }
+
+    /*
+     * ========================================
+     * MEMBERSHIP INCLUDE
+     * ========================================
+     */
+    const membershipInclude = {
+      model: MembershipDetail,
+      as: "membershipDetail",
+      attributes: [
+        "id",
+        "location_id",
+        "location_name",
+        "start_date",
+        "end_date",
+        "is_active",
+        "is_used",
+      ],
+      required: Object.keys(membershipWhere).length > 0,
+    };
+
+    if (Object.keys(membershipWhere).length > 0) {
+      membershipInclude.where = membershipWhere;
+    }
+
+    /*
+     * ========================================
+     * USER INCLUDE
+     * ========================================
+     */
+    const userInclude = {
+      model: User,
+      as: "Member_Customer",
+      attributes: [
+        "id",
+        "fullname",
+        "email",
+        "points",
+        "phone_number",
+        "username",
+        "created_at",
+      ],
+      required: false,
+    };
+
+    /*
+     * ========================================
+     * GET ALL DATA
+     * ========================================
+     *
+     * Tidak menggunakan:
+     * - page
+     * - limit
+     * - offset
+     */
+    const rows = await VehicleList.findAll({
+      where,
+      include: [membershipInclude, userInclude],
+      attributes: [
+        "id",
+        "cust_id",
+        "member_customer_no",
+        "rfid",
+        "vehicle_type",
+        "plate_number",
+        "plate_number_image",
+        "stnk_image",
+        "tennant_code",
+        "createdAt",
+        "updatedAt",
+      ],
+      order: [["updatedAt", "DESC"]],
+    });
+
+    console.log("TOTAL EXPORT:", rows.length);
+
+    /*
+     * ========================================
+     * CREATE EXCEL WORKBOOK
+     * ========================================
+     */
+    const workbook = new ExcelJs.Workbook();
+
+    workbook.creator = "Membership Management";
+
+    workbook.created = new Date();
+
+    workbook.modified = new Date();
+
+    const worksheet = workbook.addWorksheet("Membership");
+
+    /*
+     * ========================================
+     * COLUMNS
+     * ========================================
+     */
+    worksheet.columns = [
+      {
+        header: "No",
+        key: "no",
+        width: 8,
+      },
+      {
+        header: "Customer No",
+        key: "customerNo",
+        width: 20,
+      },
+      {
+        header: "Name",
+        key: "name",
+        width: 30,
+      },
+      {
+        header: "Email",
+        key: "email",
+        width: 35,
+      },
+      {
+        header: "Phone Number",
+        key: "phone",
+        width: 20,
+      },
+      {
+        header: "Username",
+        key: "username",
+        width: 25,
+      },
+      {
+        header: "Points",
+        key: "points",
+        width: 12,
+      },
+      {
+        header: "Vehicle Type",
+        key: "vehicleType",
+        width: 15,
+      },
+      {
+        header: "Plate Number",
+        key: "plateNumber",
+        width: 18,
+      },
+      {
+        header: "RFID",
+        key: "rfid",
+        width: 18,
+      },
+      {
+        header: "Tenant Code",
+        key: "tenantCode",
+        width: 18,
+      },
+      {
+        header: "Location Code",
+        key: "locationCode",
+        width: 18,
+      },
+      {
+        header: "Location",
+        key: "locationName",
+        width: 35,
+      },
+      {
+        header: "Start Date",
+        key: "startDate",
+        width: 20,
+      },
+      {
+        header: "End Date",
+        key: "endDate",
+        width: 20,
+      },
+      {
+        header: "Status",
+        key: "status",
+        width: 15,
+      },
+      {
+        header: "Database Active",
+        key: "isActive",
+        width: 18,
+      },
+      {
+        header: "Created At",
+        key: "createdAt",
+        width: 22,
+      },
+      {
+        header: "Updated At",
+        key: "updatedAt",
+        width: 22,
+      },
+    ];
+
+    /*
+     * ========================================
+     * HEADER STYLE
+     * ========================================
+     */
+    const headerRow = worksheet.getRow(1);
+
+    headerRow.font = {
+      bold: true,
+      color: {
+        argb: "FFFFFFFF",
+      },
+    };
+
+    headerRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: {
+        argb: "FF1F4E78",
+      },
+    };
+
+    headerRow.alignment = {
+      vertical: "middle",
+      horizontal: "center",
+    };
+
+    headerRow.height = 25;
+
+    /*
+     * ========================================
+     * DATA
+     * ========================================
+     */
+    const now = new Date();
+
+    rows.forEach((row, index) => {
+      const item = row.toJSON();
+
+      const customer = item.Member_Customer;
+
+      const membership = item.membershipDetail;
+
+      let isActive = false;
+      let membershipStatus = "Inactive";
+
+      if (membership?.end_date) {
+        const endDate = new Date(membership.end_date);
+
+        isActive = endDate >= now;
+
+        membershipStatus = isActive ? "Active" : "Inactive";
+      }
+
+      worksheet.addRow({
+        no: index + 1,
+
+        customerNo: item.member_customer_no || "-",
+
+        name: customer?.fullname || "-",
+
+        email: customer?.email || "-",
+
+        phone: customer?.phone_number || "-",
+
+        username: customer?.username || "-",
+
+        points: customer?.points ?? 0,
+
+        vehicleType: item.vehicle_type || "-",
+
+        plateNumber: item.plate_number || "-",
+
+        rfid: item.rfid || "-",
+
+        tenantCode: item.tennant_code || "-",
+
+        locationCode: membership?.location_id || "-",
+
+        locationName: membership?.location_name || "-",
+
+        startDate: membership?.start_date
+          ? new Date(membership.start_date)
+          : null,
+
+        endDate: membership?.end_date ? new Date(membership.end_date) : null,
+
+        status: membershipStatus,
+
+        isActive: isActive ? "1" : "0",
+
+        createdAt: item.createdAt ? new Date(item.createdAt) : null,
+
+        updatedAt: item.updatedAt ? new Date(item.updatedAt) : null,
+      });
+    });
+
+    /*
+     * ========================================
+     * DATE FORMAT
+     * ========================================
+     */
+    worksheet.getColumn("startDate").numFmt = "dd mmm yyyy hh:mm";
+
+    worksheet.getColumn("endDate").numFmt = "dd mmm yyyy hh:mm";
+
+    worksheet.getColumn("createdAt").numFmt = "dd mmm yyyy hh:mm";
+
+    worksheet.getColumn("updatedAt").numFmt = "dd mmm yyyy hh:mm";
+
+    /*
+     * ========================================
+     * BORDER
+     * ========================================
+     */
+    worksheet.eachRow(
+      {
+        includeEmpty: false,
+      },
+      (row) => {
+        row.eachCell((cell) => {
+          cell.border = {
+            top: {
+              style: "thin",
+              color: {
+                argb: "FFD9D9D9",
+              },
+            },
+            left: {
+              style: "thin",
+              color: {
+                argb: "FFD9D9D9",
+              },
+            },
+            bottom: {
+              style: "thin",
+              color: {
+                argb: "FFD9D9D9",
+              },
+            },
+            right: {
+              style: "thin",
+              color: {
+                argb: "FFD9D9D9",
+              },
+            },
+          };
+        });
+      },
+    );
+
+    /*
+     * ========================================
+     * AUTO FILTER
+     * ========================================
+     */
+    worksheet.autoFilter = {
+      from: "A1",
+      to: `S${rows.length + 1}`,
+    };
+
+    /*
+     * ========================================
+     * FREEZE HEADER
+     * ========================================
+     */
+    worksheet.views = [
+      {
+        state: "frozen",
+        ySplit: 1,
+      },
+    ];
+
+    /*
+     * ========================================
+     * FILENAME
+     * ========================================
+     */
+    const dateString = new Date().toISOString().slice(0, 10);
+
+    const filename = `membership-${dateString}.xlsx`;
+
+    /*
+     * ========================================
+     * RESPONSE
+     * ========================================
+     */
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+    res.setHeader("Content-Length", buffer.length);
+
+    return res.status(200).send(buffer);
+  } catch (error) {
+    console.error("Error export membership:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to export membership",
+      error: error.message,
     });
   }
 };

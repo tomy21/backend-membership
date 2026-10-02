@@ -12,6 +12,7 @@ router.delete("/delete-user/:id", Users.softDeleteUser);
 router.post("/user-cms/restore/:id", Users.restoreUser);
 router.post("/logout-cms", Users.logoutCMS);
 router.get("/get-all-membership", Users.getAllMembership);
+router.get("/export-membership", Users.exportMembership);
 router.get("/get-location-membership", Users.getLocationMember);
 router.post("/create-role", protect, Users.addRole);
 router.post("/change-password", protect, Users.changePassword);

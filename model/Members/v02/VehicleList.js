@@ -72,9 +72,4 @@ MembershipDetail.hasMany(VehicleList, {
   as: "vehicles",
 });
 
-// VehicleList.belongsTo(User, {
-//   foreignKey: "cust_id",
-//   targetKey: "id", // atau sesuaikan primary key User
-// });
-
 export default VehicleList;

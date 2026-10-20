@@ -206,102 +206,177 @@ export const requestTokenActivation = async (req, res) => {
   }
 };
 
-export const requestResetPassword = async (req, res) => {
-  try {
-    const randomString = Date.now().toString() + Math.random().toString();
-    const token = CryptoJS.SHA256(randomString).toString(CryptoJS.enc.Hex); // Hash unik
-    const expired = new Date(Date.now() + 1000 * 60 * 15);
+import { randomBytes } from "node:crypto";
+import path from "node:path";
 
-    const { email, referralUrl } = req.body;
-    const user = await User.findOne({
+export const requestResetPassword = async (req, res) => {
+  let user;
+
+  try {
+    const { email } = req.body;
+
+    if (typeof email !== "string" || !email.trim()) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Alamat email wajib diisi.",
+      });
+    }
+
+    const identifier = email.trim();
+
+    user = await User.findOne({
       where: {
-        [Op.or]: [{ email: email }, { username: email }],
+        [Op.or]: [{ email: identifier }, { username: identifier }],
       },
     });
 
+    // Gunakan respons yang sama untuk mencegah enumerasi akun.
+    const successResponse = {
+      status: "success",
+      message:
+        "Jika akun ditemukan, instruksi reset password akan dikirim ke email terdaftar.",
+    };
+
     if (!user) {
-      return res.status(401).json({
-        status: "fail",
-        message: "User tidak ditemukan.",
-      });
+      return res.status(200).json(successResponse);
     }
+
+    if (!user.email) {
+      return res.status(200).json(successResponse);
+    }
+
+    // Token acak kriptografis dengan masa berlaku 15 menit.
+    const token = randomBytes(32).toString("hex");
+    const expired = new Date(Date.now() + 15 * 60 * 1000);
 
     await user.update({
       reset_password_token: token,
       reset_password_expired: expired,
     });
 
-    const URL_BACKEND = process.env.URL_DIRECT_MEMBERSHIP;
-    const activationURL = `${URL_BACKEND}/change-password?token=${token}`;
+    // URL ini harus mengarah ke frontend yang memiliki halaman change-password.
+    const frontendUrl = process.env.URL_DIRECT_MEMBERSHIP;
 
-    const to = user.email;
-    const subject = "Permintaan Reset Password Akun Membership SKY PARKING";
+    if (!frontendUrl) {
+      throw new Error("URL_DIRECT_MEMBERSHIP belum dikonfigurasi.");
+    }
+
+    const resetUrl = new URL(
+      "/change-password",
+      frontendUrl.endsWith("/") ? frontendUrl : `${frontendUrl}/`,
+    );
+
+    resetUrl.searchParams.set("token", token);
+
+    const subject = "Reset Password Akun SKY Membership";
+
+    const username = String(user.username || "Member").replace(
+      /[&<>"']/g,
+      (char) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[char],
+    );
+
+    const resetLink = resetUrl.toString();
+
     const html = `
-    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; max-width: 600px; margin: 0 auto; padding: 0; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; background-color: #ffffff;">
-      
-      <div style="background-color: #f8f9fa; text-align: center; padding: 30px 20px; border-bottom: 4px solid #dc3545;">
-        <img src="cid:logo" alt="SKY Parking Logo" style="width: 180px; height: auto;" />
-      </div>
-
-      <div style="padding: 40px 30px;">
-        <h2 style="color: #333333; margin-top: 0; font-size: 22px;">Halo, ${user.username}!</h2>
-        
-        <p style="color: #555555; font-size: 16px;">
-          Kami menerima permintaan untuk mengatur ulang password akun <strong>SKY PARKING</strong> Anda. 
-        </p>
-        
-        <p style="color: #555555; font-size: 16px;">
-          Jangan khawatir, hal ini biasa terjadi. Anda dapat membuat password baru dengan mengklik tombol aman di bawah ini:
-        </p>
-
-        <div style="text-align: center; margin: 35px 0;">
-          <a href="${activationURL}" style="background-color: #dc3545; color: #ffffff; padding: 14px 30px; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: bold; display: inline-block; box-shadow: 0 4px 6px rgba(220, 53, 69, 0.2);">
-            ATUR ULANG PASSWORD
-          </a>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden;">
+        <div style="background: #0f172a; padding: 28px; text-align: center;">
+          <h1 style="color: #ffffff; font-size: 22px; margin: 0;">SKY Membership</h1>
+          <p style="color: #cbd5e1; font-size: 13px; margin: 8px 0 0;">Password Reset Request</p>
         </div>
 
-        <div style="background-color: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; margin-bottom: 25px; border-radius: 4px;">
-          <p style="color: #721c24; margin: 0; font-size: 14px;">
-            <strong>Keamanan:</strong> Link ini akan kadaluarsa dalam 1 jam. Jika Anda tidak merasa meminta reset password ini, abaikan saja email ini. Akun Anda tetap aman dan password tidak akan berubah.
+        <div style="padding: 32px 28px;">
+          <h2 style="color: #0f172a; font-size: 21px;">Halo, ${username}!</h2>
+
+          <p style="color: #475569; font-size: 15px; line-height: 1.8;">
+            Kami menerima permintaan untuk mengatur ulang password akun SKY Membership kamu.
+            Klik tombol di bawah untuk membuat password baru.
+          </p>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetLink}" style="display: inline-block; background: #2563eb; color: #ffffff; padding: 14px 28px; border-radius: 10px; text-decoration: none; font-size: 15px; font-weight: bold;">
+              Reset Password
+            </a>
+          </div>
+
+          <p style="color: #64748b; font-size: 13px; line-height: 1.7;">
+            Link ini berlaku selama <strong>15 menit</strong> sejak permintaan dibuat dan hanya dapat digunakan sesuai aturan validasi token di server.
+          </p>
+
+          <p style="color: #64748b; font-size: 13px; line-height: 1.7;">
+            Jika tombol tidak dapat dibuka, salin tautan berikut ke browser:
+          </p>
+
+          <p style="word-break: break-all; font-size: 12px; line-height: 1.7;">
+            <a href="${resetLink}" style="color: #2563eb;">${resetLink}</a>
+          </p>
+
+          <div style="margin-top: 24px; padding: 16px; background: #f8fafc; border-radius: 10px;">
+            <p style="color: #475569; font-size: 13px; line-height: 1.7; margin: 0;">
+              Jika kamu tidak meminta reset password, abaikan email ini. Password akun kamu tidak akan berubah tanpa proses reset yang valid.
+            </p>
+          </div>
+
+          <p style="color: #475569; font-size: 14px; line-height: 1.7; margin-top: 28px;">
+            Salam,<br />
+            <strong>IT Support SKY Parking</strong>
           </p>
         </div>
 
-        <p style="color: #555555; font-size: 15px;">
-          Butuh bantuan lebih lanjut? Silakan hubungi tim IT Support kami melalui layanan helpdesk SKY PARKING.
-        </p>
-
-        <p style="color: #333333; font-size: 15px; margin-top: 30px;">
-          Salam hangat,<br/>
-          <strong>IT Support SKY Parking Utama</strong>
-        </p>
+        <div style="padding: 18px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;">
+          <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+            &copy; ${new Date().getFullYear()} SKY Parking. All rights reserved.
+          </p>
+          <p style="margin: 6px 0 0; color: #94a3b8; font-size: 12px;">
+            Email otomatis. Mohon tidak membalas pesan ini.
+          </p>
+        </div>
       </div>
-
-      <div style="background-color: #f8f9fa; text-align: center; padding: 20px; color: #999999; font-size: 12px; border-top: 1px solid #eeeeee;">
-        <p style="margin: 5px 0;">&copy; 2026 SKY Parking Utama. All rights reserved.</p>
-        <p style="margin: 5px 0;">Pesan ini dikirim secara otomatis, mohon tidak membalas email ini.</p>
-      </div>
-    </div>
-`;
+    `;
 
     const attachments = [
       {
         filename: "logo.png",
-        path: "./images/logo.png",
+        path: path.resolve(process.cwd(), "images/logo.png"),
         cid: "logo",
       },
     ];
 
-    await sendEmailRegister({ to, subject, html, attachments });
-
-    res.status(200).json({
-      status: "success",
-      message: "Token reset telah dikirimkan ke email Anda.",
+    await sendEmailRegister({
+      to: user.email,
+      subject,
+      html,
+      attachments,
     });
+
+    return res.status(200).json(successResponse);
   } catch (error) {
-    res.status(500).json({
+    console.error("requestResetPassword failed:", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+
+    // Batalkan token yang baru dibuat jika email gagal dikirim.
+    if (user) {
+      try {
+        await user.update({
+          reset_password_token: null,
+          reset_password_expired: null,
+        });
+      } catch (cleanupError) {
+        console.error("Failed to clear reset token:", cleanupError);
+      }
+    }
+
+    return res.status(500).json({
       status: "error",
-      message: "Terjadi kesalahan pada server. Silakan coba lagi nanti.",
-      error: error.message, // Opsional: Hapus di produksi jika terlalu sensitif
+      message:
+        "Permintaan reset password belum dapat diproses. Silakan coba kembali.",
     });
   }
 };
